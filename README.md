@@ -186,7 +186,7 @@ homectl up example.com --dry-run
 - `domain status` reports expected tunnel target, apex and wildcard DNS state, apex and wildcard `cloudflared` ingress state, whether a route is being shadowed by an earlier ingress rule, whether Cloudflare DNS is ambiguous or of the wrong type, whether coverage is apex-only or wildcard-only, and whether `homectl domain repair` is likely to fix the current state automatically.
 - `list`, `domain status`, `validate`, and `doctor` support `--json` for machine-readable output.
 - `up`, `down`, and `restart` support `--json` for machine-readable command results.
-- `site init` and `app init` support `--json` for machine-readable scaffold results.
+- `site init` and `app init` support `--json` for machine-readable scaffold results, including the selected template and rendered template-to-output mapping.
 - `cloudflared status` reports the detected runtime mode, whether it is active, and the restart command when one is available.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
 - `cloudflared logs` prints the right `journalctl` or `docker logs` command for the detected runtime and supports `--follow` plus `--json`.

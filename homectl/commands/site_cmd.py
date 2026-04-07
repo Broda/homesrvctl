@@ -37,6 +37,10 @@ def site_init(
         str(target_dir / "docker-compose.yml"),
         str(html_dir / "index.html"),
     ]
+    rendered_templates = [
+        {"output": str(target_dir / "docker-compose.yml"), "template": "static/docker-compose.yml.j2"},
+        {"output": str(html_dir / "index.html"), "template": "static/index.html.j2"},
+    ]
 
     try:
         ensure_directory(target_dir, dry_run=dry_run, quiet=json_output)
@@ -73,9 +77,11 @@ def site_init(
                         "action": "site_init",
                         "hostname": valid_hostname,
                         "target_dir": str(target_dir),
+                        "template": "static",
                         "dry_run": dry_run,
                         "ok": False,
                         "files": files,
+                        "rendered_templates": rendered_templates,
                         "error": str(exc),
                     }),
                     indent=2,
@@ -91,9 +97,11 @@ def site_init(
                     "action": "site_init",
                     "hostname": valid_hostname,
                     "target_dir": str(target_dir),
+                    "template": "static",
                     "dry_run": dry_run,
                     "ok": True,
                     "files": files,
+                    "rendered_templates": rendered_templates,
                 }),
                 indent=2,
             )

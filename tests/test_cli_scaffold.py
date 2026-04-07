@@ -165,9 +165,11 @@ def test_site_init_json_output(monkeypatch, tmp_path: Path) -> None:
     _assert_schema_version(payload)
     assert payload["action"] == "site_init"
     assert payload["hostname"] == "test.example.com"
+    assert payload["template"] == "static"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
     assert payload["files"][0].endswith("/test.example.com/docker-compose.yml")
+    assert payload["rendered_templates"][0]["template"] == "static/docker-compose.yml.j2"
 
 
 def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
@@ -188,6 +190,7 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["dry_run"] is True
     assert payload["ok"] is True
     assert payload["files"][-1].endswith("/notes.example.com/src/server.js")
+    assert payload["rendered_templates"][0]["template"] == "app/node/docker-compose.yml.j2"
 
 
 def test_app_init_python_json_output(monkeypatch, tmp_path: Path) -> None:
@@ -208,6 +211,7 @@ def test_app_init_python_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["dry_run"] is True
     assert payload["ok"] is True
     assert payload["files"][-1].endswith("/api.example.com/app/main.py")
+    assert payload["rendered_templates"][-1]["template"] == "app/python/app/main.py.j2"
 
 
 def test_app_init_json_reports_overwrite_error(monkeypatch, tmp_path: Path) -> None:

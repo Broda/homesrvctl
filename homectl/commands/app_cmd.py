@@ -40,6 +40,7 @@ def app_init(
     target_dir = config.hostname_dir(valid_hostname)
     outputs = _template_outputs(target_dir, template)
     files = [str(path) for path, _ in outputs]
+    rendered_templates = [{"output": str(path), "template": template_name} for path, template_name in outputs]
 
     try:
         ensure_directory(target_dir, dry_run=dry_run, quiet=json_output)
@@ -78,6 +79,7 @@ def app_init(
                         "dry_run": dry_run,
                         "ok": False,
                         "files": files,
+                        "rendered_templates": rendered_templates,
                         "error": str(exc),
                     }),
                     indent=2,
@@ -97,6 +99,7 @@ def app_init(
                     "dry_run": dry_run,
                     "ok": True,
                     "files": files,
+                    "rendered_templates": rendered_templates,
                 }),
                 indent=2,
             )
