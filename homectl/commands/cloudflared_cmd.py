@@ -21,14 +21,7 @@ def cloudflared_status(
     """Show how cloudflared is currently managed and whether it is active."""
     runtime = detect_cloudflared_runtime()
     if json_output:
-        payload = {
-            "ok": runtime.active,
-            "mode": runtime.mode,
-            "active": runtime.active,
-            "detail": runtime.detail,
-            "restart_command": runtime.restart_command,
-        }
-        typer.echo(json.dumps(payload, indent=2))
+        typer.echo(json.dumps(_runtime_payload(runtime, ok=runtime.active), indent=2))
     else:
         detail = f"{runtime.mode}: {runtime.detail}"
         if runtime.active:
@@ -51,27 +44,13 @@ def cloudflared_restart(
     if dry_run:
         if runtime.restart_command:
             if json_output:
-                payload = {
-                    "ok": True,
-                    "dry_run": True,
-                    "mode": runtime.mode,
-                    "detail": runtime.detail,
-                    "restart_command": runtime.restart_command,
-                }
-                typer.echo(json.dumps(payload, indent=2))
+                typer.echo(json.dumps(_runtime_payload(runtime, ok=True, dry_run=True), indent=2))
             else:
                 info(f"[dry-run] {' '.join(runtime.restart_command)}")
                 success(f"Dry-run complete for cloudflared restart via {runtime.mode}")
             return
         if json_output:
-            payload = {
-                "ok": False,
-                "dry_run": True,
-                "mode": runtime.mode,
-                "detail": runtime.detail,
-                "restart_command": runtime.restart_command,
-            }
-            typer.echo(json.dumps(payload, indent=2))
+            typer.echo(json.dumps(_runtime_payload(runtime, ok=False, dry_run=True), indent=2))
         else:
             warn(f"[dry-run] {runtime.detail}")
         raise typer.Exit(code=1)
@@ -80,23 +59,11 @@ def cloudflared_restart(
         runtime = restart_cloudflared_service()
     except CloudflaredServiceError as exc:
         if json_output:
-            payload = {
-                "ok": False,
-                "dry_run": False,
-                "detail": str(exc),
-            }
-            typer.echo(json.dumps(payload, indent=2))
+            typer.echo(json.dumps({"ok": False, "dry_run": False, "detail": str(exc)}, indent=2))
             raise typer.Exit(code=1) from exc
         raise typer.Exit(code=_exit_with_error(str(exc))) from exc
     if json_output:
-        payload = {
-            "ok": True,
-            "dry_run": False,
-            "mode": runtime.mode,
-            "detail": runtime.detail,
-            "restart_command": runtime.restart_command,
-        }
-        typer.echo(json.dumps(payload, indent=2))
+        typer.echo(json.dumps(_runtime_payload(runtime, ok=True, dry_run=False), indent=2))
         return
     success(f"Restarted cloudflared via {runtime.mode}")
 
@@ -104,3 +71,16 @@ def cloudflared_restart(
 def _exit_with_error(message: str) -> int:
     typer.secho(message, fg=typer.colors.RED, err=True)
     return 1
+
+
+def _runtime_payload(runtime, ok: bool, dry_run: bool | None = None) -> dict[str, object]:  # noqa: ANN001
+    payload: dict[str, object] = {
+        "ok": ok,
+        "mode": runtime.mode,
+        "active": runtime.active,
+        "detail": runtime.detail,
+        "restart_command": runtime.restart_command,
+    }
+    if dry_run is not None:
+        payload["dry_run"] = dry_run
+    return payload
