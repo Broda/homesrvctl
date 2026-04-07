@@ -18,6 +18,12 @@ class IngressChange:
     service: str
 
 
+@dataclass(slots=True)
+class IngressRouteMatch:
+    hostname: str
+    service: str
+
+
 def describe_cloudflared_config_error(error: CloudflaredConfigError | typer.BadParameter) -> str:
     message = str(error)
     hint = _cloudflared_config_hint(message)
@@ -76,24 +82,22 @@ def validate_ingress_config(config_path: Path) -> str:
 
 
 def find_hostname_route(config_path: Path, hostname: str) -> str | None:
+    match = inspect_hostname_route(config_path, hostname)
+    return match.service if match else None
+
+
+def inspect_hostname_route(config_path: Path, hostname: str) -> IngressRouteMatch | None:
     parsed = _load_config(config_path)
     ingress = _normalize_ingress(parsed, config_path)
-    entries = ingress[:-1]
     wanted = hostname.strip().lower()
-    wildcard = _wildcard_for(wanted)
-
-    for entry in entries:
+    for entry in ingress[:-1]:
         entry_hostname = str(entry.get("hostname", "")).strip().lower()
-        if entry_hostname == wanted:
-            return str(entry.get("service", "")).strip()
-
-    if wildcard is None:
-        return None
-
-    for entry in entries:
-        entry_hostname = str(entry.get("hostname", "")).strip().lower()
-        if entry_hostname == wildcard:
-            return str(entry.get("service", "")).strip()
+        if not entry_hostname or not _hostname_matches(entry_hostname, wanted):
+            continue
+        return IngressRouteMatch(
+            hostname=entry_hostname,
+            service=str(entry.get("service", "")).strip(),
+        )
     return None
 
 
@@ -215,6 +219,19 @@ def _wildcard_for(hostname: str) -> str | None:
     if len(labels) < 3:
         return None
     return f"*.{'.'.join(labels[1:])}"
+
+
+def _hostname_matches(pattern: str, hostname: str) -> bool:
+    if pattern == hostname:
+        return True
+    if not pattern.startswith("*."):
+        return False
+
+    suffix = pattern[2:]
+    if not suffix or not hostname.endswith(f".{suffix}"):
+        return False
+
+    return hostname.count(".") > suffix.count(".")
 
 
 def _cloudflared_config_hint(message: str) -> str | None:

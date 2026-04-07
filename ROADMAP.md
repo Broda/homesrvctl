@@ -21,7 +21,6 @@
 ## Next
 
 - Add more domain-level diagnostics and repair hints for unsafe or ambiguous `cloudflared` config states.
-- Detect and explain unexpected non-target ingress entries that shadow a requested hostname.
 - Detect and explain wildcard-only routing cases where the apex is still missing.
 - Detect and explain DNS records of the wrong type or target with clearer remediation text.
 - Consider surfacing “repairable” versus “manual-fix required” in status output.
@@ -41,6 +40,7 @@
 - Added `homectl domain remove` for DNS and ingress teardown.
 - Added `homectl domain status` with `ok`, `partial`, and `misconfigured` reporting.
 - Added a repairability signal and suggested repair command to `homectl domain status`.
+- Added domain-status diagnostics for earlier ingress rules that shadow the requested hostname.
 - Added `homectl domain repair` to converge stale or partial domain state.
 - Added `--json` output for `domain add`, `domain repair`, and `domain remove`.
 - Added a shared `cloudflared` service-management abstraction for runtime detection and restart handling.

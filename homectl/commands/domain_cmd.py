@@ -11,6 +11,7 @@ from homectl.cloudflared import (
     apply_domain_ingress_removal,
     describe_cloudflared_config_error,
     find_exact_hostname_route,
+    inspect_hostname_route,
     plan_domain_ingress,
     plan_domain_ingress_removal,
 )
@@ -215,17 +216,14 @@ def domain_status(
         records = [bare_domain, f"*.{bare_domain}"]
 
         dns_statuses = [client.get_dns_record_status(zone_id, record_name, target) for record_name in records]
-        ingress_statuses = [
-            (record_name, find_exact_hostname_route(config.cloudflared_config, record_name))
-            for record_name in records
-        ]
+        ingress_statuses = _build_domain_ingress_statuses(config.cloudflared_config, bare_domain, config.traefik_url)
     except (CloudflareApiError, typer.BadParameter) as exc:
         raise typer.Exit(code=_exit_with_error(_format_domain_error(exc))) from exc
     except CloudflaredConfigError as exc:
         raise typer.Exit(code=_exit_with_error(_format_domain_error(exc))) from exc
 
     overall = _overall_domain_status(dns_statuses, ingress_statuses, config.traefik_url)
-    repairable = _domain_status_repairability(overall)
+    repairable = _domain_status_repairability(overall, ingress_statuses)
     suggested_command = f"homectl domain repair {bare_domain}" if repairable else None
     if json_output:
         payload = {
@@ -250,12 +248,17 @@ def domain_status(
             ],
             "ingress": [
                 {
-                    "hostname": hostname,
-                    "exists": service is not None,
-                    "service": service,
-                    "matches_expected": service == config.traefik_url,
+                    "hostname": status["hostname"],
+                    "probe_hostname": status["probe_hostname"],
+                    "exists": status["service"] is not None,
+                    "service": status["service"],
+                    "matches_expected": status["matches_expected"],
+                    "effective_hostname": status["effective_hostname"],
+                    "effective_service": status["effective_service"],
+                    "shadowed": status["shadowed"],
+                    "detail": status["detail"],
                 }
-                for hostname, service in ingress_statuses
+                for status in ingress_statuses
             ],
         }
         typer.echo(json.dumps(payload, indent=2))
@@ -274,16 +277,12 @@ def domain_status(
             ok = status.matches_expected
             bullet_report("PASS" if ok else "FAIL", f"DNS {status.record_name}", detail, ok)
 
-        for hostname, service in ingress_statuses:
-            if service is None:
-                bullet_report("FAIL", f"ingress {hostname}", "entry missing", False)
-                continue
-
-            ok = service == config.traefik_url
+        for status in ingress_statuses:
+            ok = status["matches_expected"]
             bullet_report(
                 "PASS" if ok else "FAIL",
-                f"ingress {hostname}",
-                service,
+                f"ingress {status['hostname']}",
+                str(status["detail"]),
                 ok,
             )
 
@@ -502,13 +501,60 @@ def _warn_cloudflared_restart(json_output: bool = False) -> dict[str, object]:
     return {"ok": False, "detail": runtime.detail, "restart_command": runtime.restart_command}
 
 
+def _build_domain_ingress_statuses(config_path, domain: str, expected_service: str) -> list[dict[str, object]]:  # noqa: ANN001
+    statuses: list[dict[str, object]] = []
+    wildcard_probe = _wildcard_probe_hostname(domain)
+
+    for target_hostname, probe_hostname in (
+        (domain, domain),
+        (f"*.{domain}", wildcard_probe),
+    ):
+        configured_service = find_exact_hostname_route(config_path, target_hostname)
+        effective_match = inspect_hostname_route(config_path, probe_hostname)
+        effective_hostname = effective_match.hostname if effective_match else None
+        effective_service = effective_match.service if effective_match else None
+        shadowed = effective_match is not None and effective_hostname != target_hostname
+
+        if configured_service is None:
+            if shadowed:
+                detail = f"shadowed by earlier rule {effective_hostname} -> {effective_service}"
+            else:
+                detail = "entry missing"
+        elif shadowed:
+            detail = f"shadowed by earlier rule {effective_hostname} -> {effective_service}"
+        else:
+            detail = configured_service
+
+        matches_expected = (
+            configured_service == expected_service
+            and effective_hostname == target_hostname
+            and effective_service == expected_service
+        )
+        statuses.append(
+            {
+                "hostname": target_hostname,
+                "probe_hostname": probe_hostname,
+                "service": configured_service,
+                "matches_expected": matches_expected,
+                "effective_hostname": effective_hostname,
+                "effective_service": effective_service,
+                "shadowed": shadowed,
+                "detail": detail,
+            }
+        )
+    return statuses
+
+
 def _overall_domain_status(dns_statuses, ingress_statuses, expected_service: str) -> str:  # noqa: ANN001
     dns_exists = [status.exists for status in dns_statuses]
     dns_matches = [status.matches_expected for status in dns_statuses]
-    ingress_exists = [service is not None for _, service in ingress_statuses]
-    ingress_matches = [service == expected_service for _, service in ingress_statuses]
+    ingress_exists = [status["service"] is not None for status in ingress_statuses]
+    ingress_matches = [status["matches_expected"] for status in ingress_statuses]
     dns_wrong = [status.exists and not status.matches_expected for status in dns_statuses]
-    ingress_wrong = [service is not None and service != expected_service for _, service in ingress_statuses]
+    ingress_wrong = [
+        status["service"] is not None and not status["matches_expected"]
+        for status in ingress_statuses
+    ]
 
     if all(dns_matches) and all(ingress_matches):
         return "ok"
@@ -530,8 +576,14 @@ def _format_domain_error(error: Exception) -> str:
     return str(error)
 
 
-def _domain_status_repairability(overall: str) -> bool:
-    return overall in {"partial", "misconfigured"}
+def _domain_status_repairability(overall: str, ingress_statuses) -> bool:  # noqa: ANN001
+    if overall not in {"partial", "misconfigured"}:
+        return False
+    return not any(status["shadowed"] for status in ingress_statuses)
+
+
+def _wildcard_probe_hostname(domain: str) -> str:
+    return f"_homectl-probe.{domain}"
 
 
 def _dns_result_to_dict(result) -> dict[str, object]:
