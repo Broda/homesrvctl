@@ -53,6 +53,7 @@ Initialize the default config:
 
 ```bash
 homectl config init
+homectl config init --json
 ```
 
 That writes:
@@ -151,7 +152,7 @@ homectl up example.com --dry-run
 
 ## Command Overview
 
-- `homectl config init`
+- `homectl config init [--path PATH] [--force] [--json]`
 - `homectl domain add <domain> [--dry-run] [--json] [--restart-cloudflared]`
 - `homectl domain status <domain> [--json]`
 - `homectl domain repair <domain> [--dry-run] [--json] [--restart-cloudflared]`
@@ -174,6 +175,7 @@ homectl up example.com --dry-run
 - `domain add` uses the Cloudflare DNS API to manage apex and wildcard records for the requested zone.
 - `domain add`, `domain repair`, and `domain remove` support `--json` for machine-readable mutation results.
 - all `--json` commands include a top-level `schema_version` so automation can pin to a known output shape.
+- `config init --json` reports whether the config file was created or overwritten.
 - `domain status` reports expected tunnel target, apex and wildcard DNS state, apex and wildcard `cloudflared` ingress state, whether a route is being shadowed by an earlier ingress rule, whether Cloudflare DNS is ambiguous or of the wrong type, whether coverage is apex-only or wildcard-only, and whether `homectl domain repair` is likely to fix the current state automatically.
 - `list`, `domain status`, `validate`, and `doctor` support `--json` for machine-readable output.
 - `up`, `down`, and `restart` support `--json` for machine-readable command results.

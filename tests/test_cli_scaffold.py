@@ -78,6 +78,44 @@ def test_app_init_node_template_creates_placeholder(monkeypatch, tmp_path: Path)
     assert (app_dir / "README.node-template.md").exists()
 
 
+def test_config_init_json_output(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["config", "init", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "config_init"
+    assert payload["ok"] is True
+    assert payload["created"] is True
+    assert payload["overwrote"] is False
+    assert payload["config_path"].endswith("/.config/homectl/config.yml")
+
+
+def test_config_init_json_reports_existing_config(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    config_dir = home / ".config" / "homectl"
+    config_dir.mkdir(parents=True)
+    config_path = config_dir / "config.yml"
+    config_path.write_text("tunnel_name: existing\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["config", "init", "--json"])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "config_init"
+    assert payload["ok"] is False
+    assert payload["created"] is False
+    assert payload["overwrote"] is False
+    assert "config already exists" in payload["error"]
+
+
 def test_site_init_json_output(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
