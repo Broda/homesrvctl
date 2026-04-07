@@ -59,7 +59,19 @@ def cloudflared_restart(
         runtime = restart_cloudflared_service()
     except CloudflaredServiceError as exc:
         if json_output:
-            typer.echo(json.dumps({"ok": False, "dry_run": False, "detail": str(exc)}, indent=2))
+            typer.echo(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "dry_run": False,
+                        "mode": runtime.mode,
+                        "active": runtime.active,
+                        "detail": str(exc),
+                        "restart_command": runtime.restart_command,
+                    },
+                    indent=2,
+                )
+            )
             raise typer.Exit(code=1) from exc
         raise typer.Exit(code=_exit_with_error(str(exc))) from exc
     if json_output:

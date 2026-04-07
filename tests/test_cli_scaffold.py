@@ -266,6 +266,37 @@ def test_cloudflared_restart_json_failure(monkeypatch) -> None:
     assert payload["mode"] == "process"
 
 
+def test_cloudflared_restart_json_failure_runtime_fields(monkeypatch) -> None:
+    from homectl.commands import cloudflared_cmd
+
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "detect_cloudflared_runtime",
+        lambda: CloudflaredRuntime(
+            mode="docker",
+            active=True,
+            detail="running container(s): cloudflared",
+            restart_command=["docker", "restart", "cloudflared"],
+        ),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "restart_cloudflared_service",
+        lambda: (_ for _ in ()).throw(cloudflared_cmd.CloudflaredServiceError("docker restart failed: permission denied")),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["cloudflared", "restart", "--json"])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["dry_run"] is False
+    assert payload["mode"] == "docker"
+    assert payload["active"] is True
+    assert payload["restart_command"] == ["docker", "restart", "cloudflared"]
+
+
 def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
     from homectl.commands import domain_cmd
 
