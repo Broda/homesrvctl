@@ -87,6 +87,7 @@ Add DNS tunnel routes for a domain:
 
 ```bash
 homectl domain add example.com
+homectl domain remove example.com --dry-run
 ```
 
 Scaffold and run a static site:
@@ -122,6 +123,7 @@ Preview without changing anything:
 ```bash
 homectl domain add example.com --dry-run
 homectl domain add example.com --dry-run --restart-cloudflared
+homectl domain remove example.com --dry-run
 homectl site init example.com --dry-run
 homectl up example.com --dry-run
 ```
@@ -130,6 +132,7 @@ homectl up example.com --dry-run
 
 - `homectl config init`
 - `homectl domain add <domain> [--dry-run] [--restart-cloudflared]`
+- `homectl domain remove <domain> [--dry-run] [--restart-cloudflared]`
 - `homectl site init <hostname> [--force] [--dry-run]`
 - `homectl app init <hostname> [--template static|placeholder|node] [--force] [--dry-run]`
 - `homectl up <hostname> [--dry-run]`
@@ -144,6 +147,7 @@ homectl up example.com --dry-run
 - `domain add` uses the Cloudflare DNS API to manage apex and wildcard records for the requested zone.
 - `domain add` also reconciles apex and wildcard hostname entries in the configured `cloudflared` ingress file so new domains route locally to Traefik.
 - `domain add` resolves the tunnel target from the local `cloudflared` tunnel configuration and does not depend on the active `cloudflared tunnel login` zone.
+- `domain remove` removes apex and wildcard DNS records and matching `cloudflared` ingress entries for the requested zone.
 - pass `--restart-cloudflared` to have `domain add` restart the systemd `cloudflared` service automatically after ingress changes
 - without that flag, restart `cloudflared` manually after ingress changes
 - `site init` and `app init` generate Traefik-safe router and service identifiers from the hostname.

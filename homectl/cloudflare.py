@@ -112,6 +112,39 @@ class CloudflareApiClient:
         )
         return ApiPlan("update", record_name, "CNAME", content)
 
+    def plan_dns_record_removal(self, zone_id: str, record_name: str) -> ApiPlan:
+        existing = self._list_dns_records(zone_id, record_name)
+        if not existing:
+            return ApiPlan("noop", record_name, "DNS", "")
+        if len(existing) > 1:
+            raise CloudflareApiError(
+                f"multiple DNS records exist for {record_name}; clean them up manually before retrying"
+            )
+
+        record = existing[0]
+        return ApiPlan(
+            "delete",
+            record_name,
+            str(record.get("type", "")).strip() or "DNS",
+            str(record.get("content", "")).strip(),
+        )
+
+    def apply_dns_record_removal(self, zone_id: str, record_name: str) -> ApiPlan:
+        existing = self._list_dns_records(zone_id, record_name)
+        if not existing:
+            return ApiPlan("noop", record_name, "DNS", "")
+        if len(existing) > 1:
+            raise CloudflareApiError(
+                f"multiple DNS records exist for {record_name}; clean them up manually before retrying"
+            )
+
+        record = existing[0]
+        record_id = str(record.get("id", "")).strip()
+        record_type = str(record.get("type", "")).strip() or "DNS"
+        record_content = str(record.get("content", "")).strip()
+        self._request_json("DELETE", f"/zones/{zone_id}/dns_records/{record_id}")
+        return ApiPlan("delete", record_name, record_type, record_content)
+
     def _list_dns_records(self, zone_id: str, record_name: str) -> list[dict[str, object]]:
         encoded = urllib.parse.quote(record_name, safe="")
         payload = self._request_json("GET", f"/zones/{zone_id}/dns_records?name={encoded}")

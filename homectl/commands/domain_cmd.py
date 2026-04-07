@@ -6,7 +6,9 @@ from homectl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_c
 from homectl.cloudflared import (
     CloudflaredConfigError,
     apply_domain_ingress,
+    apply_domain_ingress_removal,
     plan_domain_ingress,
+    plan_domain_ingress_removal,
 )
 from homectl.config import load_config
 from homectl.shell import command_exists, run_command
@@ -78,6 +80,71 @@ def domain_add(
             info("[dry-run] systemctl restart cloudflared")
     else:
         success(f"Added domain routing for {bare_domain}")
+        if ingress_changed:
+            if restart_cloudflared:
+                _restart_cloudflared()
+            else:
+                warn("Restart cloudflared to apply ingress changes: sudo systemctl restart cloudflared")
+
+
+@domain_cli.command("remove")
+def domain_remove(
+    domain: str = typer.Argument(..., help="Bare domain to remove from the existing Cloudflare Tunnel setup."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print commands without making changes."),
+    restart_cloudflared: bool = typer.Option(
+        False,
+        "--restart-cloudflared",
+        help="Restart cloudflared after ingress changes are written.",
+    ),
+) -> None:
+    """Remove apex and wildcard tunnel DNS routes for a domain."""
+    config = load_config()
+    bare_domain = validate_bare_domain(domain)
+    client = CloudflareApiClient(config.cloudflare_api_token)
+
+    ingress_changed = False
+    try:
+        zone = client.get_zone(bare_domain)
+        zone_id = str(zone["id"])
+        records = [bare_domain, f"*.{bare_domain}"]
+
+        for record_name in records:
+            if dry_run:
+                plan = client.plan_dns_record_removal(zone_id, record_name)
+                info(f"[dry-run] {plan.action} DNS {plan.record_type} {plan.record_name}")
+                continue
+
+            result = client.apply_dns_record_removal(zone_id, record_name)
+            action_label = {
+                "delete": "deleted",
+                "noop": "already absent",
+            }.get(result.action, result.action)
+            info(f"{action_label} DNS {result.record_type} {result.record_name}")
+
+        ingress_changes = (
+            plan_domain_ingress_removal(config.cloudflared_config, bare_domain)
+            if dry_run
+            else apply_domain_ingress_removal(config.cloudflared_config, bare_domain)
+        )
+        ingress_changed = any(change.action != "noop" for change in ingress_changes)
+        for change in ingress_changes:
+            prefix = "[dry-run] " if dry_run else ""
+            action_label = {
+                "delete": "delete",
+                "noop": "already absent",
+            }.get(change.action, change.action)
+            info(f"{prefix}{action_label} ingress {change.hostname}")
+    except (CloudflareApiError, typer.BadParameter) as exc:
+        raise typer.Exit(code=_exit_with_error(str(exc))) from exc
+    except CloudflaredConfigError as exc:
+        raise typer.Exit(code=_exit_with_error(str(exc))) from exc
+
+    if dry_run:
+        success(f"Dry-run complete for domain {bare_domain}")
+        if restart_cloudflared and ingress_changed:
+            info("[dry-run] systemctl restart cloudflared")
+    else:
+        success(f"Removed domain routing for {bare_domain}")
         if ingress_changed:
             if restart_cloudflared:
                 _restart_cloudflared()

@@ -40,6 +40,26 @@ def apply_domain_ingress(config_path: Path, domain: str, service_url: str) -> li
     return changes
 
 
+def plan_domain_ingress_removal(config_path: Path, domain: str) -> list[IngressChange]:
+    parsed = _load_config(config_path)
+    ingress = _normalize_ingress(parsed, config_path)
+    return _plan_ingress_removal(ingress, domain)
+
+
+def apply_domain_ingress_removal(config_path: Path, domain: str) -> list[IngressChange]:
+    parsed = _load_config(config_path)
+    ingress = _normalize_ingress(parsed, config_path)
+    changes = _plan_ingress_removal(ingress, domain)
+    if all(change.action == "noop" for change in changes):
+        return changes
+
+    parsed["ingress"] = [
+        entry for entry in ingress[:-1] if str(entry.get("hostname", "")).strip().lower() not in _target_hostnames(domain)
+    ] + [ingress[-1]]
+    config_path.write_text(yaml.safe_dump(parsed, sort_keys=False), encoding="utf-8")
+    return changes
+
+
 def validate_ingress_config(config_path: Path) -> str:
     parsed = _load_config(config_path)
     ingress = _normalize_ingress(parsed, config_path)
@@ -94,6 +114,29 @@ def _reconcile_ingress(ingress: list[dict[str, object]], domain: str, service_ur
             changes.append(IngressChange("noop", hostname, service_url))
         else:
             changes.append(IngressChange("update", hostname, service_url))
+    return changes
+
+
+def _plan_ingress_removal(ingress: list[dict[str, object]], domain: str) -> list[IngressChange]:
+    targets = _target_hostnames(domain)
+    existing_by_hostname: dict[str, dict[str, object]] = {}
+
+    for entry in ingress[:-1]:
+        hostname = str(entry.get("hostname", "")).strip().lower()
+        if not hostname:
+            continue
+        if hostname in targets:
+            if hostname in existing_by_hostname:
+                raise CloudflaredConfigError(f"duplicate ingress hostname entry found: {hostname}")
+            existing_by_hostname[hostname] = entry
+
+    changes: list[IngressChange] = []
+    for hostname in targets:
+        existing = existing_by_hostname.get(hostname)
+        if existing is None:
+            changes.append(IngressChange("noop", hostname, ""))
+            continue
+        changes.append(IngressChange("delete", hostname, str(existing.get("service", "")).strip()))
     return changes
 
 
