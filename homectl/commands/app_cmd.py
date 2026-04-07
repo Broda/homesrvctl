@@ -113,7 +113,7 @@ def _template_outputs(target_dir, template: TemplateName) -> list[tuple]:  # noq
     if template == "static":
         return [
             (target_dir / "docker-compose.yml", "static/docker-compose.yml.j2"),
-            (target_dir / ".env.example", "app/env.example.j2"),
+            (target_dir / ".env.example", "app/placeholder/env.example.j2"),
         ]
     if template == "node":
         return [
@@ -136,6 +136,6 @@ def _template_outputs(target_dir, template: TemplateName) -> list[tuple]:  # noq
             (target_dir / "app" / "main.py", "app/python/app/main.py.j2"),
         ]
     return [
-        (target_dir / "docker-compose.yml", "app/docker-compose.yml.j2"),
-        (target_dir / ".env.example", "app/env.example.j2"),
+        (target_dir / "docker-compose.yml", "app/placeholder/docker-compose.yml.j2"),
+        (target_dir / ".env.example", "app/placeholder/env.example.j2"),
     ]

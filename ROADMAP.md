@@ -52,13 +52,13 @@
 - Added `config init --json` with created-versus-overwritten reporting.
 - Added a real multi-file `node` app scaffold under `homectl/templates/app/node/`.
 - Added a real multi-file `python` app scaffold under `homectl/templates/app/python/`.
+- Moved the placeholder app scaffold under `homectl/templates/app/placeholder/`.
 - Added CI via GitHub Actions and updated it to Node 24-compatible action versions.
 - Cleaned the public repository for release with generic examples, neutral defaults, and MIT licensing metadata.
 
 ## Later
 
 - Expand `app init` templates beyond the current placeholder and minimal scaffolds.
-- Standardize future app templates under per-template directories in `homectl/templates/app/`, with `placeholder/`, `node/`, and `python/` as the initial layout targets.
 - Consider additional templates for common self-hosted app patterns such as a static app plus API.
 - Decide how much opinionated app bootstrap belongs in `homectl` versus remaining a minimal Compose scaffold generator.
 - Add packaging and release automation for tagged versions.
