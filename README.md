@@ -107,10 +107,10 @@ homectl site init notes.example.com
 homectl up notes.example.com
 ```
 
-Scaffold an app placeholder:
+Scaffold a Node app:
 
 ```bash
-homectl app init app.example.com --template placeholder
+homectl app init app.example.com --template node
 ```
 
 Inspect the stack:
@@ -146,7 +146,7 @@ homectl restart example.com --dry-run --json
 homectl validate --json
 homectl doctor example.com --json
 homectl site init example.com --dry-run --json
-homectl app init app.example.com --template placeholder --dry-run --json
+homectl app init app.example.com --template node --dry-run --json
 homectl up example.com --dry-run
 ```
 
@@ -192,4 +192,4 @@ homectl up example.com --dry-run
 - without that flag, restart `cloudflared` manually after ingress changes
 - `site init` and `app init` generate Traefik-safe router and service identifiers from the hostname.
 - All generated Compose files join the external Docker network configured in `docker_network`.
-- In v1, `app init` uses templates designed to be expanded later. The `node` template is a placeholder scaffold rather than a full Node application bootstrap.
+- The `node` app template now generates a runnable multi-file scaffold with `docker-compose.yml`, `Dockerfile`, `package.json`, `.env.example`, and `src/server.js`.

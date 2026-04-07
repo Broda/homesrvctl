@@ -1,0 +1,23 @@
+const http = require("http");
+
+const port = Number.parseInt(process.env.PORT || "3000", 10);
+const appHostname = process.env.APP_HOSTNAME || "{{ hostname }}";
+const nodeEnv = process.env.NODE_ENV || "production";
+
+const server = http.createServer((request, response) => {
+  const payload = {
+    hostname: "{{ hostname }}",
+    appHostname,
+    nodeEnv,
+    requestPath: request.url || "/",
+    message: "Replace src/server.js with your real Node application."
+  };
+
+  response.statusCode = 200;
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.end(JSON.stringify(payload, null, 2));
+});
+
+server.listen(port, "0.0.0.0", () => {
+  console.log("Node scaffold listening on port", port);
+});

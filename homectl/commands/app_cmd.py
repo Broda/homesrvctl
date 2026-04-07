@@ -38,13 +38,8 @@ def app_init(
     valid_hostname = validate_hostname(hostname)
     safe_name = hostname_to_safe_name(valid_hostname)
     target_dir = config.hostname_dir(valid_hostname)
-
-    files = [
-        str(target_dir / "docker-compose.yml"),
-        str(target_dir / ".env.example"),
-    ]
-    if template == "node":
-        files.append(str(target_dir / "README.node-template.md"))
+    outputs = _template_outputs(target_dir, template)
+    files = [str(path) for path, _ in outputs]
 
     try:
         ensure_directory(target_dir, dry_run=dry_run, quiet=json_output)
@@ -53,32 +48,20 @@ def app_init(
             hostname=valid_hostname,
             safe_name=safe_name,
             docker_network=config.docker_network,
+            service_name="app",
         )
-
-        compose_template = _compose_template_for(template)
-        compose_content = render_template(compose_template, context)
-        env_content = render_template("app/env.example.j2", {"hostname": valid_hostname, "template": template})
-
-        write_text_file(
-            target_dir / "docker-compose.yml",
-            compose_content,
-            force=force,
-            dry_run=dry_run,
-            quiet=json_output,
-        )
-        write_text_file(
-            target_dir / ".env.example",
-            env_content,
-            force=force,
-            dry_run=dry_run,
-            quiet=json_output,
-        )
-
-        if template == "node":
-            placeholder = render_template("app/node.README.md.j2", {"hostname": valid_hostname})
+        render_context = {
+            "hostname": context.hostname,
+            "template": template,
+            "safe_name": context.safe_name,
+            "docker_network": context.docker_network,
+            "service_name": context.service_name,
+        }
+        for output_path, template_name in outputs:
+            content = render_template(template_name, render_context)
             write_text_file(
-                target_dir / "README.node-template.md",
-                placeholder,
+                output_path,
+                content,
                 force=force,
                 dry_run=dry_run,
                 quiet=json_output,
@@ -126,9 +109,23 @@ def app_init(
         success(f"Scaffolded app template '{template}' in {target_dir}")
 
 
-def _compose_template_for(template: TemplateName) -> str:
+def _template_outputs(target_dir, template: TemplateName) -> list[tuple]:  # noqa: ANN001
     if template == "static":
-        return "static/docker-compose.yml.j2"
+        return [
+            (target_dir / "docker-compose.yml", "static/docker-compose.yml.j2"),
+            (target_dir / ".env.example", "app/env.example.j2"),
+        ]
     if template == "node":
-        return "app/node-docker-compose.yml.j2"
-    return "app/docker-compose.yml.j2"
+        return [
+            (target_dir / "docker-compose.yml", "app/node/docker-compose.yml.j2"),
+            (target_dir / ".env.example", "app/node/env.example.j2"),
+            (target_dir / ".dockerignore", "app/node/dockerignore.j2"),
+            (target_dir / "Dockerfile", "app/node/Dockerfile.j2"),
+            (target_dir / "README.md", "app/node/README.md.j2"),
+            (target_dir / "package.json", "app/node/package.json.j2"),
+            (target_dir / "src" / "server.js", "app/node/src/server.js.j2"),
+        ]
+    return [
+        (target_dir / "docker-compose.yml", "app/docker-compose.yml.j2"),
+        (target_dir / ".env.example", "app/env.example.j2"),
+    ]

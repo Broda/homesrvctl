@@ -62,7 +62,7 @@ def test_site_init_scaffolds_files(monkeypatch, tmp_path: Path) -> None:
     assert "test.example.com" in index_file.read_text(encoding="utf-8")
 
 
-def test_app_init_node_template_creates_placeholder(monkeypatch, tmp_path: Path) -> None:
+def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
@@ -75,7 +75,18 @@ def test_app_init_node_template_creates_placeholder(monkeypatch, tmp_path: Path)
     app_dir = sites_root / "notes.example.com"
     assert (app_dir / "docker-compose.yml").exists()
     assert (app_dir / ".env.example").exists()
-    assert (app_dir / "README.node-template.md").exists()
+    assert (app_dir / ".dockerignore").exists()
+    assert (app_dir / "Dockerfile").exists()
+    assert (app_dir / "README.md").exists()
+    assert (app_dir / "package.json").exists()
+    assert (app_dir / "src" / "server.js").exists()
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    package_json = (app_dir / "package.json").read_text(encoding="utf-8")
+    server_js = (app_dir / "src" / "server.js").read_text(encoding="utf-8")
+    assert "dockerfile: Dockerfile" in compose
+    assert "loadbalancer.server.port=3000" in compose
+    assert "\"start\": \"node src/server.js\"" in package_json
+    assert "Replace src/server.js with your real Node application." in server_js
 
 
 def test_config_init_json_output(monkeypatch, tmp_path: Path) -> None:
@@ -152,7 +163,7 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "node"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/notes.example.com/README.node-template.md")
+    assert payload["files"][-1].endswith("/notes.example.com/src/server.js")
 
 
 def test_app_init_json_reports_overwrite_error(monkeypatch, tmp_path: Path) -> None:
