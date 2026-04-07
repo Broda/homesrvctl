@@ -561,6 +561,16 @@ def test_domain_remove_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) 
             return type("Plan", (), {"action": "delete", "record_type": "CNAME", "record_name": record_name, "content": ""})()
 
     monkeypatch.setattr(domain_cmd, "CloudflareApiClient", FakeClient)
+    monkeypatch.setattr(
+        domain_cmd,
+        "detect_cloudflared_runtime",
+        lambda: CloudflaredRuntime(
+            mode="systemd",
+            active=True,
+            detail="systemd service is active",
+            restart_command=["systemctl", "restart", "cloudflared"],
+        ),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "remove", "example.com"])
