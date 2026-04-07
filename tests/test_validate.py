@@ -3,6 +3,7 @@ from __future__ import annotations
 import urllib.error
 from pathlib import Path
 
+from homectl.cloudflared_service import CloudflaredRuntime
 from homectl.commands import validate_cmd
 from homectl.models import HomectlConfig
 from homectl.shell import CommandResult
@@ -51,6 +52,16 @@ def test_build_validate_report_uses_cloudflared_config_fallback(monkeypatch, tmp
 
     monkeypatch.setattr(validate_cmd, "command_exists", fake_command_exists)
     monkeypatch.setattr(validate_cmd, "run_command", fake_run_command)
+    monkeypatch.setattr(
+        validate_cmd,
+        "detect_cloudflared_runtime",
+        lambda: CloudflaredRuntime(
+            mode="systemd",
+            active=True,
+            detail="systemd service is active",
+            restart_command=["systemctl", "restart", "cloudflared"],
+        ),
+    )
     monkeypatch.setattr(validate_cmd.urllib.request, "urlopen", fake_urlopen)
 
     checks = validate_cmd.build_validate_report(config)
@@ -59,6 +70,7 @@ def test_build_validate_report_uses_cloudflared_config_fallback(monkeypatch, tmp
     assert indexed["configured tunnel"].ok
     assert "references tunnel 1234-uuid" in indexed["configured tunnel"].detail
     assert indexed["Traefik URL"].ok
+    assert indexed["cloudflared service"].ok
     assert indexed["cloudflared ingress config"].ok
 
 

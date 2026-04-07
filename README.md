@@ -156,7 +156,7 @@ homectl up example.com --dry-run
 - `domain repair` converges apex and wildcard DNS records and matching `cloudflared` ingress entries to the expected state.
 - `domain add` resolves the tunnel target from the local `cloudflared` tunnel configuration and does not depend on the active `cloudflared tunnel login` zone.
 - `domain remove` removes apex and wildcard DNS records and matching `cloudflared` ingress entries for the requested zone.
-- pass `--restart-cloudflared` to have `domain add` restart the systemd `cloudflared` service automatically after ingress changes
+- pass `--restart-cloudflared` to have domain-changing commands restart `cloudflared` automatically when a supported runtime is detected
 - without that flag, restart `cloudflared` manually after ingress changes
 - `site init` and `app init` generate Traefik-safe router and service identifiers from the hostname.
 - All generated Compose files join the external Docker network configured in `docker_network`.

@@ -8,6 +8,7 @@ import typer
 import yaml
 
 from homectl.cloudflared import CloudflaredConfigError, find_hostname_route, validate_ingress_config
+from homectl.cloudflared_service import detect_cloudflared_runtime
 from homectl.config import load_config
 from homectl.models import CheckResult, HomectlConfig
 from homectl.shell import command_exists, run_command
@@ -107,22 +108,8 @@ def _result_to_check(name: str, result, success_detail: str) -> CheckResult:
 
 
 def _check_cloudflared_service() -> CheckResult:
-    systemctl = run_command(["systemctl", "is-active", "cloudflared"])
-    if systemctl.ok and systemctl.stdout == "active":
-        return CheckResult("cloudflared service", True, "systemd service is active")
-
-    docker_ps = run_command(
-        ["docker", "ps", "--filter", "name=cloudflared", "--filter", "status=running", "--format", "{{.Names}}"]
-    )
-    if docker_ps.stdout.strip():
-        return CheckResult("cloudflared service", True, f"running container(s): {docker_ps.stdout}")
-
-    pgrep = run_command(["pgrep", "-fa", "cloudflared"])
-    if pgrep.ok and pgrep.stdout.strip():
-        return CheckResult("cloudflared service", True, f"process present: {pgrep.stdout}")
-
-    detail = systemctl.stderr or systemctl.stdout or "cloudflared not detected via systemd, docker, or process scan"
-    return CheckResult("cloudflared service", False, detail)
+    runtime = detect_cloudflared_runtime()
+    return CheckResult("cloudflared service", runtime.active, runtime.detail)
 
 
 def _check_traefik_http(config: HomectlConfig) -> CheckResult:

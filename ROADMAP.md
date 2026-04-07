@@ -4,16 +4,15 @@
 
 ## Now
 
-- Harden the `cloudflared` service-management path used after ingress changes.
+- Add machine-readable `--json` output for `domain status`, `validate`, and `doctor`.
 - Keep the test suite and CI green as the CLI surface grows.
 - Preserve a simple operator model: one command should do the obvious thing, with `--dry-run` available for preview.
 
 ## Next
 
-- Improve `cloudflared` restart handling beyond the current systemd-focused path.
-- Add a `cloudflared` service-management abstraction that can detect and handle systemd, container, and report-only/manual modes.
 - Tighten validation and error messages around partial or conflicting domain state.
-- Add machine-readable `--json` output for `domain status`, `validate`, and `doctor`.
+- Add more domain-level diagnostics and repair hints for unsafe or ambiguous `cloudflared` config states.
+- Consider a dedicated service-management command surface for inspecting or controlling `cloudflared`.
 
 ## Recently Completed
 
@@ -22,6 +21,7 @@
 - Added `homectl domain remove` for DNS and ingress teardown.
 - Added `homectl domain status` with `ok`, `partial`, and `misconfigured` reporting.
 - Added `homectl domain repair` to converge stale or partial domain state.
+- Added a shared `cloudflared` service-management abstraction for runtime detection and restart handling.
 - Added CI via GitHub Actions and updated it to Node 24-compatible action versions.
 - Cleaned the public repository for release with generic examples, neutral defaults, and MIT licensing metadata.
 

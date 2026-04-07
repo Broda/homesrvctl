@@ -11,8 +11,12 @@ from homectl.cloudflared import (
     plan_domain_ingress,
     plan_domain_ingress_removal,
 )
+from homectl.cloudflared_service import (
+    CloudflaredServiceError,
+    detect_cloudflared_runtime,
+    restart_cloudflared_service,
+)
 from homectl.config import load_config
-from homectl.shell import command_exists, run_command
 from homectl.utils import bullet_report, info, success, validate_bare_domain, warn
 
 domain_cli = typer.Typer(help="Manage domain-level Cloudflare Tunnel DNS routing.")
@@ -101,14 +105,14 @@ def domain_remove(
     if dry_run:
         success(f"Dry-run complete for domain {bare_domain}")
         if restart_cloudflared and ingress_changed:
-            info("[dry-run] systemctl restart cloudflared")
+            _plan_cloudflared_restart()
     else:
         success(f"Removed domain routing for {bare_domain}")
         if ingress_changed:
             if restart_cloudflared:
                 _restart_cloudflared()
             else:
-                warn("Restart cloudflared to apply ingress changes: sudo systemctl restart cloudflared")
+                _warn_cloudflared_restart()
 
 
 @domain_cli.command("status")
@@ -228,7 +232,7 @@ def _upsert_domain_routing(domain: str, dry_run: bool, restart_cloudflared: bool
     if dry_run:
         success(f"Dry-run complete for domain {bare_domain}")
         if restart_cloudflared and ingress_changed:
-            info("[dry-run] systemctl restart cloudflared")
+            _plan_cloudflared_restart()
         return
 
     success(f"{verb} domain routing for {bare_domain}")
@@ -236,22 +240,32 @@ def _upsert_domain_routing(domain: str, dry_run: bool, restart_cloudflared: bool
         if restart_cloudflared:
             _restart_cloudflared()
         else:
-            warn("Restart cloudflared to apply ingress changes: sudo systemctl restart cloudflared")
+            _warn_cloudflared_restart()
 
 
 def _restart_cloudflared() -> None:
-    if not command_exists("systemctl"):
-        warn("Ingress changed, but systemctl is not available; restart cloudflared manually")
+    try:
+        runtime = restart_cloudflared_service()
+    except CloudflaredServiceError as exc:
+        warn(f"Ingress changed, but {exc}")
         return
+    success(f"Restarted cloudflared via {runtime.mode}")
 
-    result = run_command(["systemctl", "restart", "cloudflared"])
-    if result.ok:
-        success("Restarted cloudflared")
+
+def _plan_cloudflared_restart() -> None:
+    runtime = detect_cloudflared_runtime()
+    if runtime.restart_command:
+        info(f"[dry-run] {' '.join(runtime.restart_command)}")
         return
+    warn(f"[dry-run] {runtime.detail}")
 
-    detail = result.stderr or result.stdout or "command failed"
-    warn(f"Ingress changed, but cloudflared restart failed: {detail}")
-    warn("Restart cloudflared manually: sudo systemctl restart cloudflared")
+
+def _warn_cloudflared_restart() -> None:
+    runtime = detect_cloudflared_runtime()
+    if runtime.restart_command:
+        warn(f"Restart cloudflared to apply ingress changes: {' '.join(runtime.restart_command)}")
+        return
+    warn(f"Ingress changed; {runtime.detail}")
 
 
 def _overall_domain_status(dns_statuses, ingress_statuses, expected_service: str) -> str:  # noqa: ANN001
