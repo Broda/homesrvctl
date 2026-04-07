@@ -17,7 +17,7 @@ from homectl.cloudflared_service import detect_cloudflared_runtime
 from homectl.config import load_config
 from homectl.models import CheckResult, HomectlConfig
 from homectl.shell import command_exists, run_command
-from homectl.utils import bullet_report, validate_hostname
+from homectl.utils import bullet_report, validate_hostname, with_json_schema
 
 
 def validate() -> None:
@@ -32,10 +32,10 @@ def validate_with_format(
     config = load_config()
     checks = build_validate_report(config)
     if json_output:
-        payload = {
+        payload = with_json_schema({
             "ok": all(check.ok for check in checks),
             "checks": [_check_to_dict(check) for check in checks],
-        }
+        })
         typer.echo(json.dumps(payload, indent=2))
     else:
         _print_report(checks)

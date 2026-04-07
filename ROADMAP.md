@@ -25,7 +25,6 @@
 - Add machine-readable output to additional commands where scripting would help beyond the current status/reporting set.
 - Review whether `config init` should support `--json` or another machine-readable mode.
 - Decide whether the scaffold commands should report rendered template names in JSON, not just file paths.
-- Decide whether `cloudflared status` and restart output should expose a stable schema version for automation.
 - Consider broadening the `cloudflared` command surface beyond status/restart if more service controls are needed.
 - Consider `cloudflared reload` if a safe reload mechanism exists for the detected runtime.
 
@@ -50,6 +49,7 @@
 - Added `--json` output for `cloudflared restart`.
 - Added `--json` output for `up`, `down`, and `restart`.
 - Added `--json` output for `site init` and `app init`.
+- Added a shared top-level `schema_version` to all JSON command output.
 - Added CI via GitHub Actions and updated it to Node 24-compatible action versions.
 - Cleaned the public repository for release with generic examples, neutral defaults, and MIT licensing metadata.
 

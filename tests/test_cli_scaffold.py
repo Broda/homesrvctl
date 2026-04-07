@@ -10,6 +10,10 @@ from homectl.cloudflared_service import CloudflaredRuntime
 from homectl.main import app
 
 
+def _assert_schema_version(payload: dict[str, object]) -> None:
+    assert payload["schema_version"] == "1"
+
+
 def _write_config(home: Path, sites_root: Path) -> None:
     config_dir = home / ".config" / "homectl"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -85,6 +89,7 @@ def test_site_init_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["action"] == "site_init"
     assert payload["hostname"] == "test.example.com"
     assert payload["dry_run"] is True
@@ -103,6 +108,7 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["action"] == "app_init"
     assert payload["hostname"] == "notes.example.com"
     assert payload["template"] == "node"
@@ -150,6 +156,7 @@ def test_cloudflared_status_json_output(monkeypatch) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["ok"] is True
     assert payload["mode"] == "docker"
     assert payload["restart_command"] == ["docker", "restart", "cloudflared"]
@@ -236,6 +243,7 @@ def test_cloudflared_restart_json_dry_run(monkeypatch) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["ok"] is True
     assert payload["dry_run"] is True
 
@@ -570,6 +578,7 @@ def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["action"] == "add"
     assert payload["ok"] is True
     assert payload["dry_run"] is True
@@ -1610,6 +1619,7 @@ def test_domain_status_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["domain"] == "example.com"
     assert payload["ok"] is True
     assert payload["overall"] == "ok"
@@ -2091,6 +2101,9 @@ def test_deploy_json_output(monkeypatch, tmp_path: Path) -> None:
     up_payload = json.loads(up_result.output)
     down_payload = json.loads(down_result.output)
     restart_payload = json.loads(restart_result.output)
+    _assert_schema_version(up_payload)
+    _assert_schema_version(down_payload)
+    _assert_schema_version(restart_payload)
 
     assert up_payload["action"] == "up"
     assert up_payload["dry_run"] is True
@@ -2159,6 +2172,7 @@ def test_validate_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["ok"] is True
     assert payload["checks"][0]["name"] == "cloudflared binary"
 
@@ -2182,6 +2196,7 @@ def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["hostname"] == "example.com"
     assert payload["ok"] is True
     assert payload["checks"][1]["name"] == "host-header request"
@@ -2204,6 +2219,7 @@ def test_list_json_output(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
+    _assert_schema_version(payload)
     assert payload["ok"] is True
     assert payload["sites_root"] == str(sites_root)
     assert payload["sites"] == [

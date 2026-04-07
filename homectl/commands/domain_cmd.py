@@ -21,7 +21,7 @@ from homectl.cloudflared_service import (
     restart_cloudflared_service,
 )
 from homectl.config import load_config
-from homectl.utils import bullet_report, info, success, validate_bare_domain, warn
+from homectl.utils import bullet_report, info, success, validate_bare_domain, warn, with_json_schema
 
 domain_cli = typer.Typer(help="Manage domain-level Cloudflare Tunnel DNS routing.")
 
@@ -227,7 +227,7 @@ def domain_status(
     suggested_command = f"homectl domain repair {bare_domain}" if repairable else None
     coverage_issues = _coverage_issues(dns_statuses, ingress_statuses)
     if json_output:
-        payload = {
+        payload = with_json_schema({
             "domain": bare_domain,
             "expected_tunnel_target": target,
             "expected_ingress_service": config.traefik_url,
@@ -266,7 +266,7 @@ def domain_status(
                 }
                 for status in ingress_statuses
             ],
-        }
+        })
         typer.echo(json.dumps(payload, indent=2))
     else:
         info(f"Expected tunnel target: {target}")
@@ -646,7 +646,7 @@ def _domain_mutation_payload(
     restart: dict[str, object] | None,
     error: str | None = None,
 ) -> dict[str, object]:
-    payload: dict[str, object] = {
+    payload: dict[str, object] = with_json_schema({
         "action": action,
         "domain": domain,
         "dry_run": dry_run,
@@ -654,7 +654,7 @@ def _domain_mutation_payload(
         "dns": dns,
         "ingress": ingress,
         "restart": restart,
-    }
+    })
     if error:
         payload["error"] = error
     return payload

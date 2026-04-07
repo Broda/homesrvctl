@@ -12,6 +12,7 @@ from homectl.utils import (
     hostname_to_safe_name,
     success,
     validate_hostname,
+    with_json_schema,
     write_text_file,
 )
 
@@ -68,7 +69,7 @@ def site_init(
         if json_output:
             typer.echo(
                 json.dumps(
-                    {
+                    with_json_schema({
                         "action": "site_init",
                         "hostname": valid_hostname,
                         "target_dir": str(target_dir),
@@ -76,7 +77,7 @@ def site_init(
                         "ok": False,
                         "files": files,
                         "error": str(exc),
-                    },
+                    }),
                     indent=2,
                 )
             )
@@ -86,14 +87,14 @@ def site_init(
     if json_output:
         typer.echo(
             json.dumps(
-                {
+                with_json_schema({
                     "action": "site_init",
                     "hostname": valid_hostname,
                     "target_dir": str(target_dir),
                     "dry_run": dry_run,
                     "ok": True,
                     "files": files,
-                },
+                }),
                 indent=2,
             )
         )

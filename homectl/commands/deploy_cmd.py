@@ -7,7 +7,7 @@ import typer
 
 from homectl.config import load_config
 from homectl.shell import require_success, run_command
-from homectl.utils import info, success, validate_hostname, warn
+from homectl.utils import info, success, validate_hostname, warn, with_json_schema
 
 
 def _resolve_stack_dir(hostname: str) -> Path:
@@ -103,12 +103,12 @@ def list_sites_with_format(
     config = load_config()
     if not config.sites_root.exists():
         if json_output:
-            payload = {
+            payload = with_json_schema({
                 "sites_root": str(config.sites_root),
                 "ok": False,
                 "sites": [],
                 "error": f"Sites root does not exist: {config.sites_root}",
-            }
+            })
             typer.echo(json.dumps(payload, indent=2))
         else:
             warn(f"Sites root does not exist: {config.sites_root}")
@@ -120,11 +120,11 @@ def list_sites_with_format(
         sites.append({"hostname": child.name, "compose": compose_file.exists()})
 
     if json_output:
-        payload = {
+        payload = with_json_schema({
             "sites_root": str(config.sites_root),
             "ok": True,
             "sites": sites,
-        }
+        })
         typer.echo(json.dumps(payload, indent=2))
         return
 
@@ -149,11 +149,11 @@ def doctor(
     results = build_hostname_doctor_report(config, valid_hostname)
     failures = [item for item in results if not item.ok]
     if json_output:
-        payload = {
+        payload = with_json_schema({
             "hostname": valid_hostname,
             "ok": not failures,
             "checks": [{"name": result.name, "ok": result.ok, "detail": result.detail} for result in results],
-        }
+        })
         typer.echo(json.dumps(payload, indent=2))
     else:
         for result in results:
@@ -212,14 +212,14 @@ def _deploy_payload(
     commands: list[dict[str, object]],
     error: str | None = None,
 ) -> dict[str, object]:
-    payload: dict[str, object] = {
+    payload: dict[str, object] = with_json_schema({
         "hostname": hostname,
         "stack_dir": str(stack_dir),
         "action": action,
         "dry_run": dry_run,
         "ok": ok,
         "commands": commands,
-    }
+    })
     if error:
         payload["error"] = error
     return payload

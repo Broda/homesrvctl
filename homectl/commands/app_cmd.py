@@ -13,6 +13,7 @@ from homectl.utils import (
     hostname_to_safe_name,
     success,
     validate_hostname,
+    with_json_schema,
     write_text_file,
 )
 
@@ -86,7 +87,7 @@ def app_init(
         if json_output:
             typer.echo(
                 json.dumps(
-                    {
+                    with_json_schema({
                         "action": "app_init",
                         "hostname": valid_hostname,
                         "template": template,
@@ -95,7 +96,7 @@ def app_init(
                         "ok": False,
                         "files": files,
                         "error": str(exc),
-                    },
+                    }),
                     indent=2,
                 )
             )
@@ -105,7 +106,7 @@ def app_init(
     if json_output:
         typer.echo(
             json.dumps(
-                {
+                with_json_schema({
                     "action": "app_init",
                     "hostname": valid_hostname,
                     "template": template,
@@ -113,7 +114,7 @@ def app_init(
                     "dry_run": dry_run,
                     "ok": True,
                     "files": files,
-                },
+                }),
                 indent=2,
             )
         )

@@ -11,7 +11,7 @@ from homectl.cloudflared_service import (
     restart_cloudflared_service,
 )
 from homectl.config import load_config
-from homectl.utils import info, success, warn
+from homectl.utils import info, success, warn, with_json_schema
 
 cloudflared_cli = typer.Typer(help="Inspect and control the local cloudflared runtime.")
 
@@ -23,7 +23,7 @@ def cloudflared_status(
     """Show how cloudflared is currently managed and whether it is active."""
     runtime = detect_cloudflared_runtime()
     if json_output:
-        typer.echo(json.dumps(_runtime_payload(runtime, ok=runtime.active), indent=2))
+        typer.echo(json.dumps(with_json_schema(_runtime_payload(runtime, ok=runtime.active)), indent=2))
     else:
         detail = f"{runtime.mode}: {runtime.detail}"
         if runtime.active:
@@ -46,13 +46,13 @@ def cloudflared_restart(
     if dry_run:
         if runtime.restart_command:
             if json_output:
-                typer.echo(json.dumps(_runtime_payload(runtime, ok=True, dry_run=True), indent=2))
+                typer.echo(json.dumps(with_json_schema(_runtime_payload(runtime, ok=True, dry_run=True)), indent=2))
             else:
                 info(f"[dry-run] {' '.join(runtime.restart_command)}")
                 success(f"Dry-run complete for cloudflared restart via {runtime.mode}")
             return
         if json_output:
-            typer.echo(json.dumps(_runtime_payload(runtime, ok=False, dry_run=True), indent=2))
+            typer.echo(json.dumps(with_json_schema(_runtime_payload(runtime, ok=False, dry_run=True)), indent=2))
         else:
             warn(f"[dry-run] {runtime.detail}")
         raise typer.Exit(code=1)
@@ -63,21 +63,21 @@ def cloudflared_restart(
         if json_output:
             typer.echo(
                 json.dumps(
-                    {
+                    with_json_schema({
                         "ok": False,
                         "dry_run": False,
                         "mode": runtime.mode,
                         "active": runtime.active,
                         "detail": str(exc),
                         "restart_command": runtime.restart_command,
-                    },
+                    }),
                     indent=2,
                 )
             )
             raise typer.Exit(code=1) from exc
         raise typer.Exit(code=_exit_with_error(str(exc))) from exc
     if json_output:
-        typer.echo(json.dumps(_runtime_payload(runtime, ok=True, dry_run=False), indent=2))
+        typer.echo(json.dumps(with_json_schema(_runtime_payload(runtime, ok=True, dry_run=False)), indent=2))
         return
     success(f"Restarted cloudflared via {runtime.mode}")
 
@@ -95,7 +95,7 @@ def cloudflared_logs(
         payload = _runtime_payload(runtime, ok=ok)
         payload["follow"] = follow
         payload["logs_command"] = logs_command
-        typer.echo(json.dumps(payload, indent=2))
+        typer.echo(json.dumps(with_json_schema(payload), indent=2))
     else:
         if logs_command:
             info(" ".join(logs_command))
@@ -112,13 +112,13 @@ def cloudflared_config_test(
     """Validate the configured cloudflared ingress config."""
     config = load_config()
     result = test_cloudflared_config(config.cloudflared_config)
-    payload = {
+    payload = with_json_schema({
         "ok": result.ok,
         "config_path": str(config.cloudflared_config),
         "method": result.method,
         "command": result.command,
         "detail": result.detail,
-    }
+    })
     if json_output:
         typer.echo(json.dumps(payload, indent=2))
     else:

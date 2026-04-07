@@ -16,6 +16,7 @@ DOMAIN_RE = re.compile(
 )
 
 COMMON_SECOND_LEVEL_SUFFIXES = {"co", "com", "net", "org", "gov", "ac"}
+JSON_SCHEMA_VERSION = "1"
 
 
 def info(message: str) -> None:
@@ -88,3 +89,7 @@ def write_text_file(path: Path, content: str, force: bool, dry_run: bool = False
 def print_commands(commands: Iterable[list[str]]) -> None:
     for command in commands:
         info(f"$ {' '.join(command)}")
+
+
+def with_json_schema(payload: dict[str, object]) -> dict[str, object]:
+    return {"schema_version": JSON_SCHEMA_VERSION, **payload}
