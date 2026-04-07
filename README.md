@@ -134,6 +134,9 @@ homectl list --json
 homectl cloudflared status --json
 homectl cloudflared restart --dry-run
 homectl cloudflared restart --dry-run --json
+homectl up example.com --dry-run --json
+homectl down example.com --dry-run --json
+homectl restart example.com --dry-run --json
 homectl validate --json
 homectl doctor example.com --json
 homectl site init example.com --dry-run
@@ -149,9 +152,9 @@ homectl up example.com --dry-run
 - `homectl domain remove <domain> [--dry-run] [--restart-cloudflared]`
 - `homectl site init <hostname> [--force] [--dry-run]`
 - `homectl app init <hostname> [--template static|placeholder|node] [--force] [--dry-run]`
-- `homectl up <hostname> [--dry-run]`
-- `homectl down <hostname> [--dry-run]`
-- `homectl restart <hostname> [--dry-run]`
+- `homectl up <hostname> [--dry-run] [--json]`
+- `homectl down <hostname> [--dry-run] [--json]`
+- `homectl restart <hostname> [--dry-run] [--json]`
 - `homectl list [--json]`
 - `homectl cloudflared status [--json]`
 - `homectl cloudflared restart [--dry-run] [--json]`
@@ -163,6 +166,7 @@ homectl up example.com --dry-run
 - `domain add` uses the Cloudflare DNS API to manage apex and wildcard records for the requested zone.
 - `domain status` reports expected tunnel target, apex and wildcard DNS state, and apex and wildcard `cloudflared` ingress state.
 - `list`, `domain status`, `validate`, and `doctor` support `--json` for machine-readable output.
+- `up`, `down`, and `restart` support `--json` for machine-readable command results.
 - `cloudflared status` reports the detected runtime mode, whether it is active, and the restart command when one is available.
 - `cloudflared restart` also supports `--json` for automation-friendly dry-run and failure reporting.
 - `domain add` also reconciles apex and wildcard hostname entries in the configured `cloudflared` ingress file so new domains route locally to Traefik.

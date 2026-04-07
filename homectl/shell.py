@@ -30,8 +30,10 @@ def run_command(
     command: list[str],
     cwd: Path | None = None,
     dry_run: bool = False,
+    quiet: bool = False,
 ) -> CommandResult:
-    info(f"$ {' '.join(command)}")
+    if not quiet:
+        info(f"$ {' '.join(command)}")
     if dry_run:
         return CommandResult(command=command, returncode=0, stdout="", stderr="")
 

@@ -1199,6 +1199,41 @@ def test_deploy_dry_run_commands(monkeypatch, tmp_path: Path) -> None:
     assert "docker compose up -d" in restart_result.output
 
 
+def test_deploy_json_output(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    site_result = runner.invoke(app, ["site", "init", "example.com"])
+    assert site_result.exit_code == 0, site_result.output
+
+    up_result = runner.invoke(app, ["up", "example.com", "--dry-run", "--json"])
+    down_result = runner.invoke(app, ["down", "example.com", "--dry-run", "--json"])
+    restart_result = runner.invoke(app, ["restart", "example.com", "--dry-run", "--json"])
+
+    assert up_result.exit_code == 0, up_result.output
+    assert down_result.exit_code == 0, down_result.output
+    assert restart_result.exit_code == 0, restart_result.output
+
+    up_payload = json.loads(up_result.output)
+    down_payload = json.loads(down_result.output)
+    restart_payload = json.loads(restart_result.output)
+
+    assert up_payload["action"] == "up"
+    assert up_payload["dry_run"] is True
+    assert up_payload["ok"] is True
+    assert up_payload["commands"][0]["command"] == ["docker", "compose", "up", "-d"]
+
+    assert down_payload["action"] == "down"
+    assert down_payload["commands"][0]["command"] == ["docker", "compose", "down"]
+
+    assert restart_payload["action"] == "restart"
+    assert len(restart_payload["commands"]) == 2
+    assert restart_payload["commands"][1]["command"] == ["docker", "compose", "up", "-d"]
+
+
 def test_validate_json_output(monkeypatch, tmp_path: Path) -> None:
     from homectl.commands import validate_cmd
 

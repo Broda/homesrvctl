@@ -25,37 +25,69 @@ def _resolve_stack_dir(hostname: str) -> Path:
 def up(
     hostname: str = typer.Argument(..., help="Hostname to bring up."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the compose command without running it."),
+    json_output: bool = typer.Option(False, "--json", help="Print the result as JSON."),
 ) -> None:
     """Run docker compose up -d for a hostname."""
     stack_dir = _resolve_stack_dir(hostname)
-    result = run_command(["docker", "compose", "up", "-d"], cwd=stack_dir, dry_run=dry_run)
-    require_success(result, f"docker compose up for {hostname}")
-    success(f"{'Would bring up' if dry_run else 'Started'} stack for {hostname}")
+    command = ["docker", "compose", "up", "-d"]
+    result = run_command(command, cwd=stack_dir, dry_run=dry_run, quiet=json_output)
+    _emit_deploy_result(result, f"docker compose up for {hostname}", hostname, stack_dir, dry_run, json_output, "up")
+    if not json_output:
+        success(f"{'Would bring up' if dry_run else 'Started'} stack for {hostname}")
 
 
 def down(
     hostname: str = typer.Argument(..., help="Hostname to bring down."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the compose command without running it."),
+    json_output: bool = typer.Option(False, "--json", help="Print the result as JSON."),
 ) -> None:
     """Run docker compose down for a hostname."""
     stack_dir = _resolve_stack_dir(hostname)
-    result = run_command(["docker", "compose", "down"], cwd=stack_dir, dry_run=dry_run)
-    require_success(result, f"docker compose down for {hostname}")
-    success(f"{'Would stop' if dry_run else 'Stopped'} stack for {hostname}")
+    command = ["docker", "compose", "down"]
+    result = run_command(command, cwd=stack_dir, dry_run=dry_run, quiet=json_output)
+    _emit_deploy_result(result, f"docker compose down for {hostname}", hostname, stack_dir, dry_run, json_output, "down")
+    if not json_output:
+        success(f"{'Would stop' if dry_run else 'Stopped'} stack for {hostname}")
 
 
 def restart(
     hostname: str = typer.Argument(..., help="Hostname to restart."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the compose commands without running them."),
+    json_output: bool = typer.Option(False, "--json", help="Print the result as JSON."),
 ) -> None:
     """Restart a hostname stack by bringing it down and up again."""
     stack_dir = _resolve_stack_dir(hostname)
+    executed: list[dict[str, object]] = []
     for command, label in (
         (["docker", "compose", "down"], "docker compose down"),
         (["docker", "compose", "up", "-d"], "docker compose up"),
     ):
-        result = run_command(command, cwd=stack_dir, dry_run=dry_run)
+        result = run_command(command, cwd=stack_dir, dry_run=dry_run, quiet=json_output)
+        if json_output and not result.ok:
+            payload = _deploy_payload(
+                hostname=hostname,
+                stack_dir=stack_dir,
+                action="restart",
+                dry_run=dry_run,
+                ok=False,
+                commands=executed + [_command_result_to_dict(result)],
+                error=result.stderr or result.stdout or f"{label} failed",
+            )
+            typer.echo(json.dumps(payload, indent=2))
+            raise typer.Exit(code=1)
         require_success(result, f"{label} for {hostname}")
+        executed.append(_command_result_to_dict(result))
+    if json_output:
+        payload = _deploy_payload(
+            hostname=hostname,
+            stack_dir=stack_dir,
+            action="restart",
+            dry_run=dry_run,
+            ok=True,
+            commands=executed,
+        )
+        typer.echo(json.dumps(payload, indent=2))
+        return
     success(f"{'Would restart' if dry_run else 'Restarted'} stack for {hostname}")
 
 
@@ -135,3 +167,68 @@ def doctor(
 
     if not json_output:
         success(f"Doctor checks passed for {valid_hostname}")
+
+
+def _emit_deploy_result(
+    result,
+    action_label: str,
+    hostname: str,
+    stack_dir: Path,
+    dry_run: bool,
+    json_output: bool,
+    action: str,
+) -> None:
+    if json_output and not result.ok:
+        payload = _deploy_payload(
+            hostname=hostname,
+            stack_dir=stack_dir,
+            action=action,
+            dry_run=dry_run,
+            ok=False,
+            commands=[_command_result_to_dict(result)],
+            error=result.stderr or result.stdout or f"{action_label} failed",
+        )
+        typer.echo(json.dumps(payload, indent=2))
+        raise typer.Exit(code=1)
+    require_success(result, action_label)
+    if json_output:
+        payload = _deploy_payload(
+            hostname=hostname,
+            stack_dir=stack_dir,
+            action=action,
+            dry_run=dry_run,
+            ok=True,
+            commands=[_command_result_to_dict(result)],
+        )
+        typer.echo(json.dumps(payload, indent=2))
+
+
+def _deploy_payload(
+    hostname: str,
+    stack_dir: Path,
+    action: str,
+    dry_run: bool,
+    ok: bool,
+    commands: list[dict[str, object]],
+    error: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "hostname": hostname,
+        "stack_dir": str(stack_dir),
+        "action": action,
+        "dry_run": dry_run,
+        "ok": ok,
+        "commands": commands,
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
+def _command_result_to_dict(result) -> dict[str, object]:
+    return {
+        "command": result.command,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
