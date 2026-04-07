@@ -89,6 +89,30 @@ def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) ->
     assert "Replace src/server.js with your real Node application." in server_js
 
 
+def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "api.example.com", "--template", "python"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "api.example.com"
+    assert (app_dir / "docker-compose.yml").exists()
+    assert (app_dir / ".env.example").exists()
+    assert (app_dir / ".dockerignore").exists()
+    assert (app_dir / "Dockerfile").exists()
+    assert (app_dir / "README.md").exists()
+    assert (app_dir / "requirements.txt").exists()
+    assert (app_dir / "app" / "main.py").exists()
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    main_py = (app_dir / "app" / "main.py").read_text(encoding="utf-8")
+    assert "loadbalancer.server.port=8000" in compose
+    assert "Replace app/main.py with your real Python application." in main_py
+
+
 def test_config_init_json_output(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
@@ -164,6 +188,26 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["dry_run"] is True
     assert payload["ok"] is True
     assert payload["files"][-1].endswith("/notes.example.com/src/server.js")
+
+
+def test_app_init_python_json_output(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "api.example.com", "--template", "python", "--dry-run", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "app_init"
+    assert payload["hostname"] == "api.example.com"
+    assert payload["template"] == "python"
+    assert payload["dry_run"] is True
+    assert payload["ok"] is True
+    assert payload["files"][-1].endswith("/api.example.com/app/main.py")
 
 
 def test_app_init_json_reports_overwrite_error(monkeypatch, tmp_path: Path) -> None:

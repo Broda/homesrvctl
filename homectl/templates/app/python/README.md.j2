@@ -1,0 +1,27 @@
+# {{ hostname }} Python App
+
+This scaffold is a minimal production-oriented Python service for `{{ hostname }}`.
+
+## Files
+
+- `docker-compose.yml`: Traefik-connected app service
+- `Dockerfile`: container build for the app
+- `requirements.txt`: starter Python dependencies
+- `app/main.py`: simple HTTP server that listens on `PORT`
+- `.env.example`: starter environment values
+
+## Local adjustments
+
+1. Copy `.env.example` to `.env` if you want to customize runtime values.
+2. Replace `app/main.py` with your real application code when ready.
+3. Add the dependencies you need to `requirements.txt`.
+
+## Runtime behavior
+
+The default server responds on `/` with JSON containing:
+
+- `hostname`
+- `appHostname`
+- `requestPath`
+
+Traefik forwards `{{ hostname }}` to the app on port `8000`.

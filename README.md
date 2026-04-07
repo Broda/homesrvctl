@@ -113,6 +113,12 @@ Scaffold a Node app:
 homectl app init app.example.com --template node
 ```
 
+Scaffold a Python app:
+
+```bash
+homectl app init api.example.com --template python
+```
+
 Inspect the stack:
 
 ```bash
@@ -147,6 +153,7 @@ homectl validate --json
 homectl doctor example.com --json
 homectl site init example.com --dry-run --json
 homectl app init app.example.com --template node --dry-run --json
+homectl app init api.example.com --template python --dry-run --json
 homectl up example.com --dry-run
 ```
 
@@ -158,7 +165,7 @@ homectl up example.com --dry-run
 - `homectl domain repair <domain> [--dry-run] [--json] [--restart-cloudflared]`
 - `homectl domain remove <domain> [--dry-run] [--json] [--restart-cloudflared]`
 - `homectl site init <hostname> [--force] [--dry-run] [--json]`
-- `homectl app init <hostname> [--template static|placeholder|node] [--force] [--dry-run] [--json]`
+- `homectl app init <hostname> [--template static|placeholder|node|python] [--force] [--dry-run] [--json]`
 - `homectl up <hostname> [--dry-run] [--json]`
 - `homectl down <hostname> [--dry-run] [--json]`
 - `homectl restart <hostname> [--dry-run] [--json]`
@@ -193,3 +200,4 @@ homectl up example.com --dry-run
 - `site init` and `app init` generate Traefik-safe router and service identifiers from the hostname.
 - All generated Compose files join the external Docker network configured in `docker_network`.
 - The `node` app template now generates a runnable multi-file scaffold with `docker-compose.yml`, `Dockerfile`, `package.json`, `.env.example`, and `src/server.js`.
+- The `python` app template now generates a runnable multi-file scaffold with `docker-compose.yml`, `Dockerfile`, `requirements.txt`, `.env.example`, and `app/main.py`.
