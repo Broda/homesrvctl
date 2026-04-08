@@ -1,0 +1,90 @@
+# File Map
+
+This document is a quick orientation guide to the repository. It is intentionally short and should stay current as the project structure evolves.
+
+## Top-Level Docs
+
+- [`README.md`](README.md)
+  Public project overview, install instructions, command overview, and wiki links.
+- [`ROADMAP.md`](ROADMAP.md)
+  Milestone-based planning document for upcoming work.
+- [`RELEASING.md`](RELEASING.md)
+  Tagged release process, artifact flow, and publishing notes.
+- [`CHANGELOG.md`](CHANGELOG.md)
+  Human-facing release summary and notable project changes.
+- [`FILE_MAP.md`](FILE_MAP.md)
+  This file. Repository structure and ownership notes.
+
+## Python Package
+
+- [`homesrvctl/main.py`](homesrvctl/main.py)
+  Typer CLI entrypoint that wires command groups together.
+- [`homesrvctl/__init__.py`](homesrvctl/__init__.py)
+  Package version and package marker.
+- [`homesrvctl/models.py`](homesrvctl/models.py)
+  Core dataclasses for config and stack-local settings.
+- [`homesrvctl/config.py`](homesrvctl/config.py)
+  Config loading, default paths, and stack-local config helpers.
+- [`homesrvctl/utils.py`](homesrvctl/utils.py)
+  Shared filesystem and rendering helpers.
+- [`homesrvctl/templates.py`](homesrvctl/templates.py)
+  Template rendering utilities.
+- [`homesrvctl/shell.py`](homesrvctl/shell.py)
+  Shared subprocess execution helpers.
+
+## Cloudflare And Cloudflared Helpers
+
+- [`homesrvctl/cloudflare.py`](homesrvctl/cloudflare.py)
+  Cloudflare DNS API integration and tunnel-target-related helpers.
+- [`homesrvctl/cloudflared.py`](homesrvctl/cloudflared.py)
+  `cloudflared` ingress config parsing, reconciliation, and validation helpers.
+- [`homesrvctl/cloudflared_service.py`](homesrvctl/cloudflared_service.py)
+  Runtime detection and restart/log command selection for `cloudflared`.
+
+## CLI Commands
+
+- [`homesrvctl/commands/config_cmd.py`](homesrvctl/commands/config_cmd.py)
+  `config init` and related config-surface commands.
+- [`homesrvctl/commands/site_cmd.py`](homesrvctl/commands/site_cmd.py)
+  `site init` scaffold generation.
+- [`homesrvctl/commands/app_cmd.py`](homesrvctl/commands/app_cmd.py)
+  `app init` scaffold generation for app templates.
+- [`homesrvctl/commands/deploy_cmd.py`](homesrvctl/commands/deploy_cmd.py)
+  Stack lifecycle commands such as `up`, `down`, `restart`, `list`, and `doctor`.
+- [`homesrvctl/commands/domain_cmd.py`](homesrvctl/commands/domain_cmd.py)
+  Domain lifecycle commands such as `add`, `status`, `repair`, and `remove`.
+- [`homesrvctl/commands/cloudflared_cmd.py`](homesrvctl/commands/cloudflared_cmd.py)
+  `cloudflared` runtime and config-oriented commands.
+- [`homesrvctl/commands/validate_cmd.py`](homesrvctl/commands/validate_cmd.py)
+  Global validation and doctor/reporting helpers.
+
+## Templates
+
+- [`homesrvctl/templates/app/placeholder`](homesrvctl/templates/app/placeholder)
+  Minimal placeholder app scaffold.
+- [`homesrvctl/templates/app/node`](homesrvctl/templates/app/node)
+  Node app scaffold.
+- [`homesrvctl/templates/app/python`](homesrvctl/templates/app/python)
+  Python app scaffold.
+- [`homesrvctl/templates/site`](homesrvctl/templates/site)
+  Static site scaffold assets.
+
+## CI And Release Automation
+
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+  Main CI workflow.
+- [`.github/workflows/python-checks.yml`](.github/workflows/python-checks.yml)
+  Reusable Python verification workflow used by CI and release automation.
+- [`.github/workflows/release.yml`](.github/workflows/release.yml)
+  Tagged release workflow for TestPyPI, PyPI, and GitHub Releases.
+
+## Tests
+
+- [`tests`](tests)
+  Regression coverage for config, CLI behavior, JSON output, and release-adjacent behavior.
+
+## Maintenance Notes
+
+- Prefer updating this file when a new top-level doc is added.
+- Prefer updating this file when a new command module or template family is added.
+- Keep entries descriptive, but short enough to scan quickly.
