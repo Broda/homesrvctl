@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 
-from homesrvctl.config import load_config
+from homesrvctl.config import load_config, load_config_details
 from homesrvctl.shell import require_success, run_command
 from homesrvctl.utils import info, success, validate_hostname, warn, with_json_schema
 
@@ -144,9 +144,9 @@ def doctor(
     """Diagnose one hostname stack and local Traefik routing."""
     from homesrvctl.commands.validate_cmd import build_hostname_doctor_report
 
-    config = load_config()
+    config, global_sources = load_config_details()
     valid_hostname = validate_hostname(hostname)
-    results = build_hostname_doctor_report(config, valid_hostname)
+    results = build_hostname_doctor_report(config, valid_hostname, global_sources)
     failures = [item for item in results if not item.ok]
     if json_output:
         payload = with_json_schema({

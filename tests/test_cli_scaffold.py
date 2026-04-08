@@ -2637,7 +2637,7 @@ def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:
         validate_cmd.CheckResult("hostname directory", True, "/tmp/example.com"),
         validate_cmd.CheckResult("host-header request", True, "example.com returned HTTP 200"),
     ]
-    monkeypatch.setattr(validate_cmd, "build_hostname_doctor_report", lambda config, hostname: checks)
+    monkeypatch.setattr(validate_cmd, "build_hostname_doctor_report", lambda config, hostname, global_sources=None: checks)
 
     runner = CliRunner()
     result = runner.invoke(app, ["doctor", "example.com", "--json"])
@@ -2648,6 +2648,34 @@ def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["hostname"] == "example.com"
     assert payload["ok"] is True
     assert payload["checks"][1]["name"] == "host-header request"
+
+
+def test_doctor_json_output_includes_routing_context(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import validate_cmd
+
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    checks = [
+        validate_cmd.CheckResult("hostname directory", True, "/tmp/example.com"),
+        validate_cmd.CheckResult("routing profile", True, "edge"),
+        validate_cmd.CheckResult("default ingress target", True, "http://localhost:8081"),
+        validate_cmd.CheckResult("effective ingress target", True, "http://localhost:9000 (profile:edge)"),
+        validate_cmd.CheckResult("host-header request", True, "example.com returned HTTP 200"),
+    ]
+    monkeypatch.setattr(validate_cmd, "build_hostname_doctor_report", lambda config, hostname, global_sources=None: checks)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["doctor", "example.com", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    details = {item["name"]: item["detail"] for item in payload["checks"]}
+    assert details["routing profile"] == "edge"
+    assert details["default ingress target"] == "http://localhost:8081"
+    assert details["effective ingress target"] == "http://localhost:9000 (profile:edge)"
 
 
 def test_list_json_output(monkeypatch, tmp_path: Path) -> None:

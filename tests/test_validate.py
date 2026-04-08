@@ -6,7 +6,7 @@ from pathlib import Path
 from homesrvctl.cloudflared_service import CloudflaredRuntime
 from homesrvctl.cloudflared import CloudflaredConfigValidation
 from homesrvctl.commands import validate_cmd
-from homesrvctl.models import HomesrvctlConfig
+from homesrvctl.models import HomesrvctlConfig, RoutingProfile
 from homesrvctl.shell import CommandResult
 
 
@@ -114,6 +114,9 @@ def test_build_hostname_doctor_report(monkeypatch, tmp_path: Path) -> None:
 
     assert indexed["hostname directory"].ok
     assert indexed["docker-compose.yml"].ok
+    assert indexed["routing profile"].detail == "none"
+    assert indexed["default ingress target"].detail == "http://localhost:8081"
+    assert indexed["effective ingress target"].detail == "http://localhost:8081 (global-config)"
     assert indexed["docker compose ps"].ok
     assert indexed["cloudflared ingress hostname"].ok
     assert indexed["host-header request"].ok
@@ -158,6 +161,52 @@ def test_build_hostname_doctor_report_uses_stack_override_traefik_url(monkeypatc
     checks = validate_cmd.build_hostname_doctor_report(config, "example.com")
     indexed = {check.name: check for check in checks}
 
+    assert indexed["effective ingress target"].detail == "http://localhost:9000 (stack-local)"
+    assert indexed["host-header request"].ok
+
+
+def test_build_hostname_doctor_report_uses_profile_backed_traefik_url(monkeypatch, tmp_path: Path) -> None:
+    stack_dir = tmp_path / "sites" / "example.com"
+    stack_dir.mkdir(parents=True)
+    (stack_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    (stack_dir / "homesrvctl.yml").write_text("profile: edge\n", encoding="utf-8")
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    cloudflared_config.write_text(
+        "tunnel: 1234-uuid\ningress:\n  - hostname: example.com\n    service: http://localhost:9000\n  - hostname: '*.example.com'\n    service: http://localhost:9000\n  - service: http_status:404\n",
+        encoding="utf-8",
+    )
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
+        sites_root=tmp_path / "sites",
+        docker_network="web",
+        traefik_url="http://localhost:8081",
+        cloudflared_config=cloudflared_config,
+        profiles={"edge": RoutingProfile(docker_network="edge", traefik_url="http://localhost:9000")},
+    )
+
+    def fake_run_command(command: list[str], cwd: Path | None = None, dry_run: bool = False) -> CommandResult:
+        if command[:4] == ["docker", "compose", "ps", "--format"]:
+            return CommandResult(command, 0, "[]", "")
+        raise AssertionError(f"unexpected command: {command}")
+
+    def fake_urlopen(request, timeout: int = 3):  # noqa: ANN001
+        assert request.full_url == "http://localhost:9000"
+        raise urllib.error.HTTPError(
+            url=request.full_url,
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(validate_cmd, "run_command", fake_run_command)
+    monkeypatch.setattr(validate_cmd.urllib.request, "urlopen", fake_urlopen)
+
+    checks = validate_cmd.build_hostname_doctor_report(config, "example.com")
+    indexed = {check.name: check for check in checks}
+
+    assert indexed["routing profile"].detail == "edge"
+    assert indexed["effective ingress target"].detail == "http://localhost:9000 (profile:edge)"
     assert indexed["host-header request"].ok
 
 

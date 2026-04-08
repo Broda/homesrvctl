@@ -14,7 +14,7 @@ from homesrvctl.cloudflared import (
     describe_cloudflared_config_error,
 )
 from homesrvctl.cloudflared_service import detect_cloudflared_runtime
-from homesrvctl.config import load_config, load_stack_settings
+from homesrvctl.config import load_config, load_stack_settings, stack_routing_context
 from homesrvctl.models import CheckResult, HomesrvctlConfig
 from homesrvctl.shell import command_exists, run_command
 from homesrvctl.utils import bullet_report, validate_hostname, with_json_schema
@@ -90,15 +90,27 @@ def build_validate_report(config: HomesrvctlConfig) -> list[CheckResult]:
     return checks
 
 
-def build_hostname_doctor_report(config: HomesrvctlConfig, hostname: str) -> list[CheckResult]:
+def build_hostname_doctor_report(
+    config: HomesrvctlConfig,
+    hostname: str,
+    global_sources: dict[str, str] | None = None,
+) -> list[CheckResult]:
     valid_hostname = validate_hostname(hostname)
     stack_dir = config.hostname_dir(valid_hostname)
     compose_file = stack_dir / "docker-compose.yml"
     stack_settings = load_stack_settings(config, valid_hostname)
+    routing = stack_routing_context(config, valid_hostname, global_sources)
 
     checks = [
         CheckResult("hostname directory", stack_dir.exists(), str(stack_dir)),
         CheckResult("docker-compose.yml", compose_file.exists(), str(compose_file)),
+        CheckResult("routing profile", True, str(routing["profile"] or "none")),
+        CheckResult("default ingress target", True, str(routing["default"]["traefik_url"])),
+        CheckResult(
+            "effective ingress target",
+            True,
+            f"{routing['effective']['traefik_url']} ({routing['effective_sources']['traefik_url']})",
+        ),
     ]
 
     if compose_file.exists():
