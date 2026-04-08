@@ -1,8 +1,8 @@
-# homesrvctl
+# Home Server Controller (`homesrvctl`)
 
 MIT licensed.
 
-`homesrvctl` is a production-oriented Python CLI for managing a home-server hosting platform built around:
+Home Server Controller (`homesrvctl`) is a production-oriented Python CLI for managing a home-server hosting platform built around:
 
 - Cloudflare DNS
 - a locally managed Cloudflare Tunnel via `cloudflared`
@@ -277,6 +277,7 @@ homesrvctl up example.com --dry-run
 - `site init` and `app init` support `--json` for machine-readable scaffold results, including the selected template and rendered template-to-output mapping.
 - `cloudflared status` reports the detected runtime mode, whether it is active, and the restart command when one is available.
 - `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `cloudflared status`, and `validate`.
+- The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
 - The JSON forms of `cloudflared status`, `validate`, and `doctor` stay quiet so they can be consumed directly by scripts and the terminal dashboard.
 - The dashboard now supports keyboard selection between summary sections and shows a focused detail pane for the selected section.

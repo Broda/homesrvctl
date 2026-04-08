@@ -257,6 +257,12 @@ def test_textual_app_summary_and_stack_list_text() -> None:
     assert "> notes.example.com [compose=no]" in stack_list
 
 
+def test_textual_app_uses_human_readable_title() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+
+    assert app.TITLE == "Home Server Controller"
+
+
 def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None:
     snapshots = [
         {

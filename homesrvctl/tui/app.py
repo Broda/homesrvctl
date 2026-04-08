@@ -11,6 +11,7 @@ SECTIONS = ["stacks", "cloudflared", "validate"]
 
 
 class HomesrvctlTextualApp(App[None]):
+    TITLE = "Home Server Controller"
     CSS = """
     Screen {
         layout: vertical;
