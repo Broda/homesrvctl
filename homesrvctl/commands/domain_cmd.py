@@ -20,7 +20,7 @@ from homesrvctl.cloudflared_service import (
     detect_cloudflared_runtime,
     restart_cloudflared_service,
 )
-from homesrvctl.config import load_config, load_stack_settings
+from homesrvctl.config import load_config, load_config_details, load_stack_settings, stack_routing_context
 from homesrvctl.utils import bullet_report, info, success, validate_bare_domain, warn, with_json_schema
 
 domain_cli = typer.Typer(help="Manage domain-level Cloudflare Tunnel DNS routing.")
@@ -205,9 +205,10 @@ def domain_status(
     json_output: bool = typer.Option(False, "--json", help="Print the domain status report as JSON."),
 ) -> None:
     """Report whether a domain is fully wired to the configured tunnel and local ingress."""
-    config = load_config()
+    config, global_sources = load_config_details()
     bare_domain = validate_bare_domain(domain)
     stack_settings = load_stack_settings(config, bare_domain)
+    routing = stack_routing_context(config, bare_domain, global_sources)
     client = CloudflareApiClient(config.cloudflare_api_token)
 
     try:
@@ -236,6 +237,7 @@ def domain_status(
             "domain": bare_domain,
             "expected_tunnel_target": target,
             "expected_ingress_service": stack_settings.traefik_url,
+            "routing": routing,
             "overall": overall,
             "ok": overall == "ok",
             "repairable": repairable,
@@ -275,7 +277,13 @@ def domain_status(
         typer.echo(json.dumps(payload, indent=2))
     else:
         info(f"Expected tunnel target: {target}")
-        info(f"Expected ingress service: {stack_settings.traefik_url}")
+        info(f"Default ingress service: {routing['default']['traefik_url']}")
+        info(f"Effective ingress service: {routing['effective']['traefik_url']}")
+        info(
+            "Routing source: "
+            f"{routing['effective_sources']['traefik_url']}"
+            + (f" (profile={routing['profile']})" if routing["profile"] else "")
+        )
 
         for status in dns_statuses:
             if not status.exists:

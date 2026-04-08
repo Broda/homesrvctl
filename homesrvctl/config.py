@@ -176,6 +176,40 @@ def stack_settings_sources(
     }
 
 
+def stack_routing_context(
+    config: HomesrvctlConfig,
+    hostname: str,
+    global_sources: dict[str, str] | None = None,
+) -> dict[str, object]:
+    settings = load_stack_settings(config, hostname)
+    local_overrides = load_stack_config_data(settings.stack_dir)
+    effective_sources = stack_settings_sources(
+        config,
+        settings,
+        {
+            "docker_network": f"global-{(global_sources or {}).get('docker_network', 'config')}",
+            "traefik_url": f"global-{(global_sources or {}).get('traefik_url', 'config')}",
+        },
+    )
+    return {
+        "hostname": hostname,
+        "profile": settings.profile,
+        "stack_dir": str(settings.stack_dir),
+        "stack_config_path": str(settings.config_path),
+        "has_local_config": settings.has_local_config,
+        "default": {
+            "docker_network": config.docker_network,
+            "traefik_url": config.traefik_url,
+        },
+        "effective": {
+            "docker_network": settings.docker_network,
+            "traefik_url": settings.traefik_url,
+        },
+        "effective_sources": effective_sources,
+        "local_overrides": local_overrides,
+    }
+
+
 def render_stack_settings(
     config: HomesrvctlConfig,
     docker_network: str,
