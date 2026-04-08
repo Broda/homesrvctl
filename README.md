@@ -63,6 +63,14 @@ The published Python distribution name is `homesrvctl`. The CLI command is also 
 
 `homesrvctl` is published to PyPI. GitHub Releases remain available as an additional artifact channel.
 
+## Documentation
+
+- Wiki home: `https://github.com/Broda/homesrvctl/wiki`
+- Getting started: `https://github.com/Broda/homesrvctl/wiki/Getting-Started`
+- Configuration: `https://github.com/Broda/homesrvctl/wiki/Configuration`
+- Domain workflow: `https://github.com/Broda/homesrvctl/wiki/Domain-Workflow`
+- Release process: `https://github.com/Broda/homesrvctl/wiki/Release-Process`
+
 ## Configuration
 
 Initialize the default config:
