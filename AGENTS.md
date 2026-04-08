@@ -43,6 +43,11 @@ Update the relevant docs when they are affected:
 - [`FILE_MAP.md`](FILE_MAP.md) when repo layout changes materially
 - [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) when core development assumptions change
 
+For code changes that affect public behavior, operator workflows, configuration, scaffolding, commands, or releases:
+- update the relevant repo docs in the same slice
+- update the GitHub wiki in the same slice when the change affects user-facing guidance
+- prefer committing code and the matching docs/wiki updates together rather than treating docs as a later cleanup
+
 ## Verification Expectations
 
 Run the standard local verification commands when they are relevant:
