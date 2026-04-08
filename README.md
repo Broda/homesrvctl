@@ -287,3 +287,4 @@ homesrvctl up example.com --dry-run
 - The `node` and `python` app templates now expose a dedicated `/healthz` endpoint, and the generated healthchecks probe that endpoint instead of the user-facing root response.
 - The generated `node` and `python` app READMEs now include explicit first-run steps for `docker compose up --build`, health verification, and when you actually need a `.env` file.
 - Scaffold regression tests now assert that the rendered `node` and `python` artifacts stay internally consistent across ports, healthchecks, and rendered template manifests.
+- The generated Dockerfiles now use slightly more realistic defaults: the Node scaffold installs runtime dependencies, and the Python scaffold sets the standard runtime environment flags before installing requirements.

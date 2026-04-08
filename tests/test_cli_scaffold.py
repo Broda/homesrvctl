@@ -160,6 +160,7 @@ def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) ->
     compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
     env_example = (app_dir / ".env.example").read_text(encoding="utf-8")
     readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    dockerfile = (app_dir / "Dockerfile").read_text(encoding="utf-8")
     package_json = (app_dir / "package.json").read_text(encoding="utf-8")
     server_js = (app_dir / "src" / "server.js").read_text(encoding="utf-8")
     assert "dockerfile: Dockerfile" in compose
@@ -169,6 +170,8 @@ def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) ->
     assert "Copy to .env only if you need to override these defaults." in env_example
     assert "docker compose up --build" in readme
     assert "container becomes healthy" in readme
+    assert "ENV NODE_ENV=production" in dockerfile
+    assert "RUN npm install --omit=dev" in dockerfile
     assert "/healthz" in server_js
     assert "\"start\": \"node src/server.js\"" in package_json
     assert "Replace src/server.js with your real Node application." in server_js
@@ -195,6 +198,7 @@ def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
     env_example = (app_dir / ".env.example").read_text(encoding="utf-8")
     readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    dockerfile = (app_dir / "Dockerfile").read_text(encoding="utf-8")
     main_py = (app_dir / "app" / "main.py").read_text(encoding="utf-8")
     assert "loadbalancer.server.port=8000" in compose
     assert "healthcheck:" in compose
@@ -202,6 +206,9 @@ def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     assert "Copy to .env only if you need to override these defaults." in env_example
     assert "docker compose up --build" in readme
     assert "container becomes healthy" in readme
+    assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile
+    assert "ENV PYTHONUNBUFFERED=1" in dockerfile
+    assert "python -m pip install --no-cache-dir -r requirements.txt" in dockerfile
     assert "if self.path == \"/healthz\":" in main_py
     assert "Replace app/main.py with your real Python application." in main_py
 
@@ -227,6 +234,8 @@ def test_app_init_node_template_artifacts_stay_coherent(monkeypatch, tmp_path: P
     assert "loadbalancer.server.port=3000" in compose
     assert "http://127.0.0.1:${PORT:-3000}/healthz" in compose
     assert "EXPOSE 3000" in dockerfile
+    assert "COPY package*.json ./" in dockerfile
+    assert "RUN npm install --omit=dev" in dockerfile
     assert "PORT=3000" in env_example
     assert "port = Number.parseInt(process.env.PORT || \"3000\", 10)" in server_js
     assert "https://notes.example.com/" in readme
@@ -253,6 +262,8 @@ def test_app_init_python_template_artifacts_stay_coherent(monkeypatch, tmp_path:
     assert "loadbalancer.server.port=8000" in compose
     assert "http://127.0.0.1:${PORT:-8000}/healthz" in compose
     assert "EXPOSE 8000" in dockerfile
+    assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile
+    assert "python -m pip install --no-cache-dir -r requirements.txt" in dockerfile
     assert "PORT=8000" in env_example
     assert "PORT = int(os.environ.get(\"PORT\", \"8000\"))" in main_py
     assert "https://api.example.com/" in readme
