@@ -311,6 +311,7 @@ Subtasks:
   Current baseline: generated `node` and `python` READMEs now both document endpoints, runtime inputs, and first-run behavior in the same structure.
 - Review whether `.env.example` files explain only what users actually need.
   Current baseline: generated `node` and `python` READMEs now include explicit first-run and healthcheck guidance, and `.env.example` files now say they are optional unless you need overrides.
+  Current baseline: generated `node` and `python` `.env.example` files now include only runtime variables that the scaffolded apps actually read.
 - Review whether Dockerfiles use reasonable defaults without too much magic.
   Current baseline: the Node scaffold now installs runtime dependencies during the image build, and the Python scaffold now sets standard runtime environment flags before installing requirements.
 - Review whether generated source files include only the minimum useful comments.

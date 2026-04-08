@@ -242,6 +242,10 @@ def test_app_init_node_template_artifacts_stay_coherent(monkeypatch, tmp_path: P
     assert "COPY package*.json ./" in dockerfile
     assert "RUN npm install --omit=dev" in dockerfile
     assert "PORT=3000" in env_example
+    assert "APP_HOSTNAME=notes.example.com" in env_example
+    assert "NODE_ENV=production" in env_example
+    assert "APP_TEMPLATE=" not in env_example
+    assert "\nHOSTNAME=" not in env_example
     assert "port = Number.parseInt(process.env.PORT || \"3000\", 10)" in server_js
     assert "method not allowed" in server_js
     assert "https://notes.example.com/" in readme
@@ -271,6 +275,9 @@ def test_app_init_python_template_artifacts_stay_coherent(monkeypatch, tmp_path:
     assert "ENV PYTHONDONTWRITEBYTECODE=1" in dockerfile
     assert "python -m pip install --no-cache-dir -r requirements.txt" in dockerfile
     assert "PORT=8000" in env_example
+    assert "APP_HOSTNAME=api.example.com" in env_example
+    assert "APP_TEMPLATE=" not in env_example
+    assert "\nHOSTNAME=" not in env_example
     assert "PORT = int(os.environ.get(\"PORT\", \"8000\"))" in main_py
     assert "def _method_not_allowed(self) -> None:" in main_py
     assert "https://api.example.com/" in readme
