@@ -246,15 +246,44 @@ def test_textual_app_summary_and_stack_list_text() -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_section_index = 0
-    app.selected_stack_index = 1
+    app.selected_control_index = 3
 
-    summary = app._summary_text()
-    stack_list = app._stack_list_text()
+    controls = app._control_list_text()
+    detail = app._detail_text()
+    command_bar = app._command_bar_text()
 
-    assert "> Stacks: 2 stack(s), 1 ready" in summary
-    assert "selected: notes.example.com" in stack_list
-    assert "> notes.example.com [compose=no]" in stack_list
+    assert "Tools" in controls
+    assert "Cloudflared" in controls
+    assert "Validate" in controls
+    assert "Stacks" in controls
+    assert "> notes.example.com [compose=no]" in controls
+    assert "hostname: notes.example.com" in detail
+    assert "focus: notes.example.com" in command_bar
+
+
+def test_textual_app_tool_detail_and_command_bar_text() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {
+            "ok": True,
+            "mode": "systemd",
+            "active": True,
+            "detail": "systemd service is active",
+            "config_validation": {"ok": True, "detail": "Validating rules\nOK", "warnings": []},
+        },
+        "validate": {"ok": False, "checks": [{"name": "docker", "ok": False, "detail": "missing"}]},
+    }
+    app.selected_control_index = 0
+
+    detail = app._detail_text()
+    command_bar = app._command_bar_text()
+
+    assert "Cloudflared Detail" in detail
+    assert "runtime: systemd" in detail
+    assert "focus: Cloudflared" in command_bar
+    assert "actions: w/s move | r refresh | q quit" in command_bar
 
 
 def test_textual_app_uses_human_readable_title() -> None:
@@ -281,6 +310,7 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
+    app.selected_control_index = 2
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(

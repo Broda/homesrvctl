@@ -7,72 +7,97 @@ from textual.widgets import Footer, Header, Static
 
 from homesrvctl.tui.data import build_dashboard_snapshot, run_stack_action, stack_sites, summarize_stack_action
 
-SECTIONS = ["stacks", "cloudflared", "validate"]
-
 
 class HomesrvctlTextualApp(App[None]):
     TITLE = "Home Server Controller"
     CSS = """
     Screen {
         layout: vertical;
-        background: #11161d;
-        color: #d9e1ea;
+        background: #241a16;
+        color: #f7efe8;
+    }
+
+    Header {
+        background: #5b3427;
+        color: #fff4ea;
+    }
+
+    #summary_strip {
+        layout: horizontal;
+        height: 9;
+        padding: 1 2 0 2;
+    }
+
+    .summary_card {
+        width: 1fr;
+        margin-right: 1;
+        padding: 1 2;
+        background: #3a2720;
+        border: round #b97851;
+        color: #fdf4ed;
+    }
+
+    .summary_card:last-child {
+        margin-right: 0;
+    }
+
+    .card_title {
+        color: #ffcf9f;
+        text-style: bold;
+        margin-bottom: 1;
     }
 
     #body {
         layout: horizontal;
         height: 1fr;
+        padding: 1 2;
     }
 
-    #sidebar {
-        width: 38;
-        min-width: 32;
-        padding: 1 1;
-        background: #18212b;
-        border: round #3f556b;
+    #controls_pane {
+        width: 42;
+        min-width: 34;
+        margin-right: 1;
+        padding: 1 2;
+        background: #2f211c;
+        border: round #b97851;
     }
 
-    #content {
+    #detail_pane {
         width: 1fr;
-        padding: 1 1;
-        background: #0f141b;
+        padding: 1 2;
+        background: #1d1512;
+        border: round #a96843;
     }
 
-    #summary_title, #stack_title, #detail_title, #status_title {
-        color: #8bc6ff;
+    .pane_title {
+        color: #ffcf9f;
         text-style: bold;
         margin-bottom: 1;
     }
 
-    #summary, #stack_list, #detail, #status {
+    #controls_box, #detail_box, #command_bar {
         padding: 0 1;
     }
 
-    #stack_list {
+    #controls_box, #detail_box {
         height: 1fr;
     }
 
-    #detail_box {
-        height: 1fr;
-        border: round #3f556b;
-        padding: 1 1;
-        margin-bottom: 1;
-    }
-
-    #status_box {
-        height: 5;
-        border: round #3f556b;
-        padding: 1 1;
+    #command_bar {
+        height: 4;
+        margin: 0 2 0 2;
+        padding: 1 2;
+        background: #5b3427;
+        color: #fff4ea;
+        border: round #d4976e;
     }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
-        Binding("w,up", "previous_section", "Prev Section", show=False),
-        Binding("s,down,tab", "next_section", "Next Section", show=False),
-        Binding("a,left", "previous_stack", "Prev Stack", show=False),
-        Binding("d,right", "next_stack", "Next Stack", show=False),
+        Binding("w,up", "previous_control", "Prev", show=False),
+        Binding("s,down,tab", "next_control", "Next", show=False),
         Binding("i", "site_init", "Init Site", show=False),
         Binding("g", "doctor", "Doctor", show=False),
         Binding("u", "up", "Up", show=False),
@@ -84,23 +109,23 @@ class HomesrvctlTextualApp(App[None]):
         super().__init__()
         self.refresh_seconds = refresh_seconds
         self.snapshot: dict[str, object] = {}
-        self.selected_section_index = 0
-        self.selected_stack_index = 0
+        self.selected_control_index = 0
         self.status_message = "dashboard starting"
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
+        with Horizontal(id="summary_strip"):
+            yield Static("", id="summary_stacks", classes="summary_card")
+            yield Static("", id="summary_cloudflared", classes="summary_card")
+            yield Static("", id="summary_validate", classes="summary_card")
         with Horizontal(id="body"):
-            with Vertical(id="sidebar"):
-                yield Static("Summary", id="summary_title")
-                yield Static("", id="summary")
-                yield Static("Stacks", id="stack_title")
-                yield Static("", id="stack_list")
-            with Vertical(id="content"):
-                yield Static("Detail", id="detail_title")
+            with Vertical(id="controls_pane"):
+                yield Static("Controls", classes="pane_title")
+                yield Static("", id="controls_box")
+            with Vertical(id="detail_pane"):
+                yield Static("Detail", classes="pane_title")
                 yield Static("", id="detail_box")
-                yield Static("Status", id="status_title")
-                yield Static("", id="status_box")
+        yield Static("", id="command_bar")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -111,30 +136,18 @@ class HomesrvctlTextualApp(App[None]):
     def action_refresh(self) -> None:
         self._refresh_snapshot("dashboard refreshed")
 
-    def action_next_section(self) -> None:
-        self.selected_section_index = (self.selected_section_index + 1) % len(SECTIONS)
-        self._render()
-
-    def action_previous_section(self) -> None:
-        self.selected_section_index = (self.selected_section_index - 1) % len(SECTIONS)
-        self._render()
-
-    def action_next_stack(self) -> None:
-        sites = stack_sites(self.snapshot)
-        if not sites:
-            self.status_message = "no stacks available"
-            self._render()
+    def action_next_control(self) -> None:
+        items = self._control_items()
+        if not items:
             return
-        self.selected_stack_index = (self.selected_stack_index + 1) % len(sites)
+        self.selected_control_index = (self.selected_control_index + 1) % len(items)
         self._render()
 
-    def action_previous_stack(self) -> None:
-        sites = stack_sites(self.snapshot)
-        if not sites:
-            self.status_message = "no stacks available"
-            self._render()
+    def action_previous_control(self) -> None:
+        items = self._control_items()
+        if not items:
             return
-        self.selected_stack_index = (self.selected_stack_index - 1) % len(sites)
+        self.selected_control_index = (self.selected_control_index - 1) % len(items)
         self._render()
 
     def action_site_init(self) -> None:
@@ -157,147 +170,161 @@ class HomesrvctlTextualApp(App[None]):
 
     def _refresh_snapshot(self, status_message: str) -> None:
         self.snapshot = build_dashboard_snapshot()
-        sites = stack_sites(self.snapshot)
-        if sites:
-            self.selected_stack_index = max(0, min(self.selected_stack_index, len(sites) - 1))
+        items = self._control_items()
+        if items:
+            self.selected_control_index = max(0, min(self.selected_control_index, len(items) - 1))
         else:
-            self.selected_stack_index = 0
+            self.selected_control_index = 0
         self.status_message = status_message
         self._render()
 
     def _run_selected_stack_action(self, action: str) -> None:
-        sites = stack_sites(self.snapshot)
-        if not sites:
-            self.status_message = "no stacks available"
+        item = self._selected_control_item()
+        if item.get("kind") != "stack":
+            self.status_message = "select a stack to run stack actions"
             self._render()
             return
-        hostname = str(sites[self.selected_stack_index].get("hostname", ""))
+        hostname = str(item.get("hostname", ""))
         payload = run_stack_action(hostname, action)
         self.status_message = summarize_stack_action(hostname, action, payload)
         self.snapshot = build_dashboard_snapshot()
-        sites = stack_sites(self.snapshot)
-        if sites:
-            self.selected_stack_index = max(0, min(self.selected_stack_index, len(sites) - 1))
+        items = self._control_items()
+        if items:
+            self.selected_control_index = min(self.selected_control_index, len(items) - 1)
         else:
-            self.selected_stack_index = 0
+            self.selected_control_index = 0
         self._render()
 
     def _render(self) -> None:
-        self.query_one("#summary", Static).update(self._summary_text())
-        self.query_one("#stack_list", Static).update(self._stack_list_text())
+        self.query_one("#summary_stacks", Static).update(self._summary_card("Stacks", self._stacks_summary()))
+        self.query_one("#summary_cloudflared", Static).update(self._summary_card("Cloudflared", self._cloudflared_summary()))
+        self.query_one("#summary_validate", Static).update(self._summary_card("Validate", self._validate_summary()))
+        self.query_one("#controls_box", Static).update(self._control_list_text())
         self.query_one("#detail_box", Static).update(self._detail_text())
-        self.query_one("#status_box", Static).update(self._status_text())
+        self.query_one("#command_bar", Static).update(self._command_bar_text())
 
-    def _summary_text(self) -> str:
-        selected = SECTIONS[self.selected_section_index]
-        lines = [
-            self._summary_line("stacks", self._stacks_summary(), selected),
-            self._summary_line("cloudflared", self._cloudflared_summary(), selected),
-            self._summary_line("validate", self._validate_summary(), selected),
-        ]
-        return "\n".join(lines)
+    def _summary_card(self, title: str, detail: str) -> str:
+        return f"{title}\n\n{detail}"
 
-    def _stack_list_text(self) -> str:
-        sites = stack_sites(self.snapshot)
-        if not sites:
-            return "no stacks found"
-        selected_index = max(0, min(self.selected_stack_index, len(sites) - 1))
-        selected_site = sites[selected_index]
-        lines = [
-            f"selected: {selected_site.get('hostname', '<unknown>')}",
-            f"compose: {'yes' if selected_site.get('compose') else 'no'}",
-            "actions: a/d i g u t x",
-            "",
+    def _control_items(self) -> list[dict[str, object]]:
+        items: list[dict[str, object]] = [
+            {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"},
+            {"kind": "tool", "tool": "validate", "label": "Validate"},
         ]
-        for site in sites[:12]:
-            marker = ">" if site is selected_site else "-"
-            status = "compose=yes" if site.get("compose") else "compose=no"
-            lines.append(f"{marker} {site.get('hostname', '<unknown>')} [{status}]")
-        if len(sites) > 12:
-            lines.append(f"... {len(sites) - 12} more")
+        for site in stack_sites(self.snapshot):
+            hostname = str(site.get("hostname", "<unknown>"))
+            items.append(
+                {
+                    "kind": "stack",
+                    "hostname": hostname,
+                    "compose": bool(site.get("compose")),
+                    "label": hostname,
+                }
+            )
+        return items
+
+    def _selected_control_item(self) -> dict[str, object]:
+        items = self._control_items()
+        if not items:
+            return {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"}
+        index = max(0, min(self.selected_control_index, len(items) - 1))
+        return items[index]
+
+    def _control_list_text(self) -> str:
+        items = self._control_items()
+        if not items:
+            return "Tools\n\n> Cloudflared\n  Validate\n\nStacks\n\n(no stacks found)"
+
+        tool_count = 2
+        lines = ["Tools", ""]
+        for index, item in enumerate(items[:tool_count]):
+            marker = ">" if index == self.selected_control_index else " "
+            lines.append(f"{marker} {item['label']}")
+
+        lines.extend(["", "Stacks", ""])
+        stack_items = items[tool_count:]
+        if not stack_items:
+            lines.append("(no stacks found)")
+            return "\n".join(lines)
+
+        for offset, item in enumerate(stack_items):
+            index = tool_count + offset
+            marker = ">" if index == self.selected_control_index else " "
+            compose = "compose=yes" if item.get("compose") else "compose=no"
+            lines.append(f"{marker} {item['label']} [{compose}]")
         return "\n".join(lines)
 
     def _detail_text(self) -> str:
-        section = SECTIONS[self.selected_section_index]
-        if section == "stacks":
-            return self._stack_detail_text()
-        if section == "cloudflared":
-            return self._cloudflared_detail_text()
-        return self._validate_detail_text()
+        item = self._selected_control_item()
+        if item.get("kind") == "tool":
+            if item.get("tool") == "cloudflared":
+                return self._cloudflared_detail_text()
+            return self._validate_detail_text()
+        return self._stack_detail_text(str(item.get("hostname", "")), bool(item.get("compose")))
 
-    def _status_text(self) -> str:
+    def _command_bar_text(self) -> str:
+        item = self._selected_control_item()
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"
-        lines = [
-            self.status_message,
-            f"mode: {mode}",
-            f"generated: {self.snapshot.get('generated_at', 'unknown')}",
-            "keys: q quit | r refresh | w/s section | a/d stack | i/g/u/t/x actions",
-        ]
-        return "\n".join(lines)
-
-    def _summary_line(self, name: str, detail: str, selected: str) -> str:
-        marker = ">" if name == selected else " "
-        label = name.title() if name != "cloudflared" else "Cloudflared"
-        return f"{marker} {label}: {detail}"
+        if item.get("kind") == "stack":
+            focus = f"focus: {item.get('hostname', '<unknown>')}"
+            actions = "actions: i init | g doctor | u up | t restart | x down | r refresh | q quit"
+        else:
+            focus = f"focus: {item.get('label', 'Tool')}"
+            actions = "actions: w/s move | r refresh | q quit"
+        return "\n".join([focus, actions, f"status: {self.status_message} | mode: {mode}"])
 
     def _stacks_summary(self) -> str:
         payload = self.snapshot.get("list")
         if not isinstance(payload, dict):
-            return "unavailable"
+            return "Unavailable"
         if not payload.get("ok"):
-            return f"error: {payload.get('error', 'unknown error')}"
+            return f"Error\n\n{payload.get('error', 'unknown error')}"
         sites = payload.get("sites", [])
         if not sites:
-            return "no stacks found"
+            return "No stacks\n\nNothing scaffolded yet."
         compose_ready = sum(1 for site in sites if site.get("compose"))
-        return f"{len(sites)} stack(s), {compose_ready} ready"
+        return f"{len(sites)} stack(s)\n\n{compose_ready} ready for compose actions"
 
     def _cloudflared_summary(self) -> str:
         payload = self.snapshot.get("cloudflared")
         if not isinstance(payload, dict):
-            return "unavailable"
+            return "Unavailable"
         runtime = payload.get("mode", "unknown")
         active = "active" if payload.get("active") else "inactive"
         config_validation = payload.get("config_validation")
         if isinstance(config_validation, dict) and config_validation.get("warnings"):
-            return f"{runtime} ({active}), {len(config_validation['warnings'])} warning(s)"
-        return f"{runtime} ({active})"
+            return f"{runtime} ({active})\n\n{len(config_validation['warnings'])} warning(s)"
+        return f"{runtime} ({active})\n\n{payload.get('detail', 'no detail')}"
 
     def _validate_summary(self) -> str:
         payload = self.snapshot.get("validate")
         if not isinstance(payload, dict):
-            return "unavailable"
+            return "Unavailable"
         checks = payload.get("checks", [])
         failures = [check for check in checks if not check.get("ok")]
         if not checks:
-            return "no checks"
-        return f"{len(checks)} checks, {len(failures)} failing"
+            return "No checks\n\nValidation returned no checks."
+        if failures:
+            return f"{len(checks)} checks\n\n{len(failures)} failing"
+        return f"{len(checks)} checks\n\nAll passing"
 
-    def _stack_detail_text(self) -> str:
-        payload = self.snapshot.get("list")
-        if not isinstance(payload, dict):
-            return "unavailable"
-        if not payload.get("ok"):
-            return f"error: {payload.get('error', 'unknown error')}"
-        sites = stack_sites(self.snapshot)
-        if not sites:
-            return "no stacks found"
-        selected_site = sites[max(0, min(self.selected_stack_index, len(sites) - 1))]
+    def _stack_detail_text(self, hostname: str, compose: bool) -> str:
         lines = [
-            "Stacks Detail",
+            "Stack Detail",
             "",
-            f"hostname: {selected_site.get('hostname', '<unknown>')}",
-            f"compose file: {'yes' if selected_site.get('compose') else 'no'}",
+            f"hostname: {hostname or '<unknown>'}",
+            f"compose file: {'yes' if compose else 'no'}",
             "",
-            "Use i to scaffold a site for an empty hostname directory,",
-            "then u to start it and g to run doctor checks.",
+            "This pane is the control surface for stack lifecycle work.",
+            "Use i to scaffold a simple site if the hostname directory is empty.",
+            "Use u to start the stack, g to run doctor, t to restart, or x to stop it.",
         ]
         return "\n".join(lines)
 
     def _cloudflared_detail_text(self) -> str:
         payload = self.snapshot.get("cloudflared")
         if not isinstance(payload, dict):
-            return "unavailable"
+            return "Cloudflared detail unavailable"
         lines = [
             "Cloudflared Detail",
             "",
@@ -307,8 +334,13 @@ class HomesrvctlTextualApp(App[None]):
         ]
         config_validation = payload.get("config_validation")
         if isinstance(config_validation, dict):
-            lines.append(f"config ok: {config_validation.get('ok', False)}")
-            lines.append(f"config detail: {config_validation.get('detail', 'unknown')}")
+            lines.extend(
+                [
+                    "",
+                    f"config ok: {config_validation.get('ok', False)}",
+                    f"config detail: {config_validation.get('detail', 'unknown')}",
+                ]
+            )
             warnings = config_validation.get("warnings", [])
             lines.append("")
             if warnings:
@@ -316,21 +348,26 @@ class HomesrvctlTextualApp(App[None]):
                 lines.extend(f"- {warning}" for warning in warnings[:5])
             else:
                 lines.append("warnings: none")
+        lines.extend(["", "This is a global tool item. Refresh here to re-check runtime and ingress health."])
         return "\n".join(lines)
 
     def _validate_detail_text(self) -> str:
         payload = self.snapshot.get("validate")
         if not isinstance(payload, dict):
-            return "unavailable"
+            return "Validate detail unavailable"
         if not payload.get("ok") and "checks" not in payload:
             return f"error: {payload.get('error', 'unknown error')}"
         checks = payload.get("checks", [])
         failures = [check for check in checks if not check.get("ok")]
-        if not failures:
-            return "all validation checks passing"
         lines = ["Validate Detail", ""]
-        for check in failures[:10]:
-            lines.append(f"- {check.get('name', '<unknown>')}: {check.get('detail', '')}")
-        if len(failures) > 10:
-            lines.append(f"... {len(failures) - 10} more")
+        if not failures:
+            lines.append("All validation checks are currently passing.")
+        else:
+            lines.append("Failing checks:")
+            lines.append("")
+            for check in failures[:10]:
+                lines.append(f"- {check.get('name', '<unknown>')}: {check.get('detail', '')}")
+            if len(failures) > 10:
+                lines.append(f"... {len(failures) - 10} more")
+        lines.extend(["", "This is a global tool item. Use it to monitor baseline operator health."])
         return "\n".join(lines)

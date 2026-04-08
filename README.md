@@ -280,9 +280,11 @@ homesrvctl up example.com --dry-run
 - The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
 - The JSON forms of `cloudflared status`, `validate`, and `doctor` stay quiet so they can be consumed directly by scripts and the terminal dashboard.
-- The dashboard now supports keyboard selection between summary sections and shows a focused detail pane for the selected section.
-- TUI navigation uses `tab`, arrow keys, or `w`/`s` to move between sections.
-- On the stacks section, the TUI now supports stack selection with `a`/`d`, `site init` with `i`, and can run `doctor`, `up`, `restart`, and `down` for the selected hostname with `g`, `u`, `t`, and `x`.
+- The dashboard now uses a roomy warm-console layout with a full-width summary strip, a left control pane, a right detail pane, and a persistent command/status bar.
+- The summary strip is informational only; the left control pane is the primary navigation surface.
+- The left control pane groups a small `Tools` section above the larger `Stacks` section and uses a unified vertical cursor.
+- TUI navigation uses `tab`, arrow keys, or `w`/`s` to move through the control pane.
+- When a stack is focused in the control pane, the TUI supports `site init` with `i`, and can run `doctor`, `up`, `restart`, and `down` for the selected hostname with `g`, `u`, `t`, and `x`.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
 - `cloudflared status` now also surfaces non-fatal config warnings when the ingress file is structurally valid but risky, such as an earlier wildcard rule that may shadow a later hostname rule or capture traffic intended for a narrower wildcard.
 - `cloudflared logs` prints the right `journalctl` or `docker logs` command for the detected runtime and supports `--follow` plus `--json`.

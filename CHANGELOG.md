@@ -42,6 +42,11 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Added a first `static-api` app template that combines a static nginx site with a small Python API routed on `/api`.
 - Expanded scaffold regression coverage so generated `node` and `python` artifacts stay consistent across ports, healthchecks, first-run docs, and rendered template manifests.
 
+### Changed
+
+- Reworked the Textual dashboard layout into a roomy warm-console design with a top summary strip, a unified left control pane, a right operational detail pane, and a persistent command/status bar.
+- Replaced the old section-plus-stack split navigation model in the Textual dashboard with a single vertical control cursor through `Tools` and `Stacks`.
+
 ## 0.2.0 - 2026-04-08
 
 ### Added

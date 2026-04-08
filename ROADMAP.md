@@ -522,21 +522,51 @@ Status: in progress
 
 Tasks:
 - Use Textual to move beyond the compact curses layout and give the TUI a clearer long-term visual structure.
-- Keep the interface dense and operator-focused rather than decorative.
+- Keep the interface intentionally roomy and warm rather than dense and utilitarian.
 
 Subtasks:
 - Define a stable Textual layout with:
-  - left summary/navigation pane
-  - main detail pane
-  - bottom status/action bar
+  - a full-width summary strip across the top
+  - a left control pane below it
+  - a right detail pane below it
+  - a persistent command/status bar across the bottom
+- Keep the summary strip informational only rather than making summary cards the primary navigation surface.
+- Use a unified vertical cursor in the left control pane.
+- Group a small `Tools` section above the larger `Stacks` section in that pane.
+- Make the right detail pane operational:
+  - show the focused item
+  - show the current state
+  - show the relevant actions or action guidance
+- Use warm summary cards for:
+  - stacks
+  - `cloudflared`
+  - validation
 - Define visual states for:
   - selected
   - success
   - warning
   - error
   - running/busy
-- Preserve the existing keyboard model where it still makes sense, but allow Textual-specific polish where it improves clarity.
+- Replace the old split navigation model:
+  - no section-by-section summary navigation
+  - no separate `a`/`d` stack mode
+  - `w`/`s` and arrow keys should drive the primary vertical movement
 - Keep the theme intentional and readable on typical terminal backgrounds without introducing a second “brand system” separate from the CLI.
+
+Current baseline:
+- The Textual dashboard now uses a roomy warm-console layout.
+- The top summary strip now has three informational cards for:
+  - stacks
+  - `cloudflared`
+  - validation
+- The left pane is now the primary navigation/control surface with:
+  - `Tools`
+  - `Stacks`
+- The left pane now uses a unified vertical cursor instead of separate section and stack selection models.
+- The right pane now follows the focused control item and shows operational detail for:
+  - global tools
+  - focused stacks
+- The bottom bar now stays visible as a persistent command/status bar.
 
 ### 5.4 Add guided flows for common operations
 
