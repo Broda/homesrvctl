@@ -8,6 +8,7 @@ from homesrvctl.commands.config_cmd import config_cli
 from homesrvctl.commands.deploy_cmd import doctor, down, list_sites_with_format, restart, up
 from homesrvctl.commands.domain_cmd import domain_cli
 from homesrvctl.commands.site_cmd import site_cli
+from homesrvctl.commands.tui_cmd import tui
 from homesrvctl.commands.validate_cmd import validate_with_format
 
 app = typer.Typer(
@@ -29,6 +30,7 @@ app.command("restart")(restart)
 app.command("list")(list_sites_with_format)
 app.command("validate")(validate_with_format)
 app.command("doctor")(doctor)
+app.command("tui")(tui)
 
 
 def run() -> None:

@@ -22,6 +22,7 @@ Responsibilities:
 - parse flags and arguments
 - format human-readable and JSON output
 - orchestrate lower-level helpers
+- host the read-only terminal dashboard entrypoint
 
 Should not do:
 - embed Cloudflare request details directly
@@ -110,6 +111,19 @@ Command modules should avoid:
 - custom YAML parsing when `cloudflared.py` already owns it
 - ad hoc Cloudflare API requests
 - ad hoc subprocess behavior already covered by `shell.py`
+
+The TUI command wrapper follows the same rule: it should prefer orchestrating stable JSON command output over reaching into unrelated modules directly unless that boundary becomes a maintenance problem.
+
+### Terminal UI layer
+
+- [`homesrvctl/tui`](homesrvctl/tui)
+
+Responsibilities:
+- load read-only dashboard data from the existing JSON command surface
+- render terminal dashboard views
+- keep TUI-specific state and refresh behavior out of the command modules
+
+This layer should stay separate from CLI wiring so future dashboard/view growth does not bloat `homesrvctl/commands`.
 
 ### Public contract changes should be deliberate
 

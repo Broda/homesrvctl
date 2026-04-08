@@ -436,13 +436,13 @@ Subtasks:
 
 ## Milestone 5: Terminal UI
 
-Status: later
+Status: in progress
 
 Goal: add a guided terminal UI that makes `homesrvctl` easier to operate interactively without introducing a separate web application or backend service.
 
 ### 5.1 Define the TUI architecture boundary
 
-Status: planned
+Status: in progress
 
 Tasks:
 - Decide whether the TUI should live in the main repo and ship as part of the same package.
@@ -460,9 +460,16 @@ Subtasks:
   - remote multi-user access
   - long-lived background services
 
+Current baseline:
+- `homesrvctl tui` now exists as a read-only dashboard in the main repo.
+- The first implementation shells out to existing `--json` commands for:
+  - `list`
+  - `cloudflared status`
+  - `validate`
+
 ### 5.2 Build a first dashboard
 
-Status: planned
+Status: in progress
 
 Tasks:
 - Add a home screen that gives operators immediate visibility into system state.
@@ -476,6 +483,13 @@ Subtasks:
   - recent domain issues
 - Decide what “good default landing screen” means for a small homelab operator tool.
 - Keep the first dashboard read-only if that reduces implementation risk.
+
+Current baseline:
+- The first dashboard now shows:
+  - stack summary
+  - `cloudflared` runtime/config summary
+  - validation failure summary
+- Refresh is manual with `r` by default, with optional timed refresh via `--refresh-seconds`.
 
 ### 5.3 Add guided flows for common operations
 

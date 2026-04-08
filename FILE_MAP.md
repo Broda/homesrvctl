@@ -31,6 +31,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   Template rendering utilities.
 - [`homesrvctl/shell.py`](homesrvctl/shell.py)
   Shared subprocess execution helpers.
+- [`homesrvctl/tui`](homesrvctl/tui)
+  Terminal UI implementation, including dashboard rendering and JSON-backed data loading.
 
 ## Cloudflare And Cloudflared Helpers
 
@@ -57,6 +59,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   `cloudflared` runtime and config-oriented commands.
 - [`homesrvctl/commands/validate_cmd.py`](homesrvctl/commands/validate_cmd.py)
   Global validation and doctor/reporting helpers.
+- [`homesrvctl/commands/tui_cmd.py`](homesrvctl/commands/tui_cmd.py)
+  Thin CLI wrapper for launching the terminal UI.
 
 ## Templates
 
