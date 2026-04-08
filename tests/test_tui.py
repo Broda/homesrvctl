@@ -98,6 +98,21 @@ def test_run_stack_action_dispatches_to_existing_commands(monkeypatch) -> None:
     assert calls == [["doctor", "example.com"]]
 
 
+def test_run_stack_action_dispatches_site_init(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action("example.com", "init-site")
+
+    assert payload["ok"] is True
+    assert calls == [["site", "init", "example.com"]]
+
+
 def test_summarize_stack_action_reports_failure_detail() -> None:
     summary = data.summarize_stack_action("example.com", "up", {"ok": False, "error": "missing docker-compose.yml"})
 
@@ -118,6 +133,12 @@ def test_summarize_stack_action_uses_failing_check_detail() -> None:
     )
 
     assert summary == "doctor failed for example.com: docker-compose.yml: /srv/homesrvctl/sites/example.com/docker-compose.yml"
+
+
+def test_summarize_stack_action_labels_site_init() -> None:
+    summary = data.summarize_stack_action("example.com", "init-site", {"ok": False, "error": "file exists"})
+
+    assert summary == "site init failed for example.com: file exists"
 
 
 def test_render_dashboard_includes_sections_and_failures() -> None:
@@ -152,7 +173,7 @@ def test_render_dashboard_includes_sections_and_failures() -> None:
     assert "Cloudflared: docker (active), 1 warning(s)" in rendered
     assert "Validate detail" in rendered
     assert "Traefik URL: unreachable" in rendered
-    assert "controls: q quit | r refresh | tab/arrow or w/s move | stacks a/d/g/u/t/x | mode: manual refresh" in rendered
+    assert "controls: q quit | r refresh | tab/arrow or w/s move | stacks a/d/i/g/u/t/x | mode: manual refresh" in rendered
 
 
 def test_render_dashboard_stack_detail_includes_stack_rows() -> None:
@@ -174,7 +195,7 @@ def test_render_dashboard_stack_detail_includes_stack_rows() -> None:
     assert "> Stacks: 2 stack(s), 1 ready" in rendered
     assert "Stacks detail" in rendered
     assert "selected stack: notes.example.com" in rendered
-    assert "stack actions: a/d select | g doctor | u up | t restart | x down" in rendered
+    assert "stack actions: a/d select | i init site | g doctor | u up | t restart | x down" in rendered
     assert "- example.com [compose=yes]" in rendered
     assert "> notes.example.com [compose=no]" in rendered
 

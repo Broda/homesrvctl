@@ -529,6 +529,7 @@ Subtasks:
 
 Completed in this milestone so far:
 - The TUI can now drive stack actions directly for the selected hostname:
+  - `site init`
   - `doctor`
   - `up`
   - `restart`

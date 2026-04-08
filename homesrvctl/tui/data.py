@@ -62,6 +62,8 @@ def stack_sites(snapshot: dict[str, object]) -> list[dict[str, object]]:
 def run_stack_action(hostname: str, action: str) -> dict[str, object]:
     if action == "doctor":
         return run_json_subcommand(["doctor", hostname])
+    if action == "init-site":
+        return run_json_subcommand(["site", "init", hostname])
     if action == "up":
         return run_json_subcommand(["up", hostname])
     if action == "restart":
@@ -73,13 +75,16 @@ def run_stack_action(hostname: str, action: str) -> dict[str, object]:
 
 def summarize_stack_action(hostname: str, action: str, payload: dict[str, object]) -> str:
     if payload.get("ok"):
-        return f"{action} succeeded for {hostname}"
+        action_label = "site init" if action == "init-site" else action
+        return f"{action_label} succeeded for {hostname}"
     checks = payload.get("checks")
     if isinstance(checks, list):
         failing_checks = [check for check in checks if isinstance(check, dict) and not check.get("ok")]
         if failing_checks:
             first_failure = failing_checks[0]
             error = f"{first_failure.get('name', 'check failed')}: {first_failure.get('detail', 'command failed')}"
-            return f"{action} failed for {hostname}: {error}"
+            action_label = "site init" if action == "init-site" else action
+            return f"{action_label} failed for {hostname}: {error}"
     error = str(payload.get("error") or payload.get("detail") or "command failed")
-    return f"{action} failed for {hostname}: {error}"
+    action_label = "site init" if action == "init-site" else action
+    return f"{action_label} failed for {hostname}: {error}"

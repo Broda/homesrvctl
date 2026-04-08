@@ -25,7 +25,7 @@ def render_dashboard_state(
 ) -> str:
     lines: list[str] = []
     lines.append("homesrvctl dashboard")
-    lines.append("q quit | r refresh | tab/arrow or w/s move | stacks: a/d select, g doctor, u up, t restart, x down")
+    lines.append("q quit | r refresh | tab/arrow or w/s move | stacks: a/d select, i init, g doctor, u up, t restart, x down")
     lines.append("")
     lines.extend(_render_summary(snapshot, width, selected))
     lines.append("")
@@ -101,10 +101,12 @@ def _run_dashboard(stdscr, snapshot: dict[str, object], refresh_seconds: float) 
             if key in {ord("d"), ord("D")}:
                 selected_stack_index = (selected_stack_index + 1) % len(current_sites)
                 continue
-            if key in {ord("g"), ord("G"), ord("u"), ord("U"), ord("t"), ord("T"), ord("x"), ord("X")}:
+            if key in {ord("i"), ord("I"), ord("g"), ord("G"), ord("u"), ord("U"), ord("t"), ord("T"), ord("x"), ord("X")}:
                 selected_site = current_sites[selected_stack_index]
                 hostname = str(selected_site.get("hostname", ""))
                 action = {
+                    ord("i"): "init-site",
+                    ord("I"): "init-site",
                     ord("g"): "doctor",
                     ord("G"): "doctor",
                     ord("u"): "up",
@@ -147,7 +149,7 @@ def _render_detail(snapshot: dict[str, object], width: int, selected: str, selec
 
 def _render_footer(refresh_mode: str | None) -> str:
     mode = refresh_mode or "manual refresh"
-    return f"controls: q quit | r refresh | tab/arrow or w/s move | stacks a/d/g/u/t/x | mode: {mode}"
+    return f"controls: q quit | r refresh | tab/arrow or w/s move | stacks a/d/i/g/u/t/x | mode: {mode}"
 
 
 def _summary_line(name: str, selected: str, detail: str) -> str:
@@ -202,7 +204,7 @@ def _render_stack_detail(payload, selected_stack_index: int = 0) -> list[str]:  
     lines = [
         f"selected stack: {selected_site.get('hostname', '<unknown>')}",
         f"compose file: {'yes' if selected_site.get('compose') else 'no'}",
-        "stack actions: a/d select | g doctor | u up | t restart | x down",
+        "stack actions: a/d select | i init site | g doctor | u up | t restart | x down",
         "",
     ]
     for site in sites[:12]:
