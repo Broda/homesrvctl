@@ -1,0 +1,21 @@
+# {{ hostname }} Static Site
+
+This scaffold is a minimal static website for `{{ hostname }}` served by nginx behind Traefik.
+
+## Files
+
+- `docker-compose.yml`: nginx service with Traefik labels
+- `html/index.html`: starter page content
+- `README.md`: quick notes for the scaffold
+
+## First run
+
+1. Edit `html/index.html` with your real site content.
+2. Start the stack with `docker compose up -d`.
+3. Verify the container becomes healthy and that `https://{{ hostname }}/` serves your static page.
+
+## Runtime behavior
+
+- nginx serves files directly from `./html`
+- the generated compose service includes a healthcheck against `http://127.0.0.1/`
+- Traefik forwards `{{ hostname }}` to nginx on port `80`

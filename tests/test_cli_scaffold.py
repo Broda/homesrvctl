@@ -180,6 +180,31 @@ def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) ->
     assert "Replace src/server.js with your real Node application." in server_js
 
 
+def test_app_init_static_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "www.example.com", "--template", "static"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "www.example.com"
+    assert (app_dir / "docker-compose.yml").exists()
+    assert (app_dir / "README.md").exists()
+    assert (app_dir / "html" / "index.html").exists()
+    assert not (app_dir / ".env.example").exists()
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    index_html = (app_dir / "html" / "index.html").read_text(encoding="utf-8")
+    assert "image: nginx:alpine" in compose
+    assert "healthcheck:" in compose
+    assert "http://127.0.0.1/" in compose
+    assert "docker compose up -d" in readme
+    assert "www.example.com" in index_html
+
+
 def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -548,6 +573,32 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["ok"] is True
     assert payload["files"][-1].endswith("/notes.example.com/src/server.js")
     assert payload["rendered_templates"][0]["template"] == "app/node/docker-compose.yml.j2"
+
+
+def test_app_init_static_json_output(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "www.example.com", "--template", "static", "--dry-run", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "app_init"
+    assert payload["hostname"] == "www.example.com"
+    assert payload["template"] == "static"
+    assert payload["dry_run"] is True
+    assert payload["ok"] is True
+    assert payload["files"][-1].endswith("/www.example.com/html/index.html")
+    templates = {entry["template"] for entry in payload["rendered_templates"]}
+    assert templates == {
+        "app/static/docker-compose.yml.j2",
+        "app/static/README.md.j2",
+        "app/static/index.html.j2",
+    }
 
 
 def test_app_init_json_output_reports_stack_override_file(monkeypatch, tmp_path: Path) -> None:

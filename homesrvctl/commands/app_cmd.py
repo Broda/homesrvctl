@@ -145,8 +145,9 @@ def app_init(
 def _template_outputs(target_dir, template: TemplateName) -> list[tuple]:  # noqa: ANN001
     if template == "static":
         return [
-            (target_dir / "docker-compose.yml", "static/docker-compose.yml.j2"),
-            (target_dir / ".env.example", "app/placeholder/env.example.j2"),
+            (target_dir / "docker-compose.yml", "app/static/docker-compose.yml.j2"),
+            (target_dir / "README.md", "app/static/README.md.j2"),
+            (target_dir / "html" / "index.html", "app/static/index.html.j2"),
         ]
     if template == "node":
         return [
