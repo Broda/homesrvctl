@@ -165,10 +165,11 @@ def test_app_init_node_template_creates_scaffold(monkeypatch, tmp_path: Path) ->
     assert "dockerfile: Dockerfile" in compose
     assert "loadbalancer.server.port=3000" in compose
     assert "healthcheck:" in compose
-    assert "http://127.0.0.1:${PORT:-3000}/" in compose
+    assert "http://127.0.0.1:${PORT:-3000}/healthz" in compose
     assert "Copy to .env only if you need to override these defaults." in env_example
     assert "docker compose up --build" in readme
     assert "container becomes healthy" in readme
+    assert "/healthz" in server_js
     assert "\"start\": \"node src/server.js\"" in package_json
     assert "Replace src/server.js with your real Node application." in server_js
 
@@ -197,10 +198,11 @@ def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     main_py = (app_dir / "app" / "main.py").read_text(encoding="utf-8")
     assert "loadbalancer.server.port=8000" in compose
     assert "healthcheck:" in compose
-    assert "http://127.0.0.1:${PORT:-8000}/" in compose
+    assert "http://127.0.0.1:${PORT:-8000}/healthz" in compose
     assert "Copy to .env only if you need to override these defaults." in env_example
     assert "docker compose up --build" in readme
     assert "container becomes healthy" in readme
+    assert "if self.path == \"/healthz\":" in main_py
     assert "Replace app/main.py with your real Python application." in main_py
 
 
@@ -223,7 +225,7 @@ def test_app_init_node_template_artifacts_stay_coherent(monkeypatch, tmp_path: P
 
     assert "PORT: ${PORT:-3000}" in compose
     assert "loadbalancer.server.port=3000" in compose
-    assert "http://127.0.0.1:${PORT:-3000}/" in compose
+    assert "http://127.0.0.1:${PORT:-3000}/healthz" in compose
     assert "EXPOSE 3000" in dockerfile
     assert "PORT=3000" in env_example
     assert "port = Number.parseInt(process.env.PORT || \"3000\", 10)" in server_js
@@ -249,7 +251,7 @@ def test_app_init_python_template_artifacts_stay_coherent(monkeypatch, tmp_path:
 
     assert "PORT: ${PORT:-8000}" in compose
     assert "loadbalancer.server.port=8000" in compose
-    assert "http://127.0.0.1:${PORT:-8000}/" in compose
+    assert "http://127.0.0.1:${PORT:-8000}/healthz" in compose
     assert "EXPOSE 8000" in dockerfile
     assert "PORT=8000" in env_example
     assert "PORT = int(os.environ.get(\"PORT\", \"8000\"))" in main_py

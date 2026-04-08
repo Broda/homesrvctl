@@ -314,6 +314,7 @@ Subtasks:
 - Review whether generated source files include only the minimum useful comments.
   Current baseline: scaffold regression coverage now checks rendered template manifests plus port and healthcheck consistency across generated `node` and `python` artifacts.
   Current baseline: generated `node` and `python` app templates include container healthchecks against their default root endpoints.
+  Current baseline: generated `node` and `python` sources now expose a dedicated `/healthz` endpoint for container healthchecks.
 
 ### 3.2 Add a “static app plus API” pattern
 
