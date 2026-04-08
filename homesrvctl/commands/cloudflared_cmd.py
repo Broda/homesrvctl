@@ -22,8 +22,17 @@ def cloudflared_status(
 ) -> None:
     """Show how cloudflared is currently managed and whether it is active."""
     runtime = detect_cloudflared_runtime()
+    config_validation = None
+    try:
+        config = load_config()
+        config_validation = test_cloudflared_config(config.cloudflared_config)
+    except typer.BadParameter:
+        config_validation = None
     if json_output:
-        typer.echo(json.dumps(with_json_schema(_runtime_payload(runtime, ok=runtime.active)), indent=2))
+        payload = _runtime_payload(runtime, ok=runtime.active)
+        if config_validation is not None:
+            payload["config_validation"] = _config_validation_payload(config_validation)
+        typer.echo(json.dumps(with_json_schema(payload), indent=2))
     else:
         detail = f"{runtime.mode}: {runtime.detail}"
         if runtime.active:
@@ -32,6 +41,13 @@ def cloudflared_status(
                 info(f"restart command: {' '.join(runtime.restart_command)}")
         else:
             warn(detail)
+        if config_validation is not None:
+            if config_validation.ok:
+                info(f"config: {config_validation.detail}")
+                for warning_message in config_validation.warnings or []:
+                    warn(f"config warning: {warning_message}")
+            else:
+                warn(f"config: {config_validation.detail}")
     if not runtime.active:
         raise typer.Exit(code=1)
 
@@ -118,6 +134,7 @@ def cloudflared_config_test(
         "method": result.method,
         "command": result.command,
         "detail": result.detail,
+        "warnings": result.warnings or [],
     })
     if json_output:
         typer.echo(json.dumps(payload, indent=2))
@@ -126,6 +143,8 @@ def cloudflared_config_test(
             info(f"$ {' '.join(result.command)}")
         if result.ok:
             success(result.detail)
+            for warning_message in result.warnings or []:
+                warn(f"warning: {warning_message}")
         else:
             warn(result.detail)
     if not result.ok:
@@ -149,6 +168,16 @@ def _runtime_payload(runtime, ok: bool, dry_run: bool | None = None) -> dict[str
     if dry_run is not None:
         payload["dry_run"] = dry_run
     return payload
+
+
+def _config_validation_payload(result) -> dict[str, object]:  # noqa: ANN001
+    return {
+        "ok": result.ok,
+        "detail": result.detail,
+        "method": result.method,
+        "command": result.command,
+        "warnings": result.warnings or [],
+    }
 
 
 def _logs_command(runtime, follow: bool) -> list[str] | None:  # noqa: ANN001

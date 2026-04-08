@@ -16,6 +16,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Added named routing profiles in global config plus stack-local `profile` selection for scaffolded stacks.
 - Added routing-context reporting to `domain status`, including default versus effective ingress target and source attribution.
 - Added routing-context reporting to `doctor`, including routing profile plus default and effective ingress targets.
+- Added non-fatal `cloudflared` ingress warning reporting for risky wildcard shadowing in `cloudflared status` and `cloudflared config-test`.
 
 ## 0.2.0 - 2026-04-08
 

@@ -256,8 +256,10 @@ homesrvctl up example.com --dry-run
 - `site init` and `app init` support `--json` for machine-readable scaffold results, including the selected template and rendered template-to-output mapping.
 - `cloudflared status` reports the detected runtime mode, whether it is active, and the restart command when one is available.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
+- `cloudflared status` now also surfaces non-fatal config warnings when the ingress file is structurally valid but risky, such as an earlier wildcard rule that may shadow a later hostname rule.
 - `cloudflared logs` prints the right `journalctl` or `docker logs` command for the detected runtime and supports `--follow` plus `--json`.
 - `cloudflared restart` also supports `--json` for automation-friendly dry-run and failure reporting.
+- `cloudflared config-test` now reports non-fatal warnings for risky ingress ordering even when the config is otherwise valid.
 - `doctor` now reports routing profile, default ingress target, and effective ingress target before the hostname-specific routing checks.
 - `domain add` also reconciles apex and wildcard hostname entries in the configured `cloudflared` ingress file so new domains route locally to Traefik.
 - `domain add`, `domain status`, and `domain repair` honor stack-local `traefik_url` overrides stored in `<stack>/homesrvctl.yml` for the apex hostname.

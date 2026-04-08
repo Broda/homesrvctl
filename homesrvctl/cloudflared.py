@@ -31,6 +31,7 @@ class CloudflaredConfigValidation:
     detail: str
     command: list[str] | None = None
     method: str = "structural"
+    warnings: list[str] | None = None
 
 
 def describe_cloudflared_config_error(error: CloudflaredConfigError | typer.BadParameter) -> str:
@@ -96,7 +97,13 @@ def test_cloudflared_config(config_path: Path) -> CloudflaredConfigValidation:
         result = run_command(command, quiet=True)
         if result.ok:
             detail = result.stdout or result.stderr or f"cloudflared ingress validate passed for {config_path}"
-            return CloudflaredConfigValidation(ok=True, detail=detail, command=command, method="cloudflared")
+            return CloudflaredConfigValidation(
+                ok=True,
+                detail=detail,
+                command=command,
+                method="cloudflared",
+                warnings=collect_cloudflared_config_warnings(config_path),
+            )
         detail = result.stderr or result.stdout or "cloudflared ingress validate failed"
         return CloudflaredConfigValidation(ok=False, detail=detail, command=command, method="cloudflared")
 
@@ -114,7 +121,29 @@ def test_cloudflared_config(config_path: Path) -> CloudflaredConfigValidation:
         detail=f"fallback service {fallback}",
         command=None,
         method="structural",
+        warnings=collect_cloudflared_config_warnings(config_path),
     )
+
+
+def collect_cloudflared_config_warnings(config_path: Path) -> list[str]:
+    parsed = _load_config(config_path)
+    ingress = _normalize_ingress(parsed, config_path)
+    warnings: list[str] = []
+    host_entries = [
+        (index, str(entry.get("hostname", "")).strip().lower(), str(entry.get("service", "")).strip())
+        for index, entry in enumerate(ingress[:-1])
+        if str(entry.get("hostname", "")).strip()
+    ]
+    for index, hostname, service in host_entries:
+        for later_index, later_hostname, _later_service in host_entries[index + 1 :]:
+            if hostname == later_hostname:
+                continue
+            if _hostname_matches(hostname, later_hostname):
+                warnings.append(
+                    "earlier ingress rule "
+                    f"{hostname} -> {service} may shadow later hostname {later_hostname} at ingress index {later_index}"
+                )
+    return warnings
 
 
 def find_hostname_route(config_path: Path, hostname: str) -> str | None:

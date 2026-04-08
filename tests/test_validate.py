@@ -4,7 +4,7 @@ import urllib.error
 from pathlib import Path
 
 from homesrvctl.cloudflared_service import CloudflaredRuntime
-from homesrvctl.cloudflared import CloudflaredConfigValidation
+from homesrvctl.cloudflared import CloudflaredConfigValidation, collect_cloudflared_config_warnings
 from homesrvctl.commands import validate_cmd
 from homesrvctl.models import HomesrvctlConfig, RoutingProfile
 from homesrvctl.shell import CommandResult
@@ -351,3 +351,17 @@ def test_build_validate_report_uses_cloudflared_cli_config_test(monkeypatch, tmp
     assert indexed["cloudflared ingress config"].ok
     assert "cloudflared tunnel --config" in indexed["cloudflared ingress config"].detail
     assert "Everything OK" in indexed["cloudflared ingress config"].detail
+
+
+def test_collect_cloudflared_config_warnings_reports_shadowing_wildcard(tmp_path: Path) -> None:
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    cloudflared_config.write_text(
+        "tunnel: 1234-uuid\ningress:\n  - hostname: '*.com'\n    service: http://localhost:9000\n  - hostname: example.com\n    service: http://localhost:8081\n  - service: http_status:404\n",
+        encoding="utf-8",
+    )
+
+    warnings = collect_cloudflared_config_warnings(cloudflared_config)
+
+    assert warnings == [
+        "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1"
+    ]

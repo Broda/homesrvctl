@@ -169,6 +169,7 @@ Completed in this milestone so far:
 - Stack-local `homesrvctl.yml` now supports `profile`.
 - `site init` and `app init` support `--profile`.
 - Direct stack-local overrides still win over selected profile values.
+- `cloudflared status` and `cloudflared config-test` now surface non-fatal ingress shadowing warnings for risky wildcard ordering.
 
 ### 1.3 Support more than one ingress target cleanly
 
