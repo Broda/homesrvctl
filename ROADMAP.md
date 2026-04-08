@@ -56,9 +56,10 @@
 - Added packaging and release automation for tagged versions.
 - Added a GitHub Actions release workflow for `vX.Y.Z` tags that builds artifacts and publishes GitHub Releases.
 - Added a TestPyPI-first trusted publishing step to the tagged release workflow before GitHub Release creation.
+- Added a production PyPI trusted publishing step after successful TestPyPI publication.
 - Reused the shared Python checks workflow as the release gate before artifact publishing.
 - Chose `project.version` in `pyproject.toml` plus matching `vX.Y.Z` tags as the release version source of truth.
-- Chose GitHub releases as the current public release channel, enabled TestPyPI validation, and deferred production PyPI publishing.
+- Chose GitHub releases as the public release channel and enabled both TestPyPI and PyPI trusted publishing in the tagged release flow.
 - Added written release instructions and GitHub-generated release notes discipline.
 - Added CI via GitHub Actions and updated it to Node 24-compatible action versions.
 - Cleaned the public repository for release with generic examples, neutral defaults, and MIT licensing metadata.

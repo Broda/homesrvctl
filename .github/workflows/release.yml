@@ -78,9 +78,28 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  release:
+  publish-pypi:
     runs-on: ubuntu-latest
     needs: publish-testpypi
+    environment:
+      name: pypi
+      url: https://pypi.org/p/homesrvctl
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: homesrvctl-dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: publish-pypi
 
     steps:
       - name: Check out repository

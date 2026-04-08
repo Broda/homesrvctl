@@ -14,8 +14,7 @@ The published Python distribution name is `homesrvctl`. The CLI command remains 
 - Release artifacts are built as:
   - source distribution (`sdist`)
   - wheel
-- Tagged releases currently publish to TestPyPI first.
-- Production PyPI publishing is intentionally not enabled yet until the TestPyPI path is proven clean.
+- Tagged releases publish to TestPyPI first and then to PyPI through trusted publishing.
 
 ## Release Notes
 
@@ -32,4 +31,5 @@ The published Python distribution name is `homesrvctl`. The CLI command remains 
    - verify the tag matches `project.version`
    - build `sdist` and `wheel`
    - publish the built artifacts to TestPyPI through trusted publishing
+   - publish the same built artifacts to PyPI through trusted publishing
    - create a GitHub Release and attach the built artifacts
