@@ -3,11 +3,11 @@ from __future__ import annotations
 import urllib.error
 from pathlib import Path
 
-from homectl.cloudflared_service import CloudflaredRuntime
-from homectl.cloudflared import CloudflaredConfigValidation
-from homectl.commands import validate_cmd
-from homectl.models import HomectlConfig
-from homectl.shell import CommandResult
+from homesrvctl.cloudflared_service import CloudflaredRuntime
+from homesrvctl.cloudflared import CloudflaredConfigValidation
+from homesrvctl.commands import validate_cmd
+from homesrvctl.models import HomesrvctlConfig
+from homesrvctl.shell import CommandResult
 
 
 def test_build_validate_report_uses_cloudflared_config_fallback(monkeypatch, tmp_path: Path) -> None:
@@ -16,8 +16,8 @@ def test_build_validate_report_uses_cloudflared_config_fallback(monkeypatch, tmp
         "tunnel: 1234-uuid\ningress:\n  - hostname: example.com\n    service: http://localhost:8081\n  - hostname: '*.example.com'\n    service: http://localhost:8081\n  - service: http_status:404\n",
         encoding="utf-8",
     )
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",
@@ -84,8 +84,8 @@ def test_build_hostname_doctor_report(monkeypatch, tmp_path: Path) -> None:
         "tunnel: 1234-uuid\ningress:\n  - hostname: example.com\n    service: http://localhost:8081\n  - hostname: '*.example.com'\n    service: http://localhost:8081\n  - service: http_status:404\n",
         encoding="utf-8",
     )
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",
@@ -125,8 +125,8 @@ def test_build_validate_report_includes_cloudflared_hint(monkeypatch, tmp_path: 
         "tunnel: 1234-uuid\ningress:\n  - service: http_status:404\n  - hostname: example.com\n    service: http://localhost:8081\n",
         encoding="utf-8",
     )
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",
@@ -195,8 +195,8 @@ def test_build_validate_report_uses_cloudflared_cli_config_test(monkeypatch, tmp
         "tunnel: 1234-uuid\ningress:\n  - hostname: example.com\n    service: http://localhost:8081\n  - hostname: '*.example.com'\n    service: http://localhost:8081\n  - service: http_status:404\n",
         encoding="utf-8",
     )
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",

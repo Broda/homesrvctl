@@ -5,9 +5,9 @@ from pathlib import Path
 
 import typer
 
-from homectl.config import load_config
-from homectl.shell import require_success, run_command
-from homectl.utils import info, success, validate_hostname, warn, with_json_schema
+from homesrvctl.config import load_config
+from homesrvctl.shell import require_success, run_command
+from homesrvctl.utils import info, success, validate_hostname, warn, with_json_schema
 
 
 def _resolve_stack_dir(hostname: str) -> Path:
@@ -142,7 +142,7 @@ def doctor(
     json_output: bool = typer.Option(False, "--json", help="Print the doctor report as JSON."),
 ) -> None:
     """Diagnose one hostname stack and local Traefik routing."""
-    from homectl.commands.validate_cmd import build_hostname_doctor_report
+    from homesrvctl.commands.validate_cmd import build_hostname_doctor_report
 
     config = load_config()
     valid_hostname = validate_hostname(hostname)

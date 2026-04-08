@@ -7,17 +7,17 @@ import urllib.request
 import typer
 import yaml
 
-from homectl.cloudflared import (
+from homesrvctl.cloudflared import (
     find_hostname_route,
     test_cloudflared_config,
     CloudflaredConfigError,
     describe_cloudflared_config_error,
 )
-from homectl.cloudflared_service import detect_cloudflared_runtime
-from homectl.config import load_config
-from homectl.models import CheckResult, HomectlConfig
-from homectl.shell import command_exists, run_command
-from homectl.utils import bullet_report, validate_hostname, with_json_schema
+from homesrvctl.cloudflared_service import detect_cloudflared_runtime
+from homesrvctl.config import load_config
+from homesrvctl.models import CheckResult, HomesrvctlConfig
+from homesrvctl.shell import command_exists, run_command
+from homesrvctl.utils import bullet_report, validate_hostname, with_json_schema
 
 
 def validate() -> None:
@@ -43,7 +43,7 @@ def validate_with_format(
         raise typer.Exit(code=1)
 
 
-def build_validate_report(config: HomectlConfig) -> list[CheckResult]:
+def build_validate_report(config: HomesrvctlConfig) -> list[CheckResult]:
     checks: list[CheckResult] = []
     checks.append(CheckResult("cloudflared binary", command_exists("cloudflared"), _binary_detail("cloudflared")))
     checks.append(CheckResult("docker binary", command_exists("docker"), _binary_detail("docker")))
@@ -90,7 +90,7 @@ def build_validate_report(config: HomectlConfig) -> list[CheckResult]:
     return checks
 
 
-def build_hostname_doctor_report(config: HomectlConfig, hostname: str) -> list[CheckResult]:
+def build_hostname_doctor_report(config: HomesrvctlConfig, hostname: str) -> list[CheckResult]:
     valid_hostname = validate_hostname(hostname)
     stack_dir = config.hostname_dir(valid_hostname)
     compose_file = stack_dir / "docker-compose.yml"
@@ -131,8 +131,8 @@ def _check_cloudflared_service() -> CheckResult:
     return CheckResult("cloudflared service", runtime.active, runtime.detail)
 
 
-def _check_traefik_http(config: HomectlConfig) -> CheckResult:
-    request = urllib.request.Request(config.traefik_url, headers={"User-Agent": "homectl/0.1.0"})
+def _check_traefik_http(config: HomesrvctlConfig) -> CheckResult:
+    request = urllib.request.Request(config.traefik_url, headers={"User-Agent": "homesrvctl/0.1.0"})
     try:
         with urllib.request.urlopen(request, timeout=3) as response:
             return CheckResult("Traefik URL", True, f"{config.traefik_url} returned HTTP {response.status}")
@@ -142,7 +142,7 @@ def _check_traefik_http(config: HomectlConfig) -> CheckResult:
         return CheckResult("Traefik URL", False, f"{config.traefik_url} unreachable: {exc}")
 
 
-def _check_cloudflared_ingress_config(config: HomectlConfig) -> CheckResult:
+def _check_cloudflared_ingress_config(config: HomesrvctlConfig) -> CheckResult:
     result = test_cloudflared_config(config.cloudflared_config)
     if result.command:
         detail = f"{' '.join(result.command)}: {result.detail}"
@@ -151,10 +151,10 @@ def _check_cloudflared_ingress_config(config: HomectlConfig) -> CheckResult:
     return CheckResult("cloudflared ingress config", result.ok, detail)
 
 
-def _check_host_header(config: HomectlConfig, hostname: str) -> CheckResult:
+def _check_host_header(config: HomesrvctlConfig, hostname: str) -> CheckResult:
     request = urllib.request.Request(
         config.traefik_url,
-        headers={"Host": hostname, "User-Agent": "homectl/0.1.0"},
+        headers={"Host": hostname, "User-Agent": "homesrvctl/0.1.0"},
     )
     try:
         with urllib.request.urlopen(request, timeout=3) as response:
@@ -165,7 +165,7 @@ def _check_host_header(config: HomectlConfig, hostname: str) -> CheckResult:
         return CheckResult("host-header request", False, f"request failed: {exc}")
 
 
-def _check_cloudflared_hostname(config: HomectlConfig, hostname: str) -> CheckResult:
+def _check_cloudflared_hostname(config: HomesrvctlConfig, hostname: str) -> CheckResult:
     if not config.cloudflared_config.exists():
         return CheckResult("cloudflared ingress hostname", False, f"missing file: {config.cloudflared_config}")
     try:
@@ -192,7 +192,7 @@ def _compose_ps_detail(result) -> str:
     return "compose returned container state"
 
 
-def _check_tunnel_reference(config: HomectlConfig) -> CheckResult:
+def _check_tunnel_reference(config: HomesrvctlConfig) -> CheckResult:
     tunnel_result = run_command(
         [
             "cloudflared",
@@ -233,7 +233,7 @@ def _check_tunnel_reference(config: HomectlConfig) -> CheckResult:
         return CheckResult(
             "configured tunnel",
             True,
-            f"cloudflared config references tunnel {tunnel_value}; configured homectl tunnel_name is {config.tunnel_name}",
+            f"cloudflared config references tunnel {tunnel_value}; configured homesrvctl tunnel_name is {config.tunnel_name}",
         )
 
     raw_text = config.cloudflared_config.read_text(encoding="utf-8")

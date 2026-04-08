@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import typer
 
-from homectl.commands.app_cmd import app_cli
-from homectl.commands.cloudflared_cmd import cloudflared_cli
-from homectl.commands.config_cmd import config_cli
-from homectl.commands.deploy_cmd import doctor, down, list_sites_with_format, restart, up
-from homectl.commands.domain_cmd import domain_cli
-from homectl.commands.site_cmd import site_cli
-from homectl.commands.validate_cmd import validate_with_format
+from homesrvctl.commands.app_cmd import app_cli
+from homesrvctl.commands.cloudflared_cmd import cloudflared_cli
+from homesrvctl.commands.config_cmd import config_cli
+from homesrvctl.commands.deploy_cmd import doctor, down, list_sites_with_format, restart, up
+from homesrvctl.commands.domain_cmd import domain_cli
+from homesrvctl.commands.site_cmd import site_cli
+from homesrvctl.commands.validate_cmd import validate_with_format
 
 app = typer.Typer(
-    name="homectl",
+    name="homesrvctl",
     help="Manage home-server domains, site scaffolds, Compose stacks, and environment validation.",
     no_args_is_help=True,
     add_completion=False,

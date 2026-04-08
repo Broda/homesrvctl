@@ -6,8 +6,8 @@ import json
 import yaml
 from typer.testing import CliRunner
 
-from homectl.cloudflared_service import CloudflaredRuntime
-from homectl.main import app
+from homesrvctl.cloudflared_service import CloudflaredRuntime
+from homesrvctl.main import app
 
 
 def _assert_schema_version(payload: dict[str, object]) -> None:
@@ -15,10 +15,10 @@ def _assert_schema_version(payload: dict[str, object]) -> None:
 
 
 def _write_config(home: Path, sites_root: Path) -> None:
-    config_dir = home / ".config" / "homectl"
+    config_dir = home / ".config" / "homesrvctl"
     config_dir.mkdir(parents=True, exist_ok=True)
     config = {
-        "tunnel_name": "homectl-tunnel",
+        "tunnel_name": "homesrvctl-tunnel",
         "sites_root": str(sites_root),
         "docker_network": "web",
         "traefik_url": "http://localhost:8081",
@@ -127,12 +127,12 @@ def test_config_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["ok"] is True
     assert payload["created"] is True
     assert payload["overwrote"] is False
-    assert payload["config_path"].endswith("/.config/homectl/config.yml")
+    assert payload["config_path"].endswith("/.config/homesrvctl/config.yml")
 
 
 def test_config_init_json_reports_existing_config(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
-    config_dir = home / ".config" / "homectl"
+    config_dir = home / ".config" / "homesrvctl"
     config_dir.mkdir(parents=True)
     config_path = config_dir / "config.yml"
     config_path.write_text("tunnel_name: existing\n", encoding="utf-8")
@@ -235,7 +235,7 @@ def test_app_init_json_reports_overwrite_error(monkeypatch, tmp_path: Path) -> N
 
 
 def test_cloudflared_status_json_output(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -260,7 +260,7 @@ def test_cloudflared_status_json_output(monkeypatch) -> None:
 
 
 def test_cloudflared_status_json_failure(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -284,7 +284,7 @@ def test_cloudflared_status_json_failure(monkeypatch) -> None:
 
 
 def test_cloudflared_restart_dry_run(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -306,7 +306,7 @@ def test_cloudflared_restart_dry_run(monkeypatch) -> None:
 
 
 def test_cloudflared_restart_reports_unmanaged_process(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -322,7 +322,7 @@ def test_cloudflared_restart_reports_unmanaged_process(monkeypatch) -> None:
 
 
 def test_cloudflared_restart_json_dry_run(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -346,7 +346,7 @@ def test_cloudflared_restart_json_dry_run(monkeypatch) -> None:
 
 
 def test_cloudflared_logs_reports_systemd_command(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -368,7 +368,7 @@ def test_cloudflared_logs_reports_systemd_command(monkeypatch) -> None:
 
 
 def test_cloudflared_logs_json_reports_unmanaged_process(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -393,14 +393,14 @@ def test_cloudflared_logs_json_reports_unmanaged_process(monkeypatch) -> None:
 
 
 def test_cloudflared_config_test_reports_cli_validation(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -430,14 +430,14 @@ def test_cloudflared_config_test_reports_cli_validation(monkeypatch, tmp_path: P
 
 
 def test_cloudflared_config_test_json_reports_structural_fallback(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -470,7 +470,7 @@ def test_cloudflared_config_test_json_reports_structural_fallback(monkeypatch, t
 
 
 def test_cloudflared_restart_json_failure(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -494,7 +494,7 @@ def test_cloudflared_restart_json_failure(monkeypatch) -> None:
 
 
 def test_cloudflared_restart_json_failure_runtime_fields(monkeypatch) -> None:
-    from homectl.commands import cloudflared_cmd
+    from homesrvctl.commands import cloudflared_cmd
 
     monkeypatch.setattr(
         cloudflared_cmd,
@@ -525,14 +525,14 @@ def test_cloudflared_restart_json_failure_runtime_fields(monkeypatch) -> None:
 
 
 def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -579,14 +579,14 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
 
 
 def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -630,14 +630,14 @@ def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) 
 
 
 def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -685,14 +685,14 @@ def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_add_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -740,14 +740,14 @@ def test_domain_add_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> 
 
 
 def test_domain_add_restarts_cloudflared_when_requested(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -799,14 +799,14 @@ def test_domain_add_restarts_cloudflared_when_requested(monkeypatch, tmp_path: P
 
 
 def test_domain_repair_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -861,14 +861,14 @@ def test_domain_repair_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
 
 
 def test_domain_repair_reports_repaired(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -900,14 +900,14 @@ def test_domain_repair_reports_repaired(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_repair_json_error(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -957,14 +957,14 @@ def test_domain_repair_json_error(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1022,14 +1022,14 @@ def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
 
 
 def test_domain_remove_json_output(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1086,14 +1086,14 @@ def test_domain_remove_json_output(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_add_warns_with_docker_restart_hint(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1135,14 +1135,14 @@ def test_domain_add_warns_with_docker_restart_hint(monkeypatch, tmp_path: Path) 
 
 
 def test_domain_remove_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1201,14 +1201,14 @@ def test_domain_remove_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) 
 
 
 def test_domain_remove_restarts_cloudflared_when_requested(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1261,14 +1261,14 @@ def test_domain_remove_restarts_cloudflared_when_requested(monkeypatch, tmp_path
 
 
 def test_domain_status_reports_ok(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1329,14 +1329,14 @@ def test_domain_status_reports_ok(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_status_reports_partial(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1408,19 +1408,19 @@ def test_domain_status_reports_partial(monkeypatch, tmp_path: Path) -> None:
     assert "Overall status for example.com: partial" in result.output
     assert "DNS coverage is apex-only; wildcard DNS is missing" in result.output
     assert "Ingress coverage is apex-only; wildcard ingress is missing" in result.output
-    assert "Repairable by homectl: yes" in result.output
-    assert "Suggested command: homectl domain repair example.com" in result.output
+    assert "Repairable by homesrvctl: yes" in result.output
+    assert "Suggested command: homesrvctl domain repair example.com" in result.output
 
 
 def test_domain_status_reports_misconfigured(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1479,18 +1479,18 @@ def test_domain_status_reports_misconfigured(monkeypatch, tmp_path: Path) -> Non
     assert "FAIL DNS example.com: CNAME -> wrong-target.example.com (proxied)" in result.output
     assert "FAIL ingress example.com: http://localhost:9000" in result.output
     assert "Overall status for example.com: misconfigured" in result.output
-    assert "Repairable by homectl: yes" in result.output
+    assert "Repairable by homesrvctl: yes" in result.output
 
 
 def test_domain_status_reports_multiple_dns_records_as_manual_fix(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1565,18 +1565,18 @@ def test_domain_status_reports_multiple_dns_records_as_manual_fix(monkeypatch, t
 
     assert result.exit_code == 1, result.output
     assert "FAIL DNS example.com: multiple DNS records exist:" in result.output
-    assert "Repairable by homectl: no; manual cleanup is likely required first" in result.output
+    assert "Repairable by homesrvctl: no; manual cleanup is likely required first" in result.output
 
 
 def test_domain_status_json_reports_wrong_dns_type(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1654,14 +1654,14 @@ def test_domain_status_json_reports_wrong_dns_type(monkeypatch, tmp_path: Path) 
 
 
 def test_domain_status_json_output(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1728,14 +1728,14 @@ def test_domain_status_json_output(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_domain_status_json_reports_repairable(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1805,7 +1805,7 @@ def test_domain_status_json_reports_repairable(monkeypatch, tmp_path: Path) -> N
     assert payload["overall"] == "partial"
     assert payload["repairable"] is True
     assert payload["manual_fix_required"] is False
-    assert payload["suggested_command"] == "homectl domain repair example.com"
+    assert payload["suggested_command"] == "homesrvctl domain repair example.com"
     assert payload["coverage_issues"] == [
         "DNS coverage is apex-only; wildcard DNS is missing",
         "Ingress coverage is apex-only; wildcard ingress is missing",
@@ -1813,14 +1813,14 @@ def test_domain_status_json_reports_repairable(monkeypatch, tmp_path: Path) -> N
 
 
 def test_domain_status_json_reports_wildcard_only_coverage(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1897,14 +1897,14 @@ def test_domain_status_json_reports_wildcard_only_coverage(monkeypatch, tmp_path
 
 
 def test_domain_status_reports_shadowed_ingress_as_manual_fix(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -1960,18 +1960,18 @@ def test_domain_status_reports_shadowed_ingress_as_manual_fix(monkeypatch, tmp_p
 
     assert result.exit_code == 1, result.output
     assert "shadowed by earlier rule *.com -> http://localhost:9000" in result.output
-    assert "Repairable by homectl: no; manual cleanup is likely required first" in result.output
+    assert "Repairable by homesrvctl: no; manual cleanup is likely required first" in result.output
 
 
 def test_domain_status_json_reports_shadowed_ingress_as_manual_fix(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -2035,14 +2035,14 @@ def test_domain_status_json_reports_shadowed_ingress_as_manual_fix(monkeypatch, 
     assert payload["ingress"][0]["effective_hostname"] == "*.com"
     assert payload["ingress"][1]["shadowed"] is True
 def test_domain_repair_reports_duplicate_ingress_hint(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -2091,14 +2091,14 @@ def test_domain_repair_reports_duplicate_ingress_hint(monkeypatch, tmp_path: Pat
 
 
 def test_domain_status_reports_fallback_order_hint(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import domain_cmd
+    from homesrvctl.commands import domain_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     cloudflared_config = tmp_path / "cloudflared.yml"
     _write_cloudflared_config(cloudflared_config)
-    config_path = home / ".config" / "homectl" / "config.yml"
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config["cloudflared_config"] = str(cloudflared_config)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -2251,7 +2251,7 @@ def test_deploy_json_reports_missing_compose(monkeypatch, tmp_path: Path) -> Non
 
 
 def test_validate_json_output(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import validate_cmd
+    from homesrvctl.commands import validate_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -2275,7 +2275,7 @@ def test_validate_json_output(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:
-    from homectl.commands import validate_cmd
+    from homesrvctl.commands import validate_cmd
 
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"

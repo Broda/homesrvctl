@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import typer
 
-from homectl.utils import hostname_to_safe_name, validate_bare_domain, validate_hostname
+from homesrvctl.utils import hostname_to_safe_name, validate_bare_domain, validate_hostname
 
 
 def test_hostname_to_safe_name() -> None:

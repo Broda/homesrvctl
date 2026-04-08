@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from homectl import cloudflared_service
-from homectl.cloudflared_service import CloudflaredServiceError
-from homectl.shell import CommandResult
+from homesrvctl import cloudflared_service
+from homesrvctl.cloudflared_service import CloudflaredServiceError
+from homesrvctl.shell import CommandResult
 
 
 def test_detect_cloudflared_runtime_prefers_systemd(monkeypatch) -> None:

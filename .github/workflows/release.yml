@@ -54,7 +54,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: homectl-dist
+          name: homesrvctl-dist
           path: dist/*
 
   release:
@@ -68,7 +68,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
-          name: homectl-dist
+          name: homesrvctl-dist
           path: dist
 
       - name: Create GitHub Release
@@ -76,5 +76,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" dist/* \
-            --title "homectl ${{ github.ref_name }}" \
+            --title "homesrvctl ${{ github.ref_name }}" \
             --generate-notes

@@ -1,6 +1,6 @@
 # Roadmap
 
-`homectl` is intentionally small and operationally focused. This roadmap is a lightweight backlog for the next useful upgrades.
+`homesrvctl` is intentionally small and operationally focused. This roadmap is a lightweight backlog for the next useful upgrades.
 
 ## Now
 
@@ -28,15 +28,15 @@
 
 ## Recently Completed
 
-- Added `homectl domain add` support for Cloudflare DNS upserts plus `cloudflared` ingress reconciliation.
+- Added `homesrvctl domain add` support for Cloudflare DNS upserts plus `cloudflared` ingress reconciliation.
 - Added optional `--restart-cloudflared` support for domain-changing commands.
-- Added `homectl domain remove` for DNS and ingress teardown.
-- Added `homectl domain status` with `ok`, `partial`, and `misconfigured` reporting.
-- Added a repairability signal and suggested repair command to `homectl domain status`.
+- Added `homesrvctl domain remove` for DNS and ingress teardown.
+- Added `homesrvctl domain status` with `ok`, `partial`, and `misconfigured` reporting.
+- Added a repairability signal and suggested repair command to `homesrvctl domain status`.
 - Added domain-status diagnostics for earlier ingress rules that shadow the requested hostname.
 - Added domain-status diagnostics for ambiguous Cloudflare DNS state such as multiple records for the same hostname.
 - Added explicit apex-only versus wildcard-only coverage diagnostics for domain status.
-- Added `homectl domain repair` to converge stale or partial domain state.
+- Added `homesrvctl domain repair` to converge stale or partial domain state.
 - Added `--json` output for `domain add`, `domain repair`, and `domain remove`.
 - Added a shared `cloudflared` service-management abstraction for runtime detection and restart handling.
 - Added `--json` output for `domain status`, `validate`, and `doctor`.
@@ -50,9 +50,9 @@
 - Added scaffold JSON metadata for template names and rendered template mappings.
 - Added a shared top-level `schema_version` to all JSON command output.
 - Added `config init --json` with created-versus-overwritten reporting.
-- Added a real multi-file `node` app scaffold under `homectl/templates/app/node/`.
-- Added a real multi-file `python` app scaffold under `homectl/templates/app/python/`.
-- Moved the placeholder app scaffold under `homectl/templates/app/placeholder/`.
+- Added a real multi-file `node` app scaffold under `homesrvctl/templates/app/node/`.
+- Added a real multi-file `python` app scaffold under `homesrvctl/templates/app/python/`.
+- Moved the placeholder app scaffold under `homesrvctl/templates/app/placeholder/`.
 - Added packaging and release automation for tagged versions.
 - Added a GitHub Actions release workflow for `vX.Y.Z` tags that builds artifacts and publishes GitHub Releases.
 - Reused the shared Python checks workflow as the release gate before artifact publishing.
@@ -66,7 +66,7 @@
 
 - Expand `app init` templates beyond the current placeholder and minimal scaffolds.
 - Consider additional templates for common self-hosted app patterns such as a static app plus API.
-- Decide how much opinionated app bootstrap belongs in `homectl` versus remaining a minimal Compose scaffold generator.
+- Decide how much opinionated app bootstrap belongs in `homesrvctl` versus remaining a minimal Compose scaffold generator.
 - Publish to PyPI in addition to GitHub Releases.
 - Choose the PyPI publishing trust model.
   Decide between PyPI trusted publishing and API-token publishing, with trusted publishing preferred if the repository and package setup fit.
@@ -77,7 +77,7 @@
 - Add a safe release path for initial PyPI rollout.
   Start with TestPyPI or a manual dry-run path, confirm the built wheel and sdist install cleanly, then enable production PyPI publishing.
 - Update public install guidance once PyPI is live.
-  Change the README to prefer `pip install homectl`, keep the GitHub install path as a fallback, and update `RELEASING.md` with the exact PyPI release flow.
+  Change the README to prefer `pip install homesrvctl`, keep the GitHub install path as a fallback, and update `RELEASING.md` with the exact PyPI release flow.
 - Add richer configuration options for more than one local ingress target or routing profile.
 - Support more than one local ingress URL when operators do not front everything through the same Traefik listener.
 - Add product-level support for per-domain or per-stack ingress overrides.

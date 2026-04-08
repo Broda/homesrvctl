@@ -4,10 +4,10 @@ import json
 
 import typer
 
-from homectl.config import load_config
-from homectl.models import RenderContext
-from homectl.templates import render_template
-from homectl.utils import (
+from homesrvctl.config import load_config
+from homesrvctl.models import RenderContext
+from homesrvctl.templates import render_template
+from homesrvctl.utils import (
     ensure_directory,
     hostname_to_safe_name,
     success,

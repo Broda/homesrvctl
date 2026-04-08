@@ -5,7 +5,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from homectl.models import RenderContext
+from homesrvctl.models import RenderContext
 
 
 def template_root() -> Path:

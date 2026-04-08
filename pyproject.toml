@@ -38,17 +38,17 @@ dev = [
 ]
 
 [project.scripts]
-homectl = "homectl.main:run"
+homesrvctl = "homesrvctl.main:run"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["homectl*"]
+include = ["homesrvctl*"]
 
 [tool.setuptools.package-data]
-homectl = [
+homesrvctl = [
   "py.typed",
   "templates/**/*.j2",
   "templates/**/*.md.j2",

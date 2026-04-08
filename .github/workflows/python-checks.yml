@@ -27,7 +27,7 @@ jobs:
           python -m pip install -e .[dev]
 
       - name: Compile Python files
-        run: python -m compileall homectl tests
+        run: python -m compileall homesrvctl tests
 
       - name: Run tests
         run: python -m pytest -q

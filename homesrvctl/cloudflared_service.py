@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from homectl.shell import run_command
+from homesrvctl.shell import run_command
 
 
 @dataclass(slots=True)

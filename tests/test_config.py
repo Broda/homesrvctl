@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from homectl.config import init_config, load_config
+from homesrvctl.config import init_config, load_config
 
 
 def test_init_and_load_config(tmp_path: Path) -> None:
@@ -15,8 +15,8 @@ def test_init_and_load_config(tmp_path: Path) -> None:
     assert config_path.exists()
 
     config = load_config(config_path)
-    assert config.tunnel_name == "homectl-tunnel"
-    assert str(config.sites_root) == "/srv/homectl/sites"
+    assert config.tunnel_name == "homesrvctl-tunnel"
+    assert str(config.sites_root) == "/srv/homesrvctl/sites"
     assert config.cloudflare_api_token == ""
 
 

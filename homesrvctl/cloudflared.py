@@ -5,7 +5,7 @@ from pathlib import Path
 
 import typer
 import yaml
-from homectl.shell import command_exists, run_command
+from homesrvctl.shell import command_exists, run_command
 
 
 class CloudflaredConfigError(RuntimeError):
@@ -285,7 +285,7 @@ def _cloudflared_config_hint(message: str) -> str | None:
     if "must be a non-empty list" in message:
         return "define ingress as a YAML list with hostname routes followed by one fallback service"
     if "config file missing" in message:
-        return "create the configured cloudflared YAML file or point homectl at the correct path"
+        return "create the configured cloudflared YAML file or point homesrvctl at the correct path"
     if "invalid cloudflared config YAML" in message:
         return "fix the YAML syntax before retrying"
     return None

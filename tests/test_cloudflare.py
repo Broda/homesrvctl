@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 import typer
 
-from homectl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
-from homectl.models import HomectlConfig
-from homectl.shell import CommandResult
+from homesrvctl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
+from homesrvctl.models import HomesrvctlConfig
+from homesrvctl.shell import CommandResult
 
 
 class _FakeResponse:
@@ -122,8 +122,8 @@ def test_get_zone_raises_for_missing_zone(monkeypatch) -> None:
 def test_tunnel_cname_target_uses_cloudflared_config_uuid(tmp_path: Path) -> None:
     cloudflared_config = tmp_path / "cloudflared.yml"
     cloudflared_config.write_text("tunnel: 11111111-2222-4333-8444-555555555555\n", encoding="utf-8")
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",
@@ -135,10 +135,10 @@ def test_tunnel_cname_target_uses_cloudflared_config_uuid(tmp_path: Path) -> Non
 
 
 def test_tunnel_cname_target_falls_back_to_cloudflared_info(monkeypatch, tmp_path: Path) -> None:
-    from homectl import cloudflare
+    from homesrvctl import cloudflare
 
-    config = HomectlConfig(
-        tunnel_name="homectl-tunnel",
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
         sites_root=tmp_path / "sites",
         docker_network="web",
         traefik_url="http://localhost:8081",
@@ -149,7 +149,7 @@ def test_tunnel_cname_target_falls_back_to_cloudflared_info(monkeypatch, tmp_pat
     monkeypatch.setattr(
         cloudflare,
         "run_command",
-        lambda command: CommandResult(command, 0, "NAME: homectl-tunnel\nID: 11111111-2222-4333-8444-555555555555\n", ""),
+        lambda command: CommandResult(command, 0, "NAME: homesrvctl-tunnel\nID: 11111111-2222-4333-8444-555555555555\n", ""),
     )
 
     assert tunnel_cname_target(config) == "11111111-2222-4333-8444-555555555555.cfargotunnel.com"

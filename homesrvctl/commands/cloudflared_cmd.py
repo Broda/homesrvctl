@@ -4,14 +4,14 @@ import json
 
 import typer
 
-from homectl.cloudflared import test_cloudflared_config
-from homectl.cloudflared_service import (
+from homesrvctl.cloudflared import test_cloudflared_config
+from homesrvctl.cloudflared_service import (
     CloudflaredServiceError,
     detect_cloudflared_runtime,
     restart_cloudflared_service,
 )
-from homectl.config import load_config
-from homectl.utils import info, success, warn, with_json_schema
+from homesrvctl.config import load_config
+from homesrvctl.utils import info, success, warn, with_json_schema
 
 cloudflared_cli = typer.Typer(help="Inspect and control the local cloudflared runtime.")
 

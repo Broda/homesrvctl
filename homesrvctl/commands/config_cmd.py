@@ -5,10 +5,10 @@ from pathlib import Path
 
 import typer
 
-from homectl.config import default_config_path, init_config
-from homectl.utils import success, with_json_schema
+from homesrvctl.config import default_config_path, init_config
+from homesrvctl.utils import success, with_json_schema
 
-config_cli = typer.Typer(help="Manage homectl configuration.")
+config_cli = typer.Typer(help="Manage homesrvctl configuration.")
 
 
 @config_cli.command("init")

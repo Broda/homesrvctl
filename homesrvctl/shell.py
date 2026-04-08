@@ -7,7 +7,7 @@ from pathlib import Path
 
 import typer
 
-from homectl.utils import info
+from homesrvctl.utils import info
 
 
 @dataclass(slots=True)

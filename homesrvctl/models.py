@@ -5,9 +5,9 @@ from pathlib import Path
 
 
 @dataclass(slots=True)
-class HomectlConfig:
-    tunnel_name: str = "homectl-tunnel"
-    sites_root: Path = Path("/srv/homectl/sites")
+class HomesrvctlConfig:
+    tunnel_name: str = "homesrvctl-tunnel"
+    sites_root: Path = Path("/srv/homesrvctl/sites")
     docker_network: str = "web"
     traefik_url: str = "http://localhost:8081"
     cloudflared_config: Path = Path("/etc/cloudflared/config.yml")
@@ -15,7 +15,7 @@ class HomectlConfig:
 
     @property
     def config_path(self) -> Path:
-        return Path.home() / ".config" / "homectl" / "config.yml"
+        return Path.home() / ".config" / "homesrvctl" / "config.yml"
 
     def hostname_dir(self, hostname: str) -> Path:
         return self.sites_root / hostname

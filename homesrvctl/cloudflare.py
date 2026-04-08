@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 import typer
 import yaml
 
-from homectl.models import HomectlConfig
-from homectl.shell import run_command
+from homesrvctl.models import HomesrvctlConfig
+from homesrvctl.shell import run_command
 
 
 UUID_RE = re.compile(
@@ -50,7 +50,7 @@ class CloudflareApiClient:
         token = api_token.strip()
         if not token:
             raise typer.BadParameter(
-                "missing Cloudflare API token; set cloudflare_api_token in homectl config or CLOUDFLARE_API_TOKEN"
+                "missing Cloudflare API token; set cloudflare_api_token in homesrvctl config or CLOUDFLARE_API_TOKEN"
             )
         self._api_token = token
 
@@ -228,7 +228,7 @@ class CloudflareApiClient:
             headers={
                 "Authorization": f"Bearer {self._api_token}",
                 "Content-Type": "application/json",
-                "User-Agent": "homectl/0.1.0",
+                "User-Agent": "homesrvctl/0.1.0",
             },
         )
         try:
@@ -246,12 +246,12 @@ class CloudflareApiClient:
         return payload
 
 
-def tunnel_cname_target(config: HomectlConfig) -> str:
+def tunnel_cname_target(config: HomesrvctlConfig) -> str:
     tunnel_id = _resolve_tunnel_id(config)
     return f"{tunnel_id}.cfargotunnel.com"
 
 
-def _resolve_tunnel_id(config: HomectlConfig) -> str:
+def _resolve_tunnel_id(config: HomesrvctlConfig) -> str:
     if UUID_RE.match(config.tunnel_name):
         return config.tunnel_name.lower()
 

@@ -4,8 +4,8 @@ import json
 
 import typer
 
-from homectl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
-from homectl.cloudflared import (
+from homesrvctl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
+from homesrvctl.cloudflared import (
     CloudflaredConfigError,
     apply_domain_ingress,
     apply_domain_ingress_removal,
@@ -15,13 +15,13 @@ from homectl.cloudflared import (
     plan_domain_ingress,
     plan_domain_ingress_removal,
 )
-from homectl.cloudflared_service import (
+from homesrvctl.cloudflared_service import (
     CloudflaredServiceError,
     detect_cloudflared_runtime,
     restart_cloudflared_service,
 )
-from homectl.config import load_config
-from homectl.utils import bullet_report, info, success, validate_bare_domain, warn, with_json_schema
+from homesrvctl.config import load_config
+from homesrvctl.utils import bullet_report, info, success, validate_bare_domain, warn, with_json_schema
 
 domain_cli = typer.Typer(help="Manage domain-level Cloudflare Tunnel DNS routing.")
 
@@ -224,7 +224,7 @@ def domain_status(
 
     overall = _overall_domain_status(dns_statuses, ingress_statuses, config.traefik_url)
     repairable = _domain_status_repairability(overall, dns_statuses, ingress_statuses)
-    suggested_command = f"homectl domain repair {bare_domain}" if repairable else None
+    suggested_command = f"homesrvctl domain repair {bare_domain}" if repairable else None
     coverage_issues = _coverage_issues(dns_statuses, ingress_statuses)
     if json_output:
         payload = with_json_schema({
@@ -303,10 +303,10 @@ def domain_status(
         for issue in coverage_issues:
             warn(issue)
         if repairable:
-            info(f"Repairable by homectl: yes")
+            info(f"Repairable by homesrvctl: yes")
             info(f"Suggested command: {suggested_command}")
         else:
-            warn("Repairable by homectl: no; manual cleanup is likely required first")
+            warn("Repairable by homesrvctl: no; manual cleanup is likely required first")
     raise typer.Exit(code=1)
 
 
@@ -598,7 +598,7 @@ def _domain_status_repairability(overall: str, dns_statuses, ingress_statuses) -
 
 
 def _wildcard_probe_hostname(domain: str) -> str:
-    return f"_homectl-probe.{domain}"
+    return f"_homesrvctl-probe.{domain}"
 
 
 def _coverage_issues(dns_statuses, ingress_statuses) -> list[str]:  # noqa: ANN001

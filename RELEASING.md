@@ -1,6 +1,6 @@
-# Releasing homectl
+# Releasing homesrvctl
 
-The published Python distribution name is `homesrvctl`. The CLI command remains `homectl`.
+The published Python distribution name is `homesrvctl`. The CLI command remains `homesrvctl`.
 
 ## Source Of Truth
 
