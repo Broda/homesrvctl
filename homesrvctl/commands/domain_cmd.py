@@ -9,6 +9,7 @@ from homesrvctl.cloudflared import (
     CloudflaredConfigError,
     apply_domain_ingress,
     apply_domain_ingress_removal,
+    collect_cloudflared_config_warnings,
     describe_cloudflared_config_error,
     find_exact_hostname_route,
     inspect_hostname_route,
@@ -223,6 +224,7 @@ def domain_status(
             bare_domain,
             stack_settings.traefik_url,
         )
+        ingress_warnings = collect_cloudflared_config_warnings(config.cloudflared_config)
     except (CloudflareApiError, typer.BadParameter) as exc:
         raise typer.Exit(code=_exit_with_error(_format_domain_error(exc))) from exc
     except CloudflaredConfigError as exc:
@@ -244,6 +246,7 @@ def domain_status(
             "manual_fix_required": not repairable and overall != "ok",
             "suggested_command": suggested_command,
             "coverage_issues": coverage_issues,
+            "ingress_warnings": ingress_warnings,
             "dns": [
                 {
                     "record_name": status.record_name,
@@ -305,6 +308,8 @@ def domain_status(
                 str(status["detail"]),
                 ok,
             )
+        for warning_message in ingress_warnings:
+            warn(f"Ingress warning: {warning_message}")
 
     if overall == "ok":
         if not json_output:

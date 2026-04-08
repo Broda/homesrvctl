@@ -170,6 +170,7 @@ Completed in this milestone so far:
 - `site init` and `app init` support `--profile`.
 - Direct stack-local overrides still win over selected profile values.
 - `cloudflared status` and `cloudflared config-test` now surface non-fatal ingress shadowing warnings for risky wildcard ordering.
+- `domain status` and `doctor` now surface the same non-fatal ingress shadowing warnings when they affect hostname troubleshooting.
 
 ### 1.3 Support more than one ingress target cleanly
 

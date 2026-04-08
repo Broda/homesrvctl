@@ -11,6 +11,7 @@ from homesrvctl.cloudflared import (
     find_hostname_route,
     test_cloudflared_config,
     CloudflaredConfigError,
+    collect_cloudflared_config_warnings,
     describe_cloudflared_config_error,
 )
 from homesrvctl.cloudflared_service import detect_cloudflared_runtime
@@ -126,6 +127,7 @@ def build_hostname_doctor_report(
         checks.append(CheckResult("docker compose ps", False, "skipped because docker-compose.yml is missing"))
 
     checks.append(_check_cloudflared_hostname(config, valid_hostname))
+    checks.extend(_check_cloudflared_ingress_warnings(config))
     checks.append(_check_host_header(stack_settings.traefik_url, valid_hostname))
     return checks
 
@@ -188,6 +190,16 @@ def _check_cloudflared_hostname(config: HomesrvctlConfig, hostname: str) -> Chec
     if not service:
         return CheckResult("cloudflared ingress hostname", False, f"no ingress entry for {hostname}")
     return CheckResult("cloudflared ingress hostname", True, f"{hostname} routes to {service}")
+
+
+def _check_cloudflared_ingress_warnings(config: HomesrvctlConfig) -> list[CheckResult]:
+    try:
+        warnings = collect_cloudflared_config_warnings(config.cloudflared_config)
+    except (CloudflaredConfigError, typer.BadParameter) as exc:
+        return [CheckResult("cloudflared ingress warnings", False, describe_cloudflared_config_error(exc))]
+    if not warnings:
+        return [CheckResult("cloudflared ingress warnings", True, "no non-fatal ingress warnings detected")]
+    return [CheckResult("cloudflared ingress warnings", False, warning) for warning in warnings]
 
 
 def _compose_ps_detail(result) -> str:
