@@ -418,6 +418,113 @@ Subtasks:
 - Evaluate whether tunnel metadata checks should be surfaced in a dedicated command.
 - Decide whether tunnel-management work belongs in `homesrvctl` scope at all.
 
+## Milestone 5: Terminal UI
+
+Status: later
+
+Goal: add a guided terminal UI that makes `homesrvctl` easier to operate interactively without introducing a separate web application or backend service.
+
+### 5.1 Define the TUI architecture boundary
+
+Status: planned
+
+Tasks:
+- Decide whether the TUI should live in the main repo and ship as part of the same package.
+- Keep the TUI as a terminal-first layer over the existing CLI rather than a new control plane.
+- Prefer consuming existing `--json` command output before introducing internal-only APIs.
+
+Subtasks:
+- Decide whether the first implementation should:
+  - shell out to `homesrvctl ... --json`
+  - import Python functions directly
+  - use a hybrid approach
+- Define the rule for when new TUI needs justify expanding JSON output.
+- Keep the TUI out of scope for:
+  - browser-based UI work
+  - remote multi-user access
+  - long-lived background services
+
+### 5.2 Build a first dashboard
+
+Status: planned
+
+Tasks:
+- Add a home screen that gives operators immediate visibility into system state.
+- Reuse existing status/reporting surfaces rather than inventing new state models.
+
+Subtasks:
+- Show high-level summaries for:
+  - stacks
+  - `cloudflared`
+  - validation state
+  - recent domain issues
+- Decide what “good default landing screen” means for a small homelab operator tool.
+- Keep the first dashboard read-only if that reduces implementation risk.
+
+### 5.3 Add guided flows for common operations
+
+Status: planned
+
+Tasks:
+- Make the common multi-step operations easier to run without memorizing command sequences.
+- Keep the TUI aligned with the existing CLI verbs and mutation behavior.
+
+Subtasks:
+- Add guided flows for:
+  - domain add
+  - site/app scaffold
+  - stack up/down/restart
+  - doctor
+  - repair
+- Decide how prompts should handle:
+  - hostname
+  - template selection
+  - profile selection
+  - routing overrides
+  - restart/reload choices
+- Keep all TUI-driven mutations understandable as ordinary `homesrvctl` operations underneath.
+
+### 5.4 Make diagnostics explorable
+
+Status: planned
+
+Tasks:
+- Turn the existing rich status output into something easier to inspect interactively.
+- Preserve the current operator model where warnings and remediation hints remain explicit.
+
+Subtasks:
+- Add detail views for:
+  - effective config
+  - domain status
+  - doctor output
+  - `cloudflared` status
+- Surface routing context clearly:
+  - default target
+  - effective target
+  - profile
+  - override source
+- Surface remediation hints directly for:
+  - ingress warnings
+  - domain repairability
+  - config problems
+
+### 5.5 Keep the TUI testable and optional
+
+Status: planned
+
+Tasks:
+- Avoid letting the TUI become the only supported operator path.
+- Keep the TUI layered cleanly enough that the CLI remains the source of truth.
+
+Subtasks:
+- Add tests for any new JSON/reporting contracts the TUI depends on.
+- Keep a non-interactive path for everything the TUI can launch.
+- Decide whether the TUI entrypoint should be:
+  - `homesrvctl tui`
+  - `homesrvctl dashboard`
+  - a separate console script
+- Document environment assumptions for the TUI, including terminal capabilities and local runtime access.
+
 ## Milestone 5: Release and Distribution Maturity
 
 Status: later
