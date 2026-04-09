@@ -23,6 +23,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Added a first guided scaffold flow to the Textual TUI: focused stacks can now open an `app init` template picker and run the selected scaffold without leaving the dashboard.
 - Added `config show` coverage to the Textual TUI via a new global `Config` tool item plus effective per-stack config detail in the focused stack pane.
 - Added `domain status` coverage to the Textual TUI for apex stacks so the focused stack pane now surfaces domain-level DNS and ingress status, repairability, and suggested remediation.
+- Added apex-only `domain repair` as a stack action in the Textual TUI so an operator can act on the surfaced repairability signal without leaving the dashboard.
 - Added [`FILE_MAP.md`](FILE_MAP.md) as a repository orientation guide.
 - Reorganized [`ROADMAP.md`](ROADMAP.md) into milestone-based planning with tasks and subtasks.
 - Added `config show` with text and JSON output for global config inspection and effective stack-local override inspection.

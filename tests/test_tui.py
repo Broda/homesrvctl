@@ -145,6 +145,21 @@ def test_run_stack_action_dispatches_app_init(monkeypatch) -> None:
     assert calls == [["app", "init", "example.com", "--template", "node"]]
 
 
+def test_run_stack_action_dispatches_domain_repair(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action("example.com", "domain-repair")
+
+    assert payload["ok"] is True
+    assert calls == [["domain", "repair", "example.com"]]
+
+
 def test_run_tool_action_dispatches_to_existing_commands(monkeypatch) -> None:
     calls: list[list[str]] = []
 
@@ -216,6 +231,12 @@ def test_summarize_stack_action_labels_site_init() -> None:
     summary = data.summarize_stack_action("example.com", "init-site", {"ok": False, "error": "file exists"})
 
     assert summary == "site init failed for example.com: file exists"
+
+
+def test_summarize_stack_action_labels_domain_repair() -> None:
+    summary = data.summarize_stack_action("example.com", "domain-repair", {"ok": False, "error": "duplicate DNS records"})
+
+    assert summary == "domain repair failed for example.com: duplicate DNS records"
 
 
 def test_render_stack_action_detail_formats_doctor_checks() -> None:
@@ -702,6 +723,23 @@ def test_textual_app_stack_detail_includes_domain_status() -> None:
     assert "suggested command: homesrvctl domain repair example.com" in detail
 
 
+def test_textual_app_domain_repair_rejects_subdomain(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "notes.example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 3
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app.action_domain_repair()
+
+    assert app.status_message == "domain repair is only available for apex stacks: notes.example.com"
+
+
 def test_textual_app_tool_detail_and_command_bar_text() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
@@ -803,6 +841,44 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     assert app.status_message == "up succeeded for example.com"
     assert app.snapshot["list"]["sites"][0]["compose"] is True
     assert app.last_stack_actions["example.com"]["action"] == "up"
+
+
+def test_textual_app_domain_repair_refreshes_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 3
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action: calls.append((hostname, action)) or {"ok": True},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app.action_domain_repair()
+
+    assert calls == [("example.com", "domain-repair")]
+    assert app.status_message == "domain repair succeeded for example.com"
+    assert app.last_stack_actions["example.com"]["action"] == "domain-repair"
 
 
 def test_textual_app_app_init_prompt_runs_selected_template(monkeypatch) -> None:
