@@ -655,6 +655,36 @@ def test_confirm_action_screen_uses_supplied_copy() -> None:
     assert screen.body == "Run domain add for example.com?"
 
 
+def test_stack_action_options_include_domain_actions_for_apex() -> None:
+    options = prompts.stack_action_options(is_apex_domain=True)
+
+    labels = [label for _, label, _ in options]
+
+    assert "app init" in labels
+    assert "domain add" in labels
+    assert "domain remove" in labels
+
+
+def test_stack_action_options_skip_domain_actions_for_subdomains() -> None:
+    options = prompts.stack_action_options(is_apex_domain=False)
+
+    labels = [label for _, label, _ in options]
+
+    assert "app init" in labels
+    assert "domain add" not in labels
+    assert "domain remove" not in labels
+
+
+def test_stack_action_menu_screen_renders_options() -> None:
+    screen = prompts.StackActionMenuScreen("example.com", is_apex_domain=True)
+
+    rendered = screen._options_text()
+
+    assert "> 1. app init" in rendered
+    assert "domain add" in rendered
+    assert "domain remove" in rendered
+
+
 def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
@@ -673,6 +703,43 @@ def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
 
     assert len(pushed) == 1
     assert isinstance(pushed[0][0], prompts.AppInitTemplateScreen)
+
+
+def test_textual_app_stack_action_menu_pushes_modal(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 3
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app.action_stack_action_menu()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.StackActionMenuScreen)
+
+
+def test_textual_app_stack_action_menu_rejects_tool_focus(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 0
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app.action_stack_action_menu()
+
+    assert app.status_message == "select a stack to open the action menu"
 
 
 def test_textual_app_domain_add_prompt_pushes_modal(monkeypatch) -> None:
@@ -713,6 +780,57 @@ def test_textual_app_domain_remove_prompt_pushes_modal(monkeypatch) -> None:
 
     assert len(pushed) == 1
     assert isinstance(pushed[0][0], prompts.ConfirmActionScreen)
+
+
+def test_textual_app_stack_action_menu_routes_app_init(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_stack_action_menu("example.com", "app-init")
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.AppInitTemplateScreen)
+
+
+def test_textual_app_stack_action_menu_routes_domain_add_confirmation(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    calls: list[tuple[str, str, str | None]] = []
+
+    monkeypatch.setattr(
+        textual_app.HomesrvctlTextualApp,
+        "_push_domain_confirmation",
+        lambda self, action, title, hostname=None: calls.append((action, title, hostname)),
+    )
+
+    app._complete_stack_action_menu("example.com", "domain-add")
+
+    assert calls == [("domain-add", "Confirm Domain Add", "example.com")]
+
+
+def test_textual_app_stack_action_menu_routes_site_init(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    calls: list[tuple[str, str, str | None]] = []
+
+    monkeypatch.setattr(
+        textual_app.HomesrvctlTextualApp,
+        "_run_stack_action_for_hostname",
+        lambda self, hostname, action, template=None: calls.append((hostname, action, template)),
+    )
+
+    app._complete_stack_action_menu("example.com", "site-init")
+
+    assert calls == [("example.com", "init-site", None)]
+
+
+def test_textual_app_stack_action_menu_cancel_updates_status(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._complete_stack_action_menu("example.com", None)
+
+    assert app.status_message == "stack action menu cancelled for example.com"
 
 
 def test_textual_app_stack_detail_includes_last_action_result() -> None:

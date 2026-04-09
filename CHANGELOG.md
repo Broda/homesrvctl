@@ -25,6 +25,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Added `domain status` coverage to the Textual TUI for apex stacks so the focused stack pane now surfaces domain-level DNS and ingress status, repairability, and suggested remediation.
 - Added apex-only `domain repair` as a stack action in the Textual TUI so an operator can act on the surfaced repairability signal without leaving the dashboard.
 - Added apex-only confirmed `domain add` and `domain remove` actions to the Textual TUI so domain onboarding and teardown can be launched from the focused stack pane without leaving the dashboard.
+- Added a guided stack action menu to the Textual TUI so focused stacks expose their stack-local and apex-domain actions through a discoverable modal in addition to the direct hotkeys.
 - Added [`FILE_MAP.md`](FILE_MAP.md) as a repository orientation guide.
 - Reorganized [`ROADMAP.md`](ROADMAP.md) into milestone-based planning with tasks and subtasks.
 - Added `config show` with text and JSON output for global config inspection and effective stack-local override inspection.

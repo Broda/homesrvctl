@@ -20,7 +20,7 @@ from homesrvctl.tui.data import (
     summarize_stack_action,
     summarize_tool_action,
 )
-from homesrvctl.tui.prompts import AppInitTemplateScreen, ConfirmActionScreen
+from homesrvctl.tui.prompts import AppInitTemplateScreen, ConfirmActionScreen, StackActionMenuScreen
 from homesrvctl.utils import validate_bare_domain
 
 
@@ -135,6 +135,11 @@ class HomesrvctlTextualApp(App[None]):
         background: rgba(3, 8, 10, 0.72);
     }
 
+    StackActionMenuScreen {
+        align: center middle;
+        background: rgba(3, 8, 10, 0.72);
+    }
+
     #app_init_prompt {
         width: 72;
         max-width: 90%;
@@ -147,6 +152,16 @@ class HomesrvctlTextualApp(App[None]):
 
     #confirm_prompt {
         width: 64;
+        max-width: 90%;
+        height: auto;
+        padding: 1 2;
+        background: #0b1419;
+        border: round #ffcf5a;
+        color: #d7fff7;
+    }
+
+    #stack_action_prompt {
+        width: 72;
         max-width: 90%;
         height: auto;
         padding: 1 2;
@@ -170,6 +185,7 @@ class HomesrvctlTextualApp(App[None]):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
+        Binding("enter,o", "stack_action_menu", "Actions", show=False),
         Binding("w,up", "previous_control", "Prev", show=False),
         Binding("s,down,tab", "next_control", "Next", show=False),
         Binding("a", "app_init_prompt", "App Init", show=False),
@@ -237,6 +253,23 @@ class HomesrvctlTextualApp(App[None]):
 
     def action_site_init(self) -> None:
         self._run_selected_stack_action("init-site")
+
+    def action_stack_action_menu(self) -> None:
+        item = self._selected_control_item()
+        if item.get("kind") != "stack":
+            self.status_message = "select a stack to open the action menu"
+            self._render()
+            return
+        hostname = str(item.get("hostname", ""))
+        is_apex_domain = True
+        try:
+            validate_bare_domain(hostname)
+        except Exception:
+            is_apex_domain = False
+        self.push_screen(
+            StackActionMenuScreen(hostname=hostname, is_apex_domain=is_apex_domain),
+            lambda selected_action: self._complete_stack_action_menu(hostname, selected_action),
+        )
 
     def action_app_init_prompt(self) -> None:
         item = self._selected_control_item()
@@ -320,13 +353,33 @@ class HomesrvctlTextualApp(App[None]):
             return
         self._run_stack_action_for_hostname(hostname, "app-init", template=template)
 
-    def _push_domain_confirmation(self, action: str, title: str) -> None:
-        item = self._selected_control_item()
-        if item.get("kind") != "stack":
-            self.status_message = "select an apex stack for domain actions"
+    def _complete_stack_action_menu(self, hostname: str, selected_action: str | None) -> None:
+        if selected_action is None:
+            self.status_message = f"stack action menu cancelled for {hostname}"
             self._render()
             return
-        hostname = str(item.get("hostname", ""))
+        if selected_action == "app-init":
+            self.push_screen(AppInitTemplateScreen(), lambda template: self._complete_app_init_prompt(hostname, template))
+            return
+        if selected_action == "domain-add":
+            self._push_domain_confirmation("domain-add", "Confirm Domain Add", hostname=hostname)
+            return
+        if selected_action == "domain-remove":
+            self._push_domain_confirmation("domain-remove", "Confirm Domain Remove", hostname=hostname)
+            return
+        if selected_action == "site-init":
+            self._run_stack_action_for_hostname(hostname, "init-site")
+            return
+        self._run_stack_action_for_hostname(hostname, selected_action)
+
+    def _push_domain_confirmation(self, action: str, title: str, hostname: str | None = None) -> None:
+        if hostname is None:
+            item = self._selected_control_item()
+            if item.get("kind") != "stack":
+                self.status_message = "select an apex stack for domain actions"
+                self._render()
+                return
+            hostname = str(item.get("hostname", ""))
         try:
             validate_bare_domain(hostname)
         except Exception:
@@ -455,7 +508,7 @@ class HomesrvctlTextualApp(App[None]):
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"
         if item.get("kind") == "stack":
             focus = f"focus: {item.get('hostname', '<unknown>')}"
-            actions = "actions: a app-init | n domain-add | p domain-repair | m domain-remove | i site-init | g doctor | u up | t restart | x down | r refresh | q quit"
+            actions = "actions: enter open-menu | a app-init | n domain-add | p domain-repair | m domain-remove | i site-init | g doctor | u up | t restart | x down | r refresh | q quit"
         else:
             focus = f"focus: {item.get('label', 'Tool')}"
             if item.get("tool") == "config":
@@ -521,6 +574,7 @@ class HomesrvctlTextualApp(App[None]):
             *render_domain_status_detail(hostname, domain_view),
             "",
             "This pane is the control surface for stack lifecycle work.",
+            "Use Enter or o to open the guided action menu for the focused stack.",
             "Use a to choose an app scaffold template for the focused hostname.",
             "Use n to confirm domain add and m to confirm domain remove for apex domains.",
             "Use p to run domain repair when the focused hostname is an apex domain.",

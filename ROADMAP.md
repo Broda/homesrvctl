@@ -581,18 +581,40 @@ Tasks:
   - an action launcher with visible results
 
 Subtasks:
-- Add guided flows for:
-  - domain add
-  - site/app scaffold
-  - stack up/down/restart
-  - doctor
-  - repair
-- Decide how Textual prompts/screens should handle:
-  - hostname
+- Define the guided-path structure explicitly instead of growing ad hoc prompts:
+  - a focused stack action menu for stack-local and apex-domain operations
+  - focused tool menus for global operations such as config and cloudflared
+  - confirmation prompts for destructive or high-impact mutations
+  - follow-up result views that keep the launched command output visible
+- Add guided flows for stack-focused commands:
+  - `site init`
+  - `app init`
+  - `up`
+  - `down`
+  - `restart`
+  - `doctor`
+- Add guided flows for apex-domain commands:
+  - `domain add`
+  - `domain repair`
+  - `domain remove`
+- Add guided flows for global-tool commands where a prompt is useful:
+  - `config init`
+  - `cloudflared restart`
+  - `cloudflared reload`
+  - `cloudflared logs`
+- Decide how Textual prompts/screens should handle shared inputs:
+  - hostname selection from the focused stack
   - template selection
   - profile selection
   - routing overrides
   - restart/reload choices
+  - destructive-action confirmation
+- Break guided-path work into implementation slices so coverage can land incrementally:
+  - introduce the stack action menu
+  - route existing direct stack actions through that menu without removing hotkeys
+  - add apex-only domain actions to the same menu
+  - add global tool menus
+  - add richer follow-up prompts only where the simple launcher stops being sufficient
 - Track command coverage explicitly so the TUI roadmap does not stop at the current dashboard:
   - `config init`
   - `config show`
@@ -621,6 +643,8 @@ Subtasks:
 
 Current baseline:
 - The Textual TUI now includes a first guided scaffold flow for `app init`, using a minimal template picker that still shells out to the existing CLI command underneath.
+- Apex-focused stacks now also support guided confirmation prompts for `domain add` and `domain remove`.
+- Focused stacks now also have a guided stack action menu so the existing stack and apex-domain actions are discoverable without relying only on hotkeys.
 
 ### 5.5 Make diagnostics explorable
 

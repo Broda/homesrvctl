@@ -290,6 +290,7 @@ homesrvctl up example.com --dry-run
 - Focused apex stacks now also surface `domain status` detail in the TUI, including overall state, repairability, coverage issues, and suggested repair command when available.
 - Focused apex stacks can now run `domain repair` from the TUI with `p`, using the same CLI mutation path underneath and surfacing the result back in the stack pane.
 - Focused apex stacks can now also confirm `domain add` with `n` and `domain remove` with `m` through a small modal prompt before the mutation runs.
+- Focused stacks can also open a guided action menu with `Enter` or `o`, which lists the currently available stack actions and apex-domain actions for the selected hostname.
 - When the `Cloudflared` tool is focused, the TUI can run `config-test` with `c`, `reload` with `l`, and `restart` with `k`, and the detail pane keeps the last tool result visible.
 - When a stack is focused in the control pane, the TUI supports `site init` with `i`, and can run `doctor`, `up`, `restart`, and `down` for the selected hostname with `g`, `u`, `t`, and `x`.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
