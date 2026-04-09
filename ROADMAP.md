@@ -701,13 +701,133 @@ Subtasks:
   - a separate console script
 - Document environment assumptions for the TUI, including terminal capabilities and local runtime access.
 
-## Milestone 5: Release and Distribution Maturity
+## Milestone 6: TUI Mouse Support
+
+Status: planned
+
+Goal: add deliberate mouse support to the Textual TUI without weakening keyboard-first operation or turning the interface into a separate product.
+
+Principles:
+- Mouse support should be additive, not a replacement for keyboard navigation.
+- Click targets should map to existing TUI concepts rather than introducing a second interaction model.
+- Prefer real Textual widgets for clickable surfaces over trying to infer clicks from large text blocks.
+- Keep the CLI and JSON command surfaces as the source of truth underneath.
+
+### 6.1 Make the control pane clickable
+
+Status: planned
+
+Tasks:
+- Replace the plain-text left control pane with clickable Textual widgets.
+- Keep the current visual grouping of `Tools` above `Stacks`.
+- Keep keyboard focus and mouse focus aligned to the same selected item.
+
+Subtasks:
+- Introduce reusable row widgets for:
+  - tool items
+  - stack items
+- Preserve the current selected-state styling for the active row.
+- Support click-to-focus for:
+  - `Config`
+  - `Cloudflared`
+  - `Validate`
+  - stack rows
+- Ensure clicking a row updates the right detail pane exactly as keyboard movement does.
+- Add tests for:
+  - clicking a tool row
+  - clicking a stack row
+  - selection-state rendering after a click
+
+### 6.2 Make modal prompts clickable
+
+Status: planned
+
+Tasks:
+- Convert guided prompt screens from text-only option lists into clickable option rows or buttons.
+- Preserve full keyboard support for every prompt.
+
+Subtasks:
+- Make the app-template picker clickable.
+- Make the stack action menu clickable.
+- Make confirmation prompts clickable.
+- Ensure clicking an option triggers the same underlying callback path as pressing Enter.
+- Add tests for:
+  - clicking a template option
+  - clicking a stack action option
+  - clicking confirm versus cancel
+
+### 6.3 Add clickable action surfaces in the detail pane
+
+Status: planned
+
+Tasks:
+- Let the focused detail pane expose clickable actions for the current item instead of relying only on hotkeys and menu prompts.
+- Keep the action set consistent with the currently focused tool or stack.
+
+Subtasks:
+- Add action buttons or equivalent widgets for focused stacks:
+  - `app init`
+  - `site init`
+  - `doctor`
+  - `up`
+  - `restart`
+  - `down`
+- Add apex-only detail actions for:
+  - `domain add`
+  - `domain repair`
+  - `domain remove`
+- Add detail actions for focused tools where appropriate:
+  - `cloudflared config-test`
+  - `cloudflared reload`
+  - `cloudflared restart`
+- Ensure detail actions launch the same prompt or command path as the keyboard bindings.
+- Add tests for clicking detail actions and verifying the expected command path runs.
+
+### 6.4 Decide whether summary cards should be clickable
+
+Status: planned
+
+Tasks:
+- Decide whether the top summary strip should remain informational only or support click-to-focus behavior.
+- Avoid adding clicks there unless they improve navigation rather than duplicating the control pane needlessly.
+
+Subtasks:
+- Evaluate whether clicking a summary card should:
+  - focus the related tool
+  - open a related menu
+  - remain disabled by design
+- If enabled, add click handling for:
+  - stacks summary
+  - cloudflared summary
+  - validate summary
+- Keep the interaction shallow and predictable.
+- Document the decision either way in the TUI docs.
+
+### 6.5 Keep mouse support testable and accessible
+
+Status: planned
+
+Tasks:
+- Add proper Textual interaction coverage for mouse-driven behavior.
+- Keep mouse affordances readable in terminals that vary widely in color and capability.
+
+Subtasks:
+- Add Textual pilot tests for:
+  - click selection
+  - click-driven prompt confirmation
+  - click-driven action dispatch
+  - mixed keyboard-plus-mouse interaction sequences
+- Verify that hover, focus, and selected states stay visually distinct.
+- Ensure mouse support does not break operation in terminals where mouse reporting is unavailable or disabled.
+- Document mouse behavior and terminal assumptions in the README and wiki when this milestone lands.
+
+## Milestone 7: Release and Distribution Maturity
 
 Status: later
 
 Goal: keep the project easy to ship and easy to consume as the public surface evolves.
 
-### 5.1 Keep release automation healthy
+### 7.1 Keep release automation healthy
 
 Status: ongoing
 
@@ -720,7 +840,7 @@ Subtasks:
 - Keep artifact build steps reproducible locally.
 - Keep `RELEASING.md` aligned with the actual workflow.
 
-### 5.2 Strengthen packaging polish
+### 7.2 Strengthen packaging polish
 
 Status: planned
 
@@ -733,7 +853,7 @@ Subtasks:
 - Decide whether version sourcing should be centralized further.
 - Keep README install guidance aligned with the active release channels.
 
-### 5.3 Decide how much release-note automation is enough
+### 7.3 Decide how much release-note automation is enough
 
 Status: planned
 
