@@ -575,6 +575,10 @@ Status: planned
 Tasks:
 - Make the common multi-step operations easier to run without memorizing command sequences.
 - Keep the Textual app aligned with the existing CLI verbs and mutation behavior.
+- Expand the TUI until the public CLI surface is covered by either:
+  - a guided mutation flow
+  - an explorable read-only view
+  - an action launcher with visible results
 
 Subtasks:
 - Add guided flows for:
@@ -589,6 +593,30 @@ Subtasks:
   - profile selection
   - routing overrides
   - restart/reload choices
+- Track command coverage explicitly so the TUI roadmap does not stop at the current dashboard:
+  - `config init`
+  - `config show`
+  - `domain add`
+  - `domain status`
+  - `domain repair`
+  - `domain remove`
+  - `site init`
+  - `app init`
+  - `up`
+  - `down`
+  - `restart`
+  - `list`
+  - `cloudflared status`
+  - `cloudflared config-test`
+  - `cloudflared logs`
+  - `cloudflared restart`
+  - `cloudflared reload`
+  - `validate`
+  - `doctor`
+- For each public CLI command, decide which TUI shape it belongs to:
+  - guided flow
+  - read-only detail view
+  - direct action from the dashboard
 - Keep all TUI-driven mutations understandable as ordinary `homesrvctl` operations underneath.
 
 Current baseline:
@@ -601,13 +629,18 @@ Status: planned
 Tasks:
 - Turn the existing rich status output into something easier to inspect interactively.
 - Preserve the current operator model where warnings and remediation hints remain explicit.
+- Ensure read-heavy commands have an obvious TUI home rather than staying CLI-only.
 
 Subtasks:
  - Add detail views for:
-  - effective config
-  - domain status
+  - `list`
+  - `validate`
+  - `config show`
+  - `domain status`
   - doctor output
   - `cloudflared` status
+  - `cloudflared config-test`
+  - `cloudflared logs`
  - Surface routing context clearly:
   - default target
   - effective target
@@ -626,6 +659,7 @@ Tasks:
 - Remove the transitional curses implementation after the Textual dashboard reaches parity.
 - Avoid letting the TUI become the only supported operator path.
 - Keep the TUI layered cleanly enough that the CLI remains the source of truth.
+- Verify that each supported public command has either TUI coverage or an explicit out-of-scope reason recorded in this milestone before calling the migration done.
 
 Subtasks:
 - Add tests for any new JSON/reporting contracts the TUI depends on.
@@ -634,9 +668,10 @@ Subtasks:
   - keyboard handling
   - action dispatch
   - status/error rendering
+- Add coverage reviews for command parity so new CLI commands do not quietly ship without a TUI decision.
 - Keep a non-interactive path for everything the TUI can launch.
 - Keep `homesrvctl tui` as the stable entrypoint; do not introduce `homesrvctl dashboard` as a second public command.
-- Remove the old curses renderer only after the Textual path covers the current dashboard and stack actions.
+- Remove the old curses renderer only after the Textual path covers the current dashboard, stack actions, and the intended command-coverage baseline above.
 - Document environment assumptions for the TUI, including terminal capabilities and local runtime access.
 - Update architecture, file-map, and wiki docs after the migration lands.
   - a separate console script
