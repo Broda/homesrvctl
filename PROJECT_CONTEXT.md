@@ -47,6 +47,16 @@ They should not include by default:
 
 If a new template would require substantial framework-specific machinery, that should be treated as a separate product decision rather than the automatic next scaffold.
 
+Build-based static frameworks may still fit when they stay narrow and explicit. For example, a Jekyll-style workflow can fit as a deliberate `app` template decision if it remains:
+- a stack-local source tree under the hostname directory
+- a containerized build plus static serving baseline
+- manually adopted from an existing repo in the first slice
+
+It should not expand into:
+- repo sync or pull orchestration
+- CI/CD publishing workflows
+- generic multi-framework build pipeline management
+
 ## Product Principles
 
 - Correctness over convenience.

@@ -400,6 +400,39 @@ Subtasks:
   - any future template directories
 - Keep scaffold JSON metadata aligned with whatever template structure is shipped.
 
+### 3.5 Add a narrow Jekyll workflow without expanding the product boundary
+
+Status: planned
+
+Goal: support an existing Jekyll site as a first-class `app init` template while keeping `homesrvctl` focused on stack-local hosting baselines rather than content-publishing orchestration.
+
+Tasks:
+- Add Jekyll only as an `app` template, not as a `site` template.
+- Keep the Jekyll source tree inside the stack directory after adoption.
+- Keep deploy/runtime flows generic so `up`, `down`, `restart`, `doctor`, and domain commands continue to work unchanged.
+
+Subtasks:
+- Add `app init --template jekyll` as the public scaffold surface if this work is implemented.
+- Keep the generated stack shape narrow:
+  - containerized Jekyll build
+  - static serving of the generated site output
+  - Traefik labels and healthcheck aligned with existing app templates
+- Keep adoption manual in the first slice:
+  - scaffold the stack
+  - replace starter content with the existing Jekyll site
+  - avoid adding an import/copy command in v1
+- Avoid new global config fields or new stack-local `homesrvctl.yml` keys in v1.
+- Add scaffold and JSON-output regression tests if implemented.
+
+Decision notes:
+- This fits the current architecture because deploy commands already operate on any stack with a `docker-compose.yml`.
+- Jekyll should be treated as a specific framework exception that remains acceptable only while it stays a small build-plus-host baseline.
+- The first slice should not include:
+  - git sync
+  - CI publishing
+  - external repo path management
+  - a general build pipeline abstraction
+
 ## Milestone 4: API Reliability and Cloudflare Coverage
 
 Status: later
