@@ -7,9 +7,12 @@ from textual.widgets import Header, Static
 
 from homesrvctl.tui.data import (
     build_dashboard_snapshot,
+    render_config_payload_detail,
     render_tool_action_detail,
+    render_stack_config_detail,
     render_stack_action_detail,
     run_stack_action,
+    run_stack_config_view,
     run_tool_action,
     stack_sites,
     summarize_stack_action,
@@ -169,6 +172,7 @@ class HomesrvctlTextualApp(App[None]):
         self.selected_control_index = 0
         self.status_message = "dashboard starting"
         self.last_stack_actions: dict[str, dict[str, object]] = {}
+        self.stack_config_views: dict[str, dict[str, object]] = {}
         self.last_tool_actions: dict[str, dict[str, object]] = {}
 
     def compose(self) -> ComposeResult:
@@ -247,6 +251,7 @@ class HomesrvctlTextualApp(App[None]):
 
     def _refresh_snapshot(self, status_message: str) -> None:
         self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = max(0, min(self.selected_control_index, len(items) - 1))
@@ -279,6 +284,7 @@ class HomesrvctlTextualApp(App[None]):
         self.last_stack_actions[hostname] = {"action": action, "payload": payload}
         self.status_message = summarize_stack_action(hostname, action, payload)
         self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = min(self.selected_control_index, len(items) - 1)
@@ -296,6 +302,7 @@ class HomesrvctlTextualApp(App[None]):
         self.last_tool_actions[tool] = {"action": action, "payload": payload}
         self.status_message = summarize_tool_action(tool, action, payload)
         self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = min(self.selected_control_index, len(items) - 1)
@@ -316,6 +323,7 @@ class HomesrvctlTextualApp(App[None]):
 
     def _control_items(self) -> list[dict[str, object]]:
         items: list[dict[str, object]] = [
+            {"kind": "tool", "tool": "config", "label": "Config"},
             {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"},
             {"kind": "tool", "tool": "validate", "label": "Validate"},
         ]
@@ -334,16 +342,16 @@ class HomesrvctlTextualApp(App[None]):
     def _selected_control_item(self) -> dict[str, object]:
         items = self._control_items()
         if not items:
-            return {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"}
+            return {"kind": "tool", "tool": "config", "label": "Config"}
         index = max(0, min(self.selected_control_index, len(items) - 1))
         return items[index]
 
     def _control_list_text(self) -> str:
         items = self._control_items()
         if not items:
-            return "Tools\n\n> Cloudflared\n  Validate\n\nStacks\n\n(no stacks found)"
+            return "Tools\n\n> Config\n  Cloudflared\n  Validate\n\nStacks\n\n(no stacks found)"
 
-        tool_count = 2
+        tool_count = 3
         lines = ["Tools", ""]
         for index, item in enumerate(items[:tool_count]):
             marker = ">" if index == self.selected_control_index else " "
@@ -365,6 +373,8 @@ class HomesrvctlTextualApp(App[None]):
     def _detail_text(self) -> str:
         item = self._selected_control_item()
         if item.get("kind") == "tool":
+            if item.get("tool") == "config":
+                return self._config_detail_text()
             if item.get("tool") == "cloudflared":
                 return self._cloudflared_detail_text()
             return self._validate_detail_text()
@@ -378,7 +388,9 @@ class HomesrvctlTextualApp(App[None]):
             actions = "actions: a app-init | i site-init | g doctor | u up | t restart | x down | r refresh | q quit"
         else:
             focus = f"focus: {item.get('label', 'Tool')}"
-            if item.get("tool") == "cloudflared":
+            if item.get("tool") == "config":
+                actions = "actions: r refresh | q quit"
+            elif item.get("tool") == "cloudflared":
                 actions = "actions: c config-test | l reload | k restart | r refresh | q quit"
             else:
                 actions = "actions: w/s move | r refresh | q quit"
@@ -420,11 +432,17 @@ class HomesrvctlTextualApp(App[None]):
         return f"{len(checks)} checks\n\nAll passing"
 
     def _stack_detail_text(self, hostname: str, compose: bool) -> str:
+        config_view = self.stack_config_views.get(hostname)
+        if config_view is None:
+            config_view = run_stack_config_view(hostname)
+            self.stack_config_views[hostname] = config_view
         lines = [
             "Stack Detail",
             "",
             f"hostname: {hostname or '<unknown>'}",
             f"compose file: {'yes' if compose else 'no'}",
+            "",
+            *render_stack_config_detail(config_view),
             "",
             "This pane is the control surface for stack lifecycle work.",
             "Use a to choose an app scaffold template for the focused hostname.",
@@ -473,6 +491,14 @@ class HomesrvctlTextualApp(App[None]):
             if isinstance(action, str) and isinstance(payload, dict):
                 lines.extend(["", *render_tool_action_detail("cloudflared", action, payload)])
         lines.extend(["", "This is a global tool item. Refresh here to re-check runtime and ingress health."])
+        return "\n".join(lines)
+
+    def _config_detail_text(self) -> str:
+        payload = self.snapshot.get("config")
+        if not isinstance(payload, dict):
+            return "Config detail unavailable"
+        lines = ["Config Detail", "", *render_config_payload_detail(payload)]
+        lines.extend(["", "This is a global tool item. Use it to inspect base homesrvctl configuration."])
         return "\n".join(lines)
 
     def _validate_detail_text(self) -> str:

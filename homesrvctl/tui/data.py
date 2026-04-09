@@ -11,10 +11,12 @@ def build_dashboard_snapshot(run_json_command=None) -> dict[str, object]:  # noq
     if run_json_command is None:
         run_json_command = run_json_subcommand
     list_payload = run_json_command(["list"])
+    config_payload = run_json_command(["config", "show"])
     cloudflared_payload = run_json_command(["cloudflared", "status"])
     validate_payload = run_json_command(["validate"])
     return {
         "list": list_payload,
+        "config": config_payload,
         "cloudflared": cloudflared_payload,
         "validate": validate_payload,
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -78,6 +80,9 @@ def run_stack_action(hostname: str, action: str, template: str | None = None) ->
 
 
 def run_tool_action(tool: str, action: str) -> dict[str, object]:
+    if tool == "config":
+        if action == "show":
+            return run_json_subcommand(["config", "show"])
     if tool == "cloudflared":
         if action == "config-test":
             return run_json_subcommand(["cloudflared", "config-test"])
@@ -86,6 +91,10 @@ def run_tool_action(tool: str, action: str) -> dict[str, object]:
         if action == "restart":
             return run_json_subcommand(["cloudflared", "restart"])
     raise ValueError(f"unsupported tool action: {tool} {action}")
+
+
+def run_stack_config_view(hostname: str) -> dict[str, object]:
+    return run_json_subcommand(["config", "show", "--stack", hostname])
 
 
 def summarize_stack_action(hostname: str, action: str, payload: dict[str, object]) -> str:
@@ -237,3 +246,53 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
                 lines.append(f"... {len(validation_warnings) - 5} more")
 
     return lines
+
+
+def render_config_payload_detail(payload: dict[str, object]) -> list[str]:
+    if not payload.get("ok"):
+        return [f"error: {payload.get('error', 'unknown error')}"]
+
+    global_config = payload.get("global")
+    if not isinstance(global_config, dict):
+        return ["global config unavailable"]
+
+    lines = [
+        f"config path: {payload.get('config_path', '<unknown>')}",
+        "",
+        f"sites root: {global_config.get('sites_root', '<unknown>')}",
+        f"docker network: {global_config.get('docker_network', '<unknown>')}",
+        f"traefik url: {global_config.get('traefik_url', '<unknown>')}",
+        f"cloudflared config: {global_config.get('cloudflared_config', '<unknown>')}",
+        f"api token present: {global_config.get('cloudflare_api_token_present', False)}",
+    ]
+
+    profiles = global_config.get("profiles")
+    if isinstance(profiles, dict):
+        profile_names = sorted(str(name) for name in profiles)
+        lines.extend(["", f"profiles: {len(profile_names)}"])
+        if profile_names:
+            lines.extend(f"- {name}" for name in profile_names[:8])
+            if len(profile_names) > 8:
+                lines.append(f"... {len(profile_names) - 8} more")
+    return lines
+
+
+def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
+    if not payload.get("ok"):
+        return [f"config view error: {payload.get('error', 'unknown error')}"]
+
+    stack = payload.get("stack")
+    if not isinstance(stack, dict):
+        return ["config view unavailable"]
+
+    effective = stack.get("effective", {})
+    effective_sources = stack.get("effective_sources", {})
+    return [
+        "Effective config",
+        "",
+        f"profile: {stack.get('profile') or 'none'}",
+        f"has local config: {stack.get('has_local_config', False)}",
+        f"docker network: {effective.get('docker_network', '<unknown>')} ({effective_sources.get('docker_network', 'unknown')})",
+        f"traefik url: {effective.get('traefik_url', '<unknown>')} ({effective_sources.get('traefik_url', 'unknown')})",
+        f"stack config path: {stack.get('stack_config_path', '<unknown>')}",
+    ]

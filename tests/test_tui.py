@@ -71,6 +71,19 @@ def test_build_dashboard_snapshot_uses_existing_json_surfaces() -> None:
         calls.append(tuple(args))
         if args == ["list"]:
             return {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]}
+        if args == ["config", "show"]:
+            return {
+                "ok": True,
+                "config_path": "/home/test/.config/homesrvctl/config.yml",
+                "global": {
+                    "sites_root": "/srv/homesrvctl/sites",
+                    "docker_network": "web",
+                    "traefik_url": "http://localhost:8081",
+                    "cloudflared_config": "/etc/cloudflared/config.yml",
+                    "cloudflare_api_token_present": False,
+                    "profiles": {},
+                },
+            }
         if args == ["cloudflared", "status"]:
             return {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"}
         if args == ["validate"]:
@@ -79,8 +92,9 @@ def test_build_dashboard_snapshot_uses_existing_json_surfaces() -> None:
 
     snapshot = data.build_dashboard_snapshot(run_json_command=fake_run_json_command)
 
-    assert calls == [("list",), ("cloudflared", "status"), ("validate",)]
+    assert calls == [("list",), ("config", "show"), ("cloudflared", "status"), ("validate",)]
     assert snapshot["list"]["sites"][0]["hostname"] == "example.com"
+    assert snapshot["config"]["global"]["docker_network"] == "web"
     assert snapshot["cloudflared"]["mode"] == "systemd"
     assert snapshot["validate"]["checks"][0]["name"] == "docker"
 
@@ -144,6 +158,21 @@ def test_run_tool_action_dispatches_to_existing_commands(monkeypatch) -> None:
 
     assert payload["ok"] is True
     assert calls == [["cloudflared", "config-test"]]
+
+
+def test_run_stack_config_view_dispatches_to_existing_command(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True, "stack": {"hostname": "example.com"}}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_config_view("example.com")
+
+    assert payload["ok"] is True
+    assert calls == [["config", "show", "--stack", "example.com"]]
 
 
 def test_summarize_stack_action_reports_failure_detail() -> None:
@@ -237,6 +266,61 @@ def test_render_tool_action_detail_formats_cloudflared_result() -> None:
     assert "status: ok" in rendered
     assert "warnings: 1" in rendered
     assert "- earlier wildcard rule *.com may capture later hostname *.example.com" in rendered
+
+
+def test_render_config_payload_detail_formats_global_config() -> None:
+    lines = data.render_config_payload_detail(
+        {
+            "ok": True,
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "global": {
+                "sites_root": "/srv/homesrvctl/sites",
+                "docker_network": "web",
+                "traefik_url": "http://localhost:8081",
+                "cloudflared_config": "/etc/cloudflared/config.yml",
+                "cloudflare_api_token_present": False,
+                "profiles": {
+                    "edge": {"docker_network": "edge", "traefik_url": "http://localhost:9000"},
+                    "internal": {"docker_network": "internal", "traefik_url": "http://localhost:8082"},
+                },
+            },
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "config path: /home/test/.config/homesrvctl/config.yml" in rendered
+    assert "docker network: web" in rendered
+    assert "profiles: 2" in rendered
+    assert "- edge" in rendered
+
+
+def test_render_stack_config_detail_formats_effective_config() -> None:
+    lines = data.render_stack_config_detail(
+        {
+            "ok": True,
+            "stack": {
+                "profile": "edge",
+                "has_local_config": True,
+                "effective": {
+                    "docker_network": "edge",
+                    "traefik_url": "http://localhost:9001",
+                },
+                "effective_sources": {
+                    "docker_network": "profile:edge",
+                    "traefik_url": "stack-local",
+                },
+                "stack_config_path": "/srv/homesrvctl/sites/example.com/homesrvctl.yml",
+            },
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "profile: edge" in rendered
+    assert "has local config: True" in rendered
+    assert "docker network: edge (profile:edge)" in rendered
+    assert "traefik url: http://localhost:9001 (stack-local)" in rendered
 
 
 def test_render_stack_action_detail_formats_app_init_result() -> None:
@@ -354,6 +438,18 @@ def test_textual_app_summary_and_stack_list_text() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {
+            "ok": True,
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "global": {
+                "sites_root": "/srv/homesrvctl/sites",
+                "docker_network": "web",
+                "traefik_url": "http://localhost:8081",
+                "cloudflared_config": "/etc/cloudflared/config.yml",
+                "cloudflare_api_token_present": False,
+                "profiles": {},
+            },
+        },
         "list": {
             "ok": True,
             "sites": [
@@ -364,19 +460,62 @@ def test_textual_app_summary_and_stack_list_text() -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 3
+    app.selected_control_index = 4
+    app.stack_config_views["notes.example.com"] = {
+        "ok": True,
+        "stack": {
+            "profile": None,
+            "has_local_config": False,
+            "effective": {"docker_network": "web", "traefik_url": "http://localhost:8081"},
+            "effective_sources": {"docker_network": "global-config", "traefik_url": "global-config"},
+            "stack_config_path": "/srv/homesrvctl/sites/notes.example.com/homesrvctl.yml",
+        },
+    }
 
     controls = app._control_list_text()
     detail = app._detail_text()
     command_bar = app._command_bar_text()
 
     assert "Tools" in controls
+    assert "Config" in controls
     assert "Cloudflared" in controls
     assert "Validate" in controls
     assert "Stacks" in controls
     assert "> notes.example.com [compose=no]" in controls
     assert "hostname: notes.example.com" in detail
+    assert "Effective config" in detail
     assert "focus: notes.example.com" in command_bar
+
+
+def test_textual_app_config_tool_detail_text() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {
+            "ok": True,
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "global": {
+                "sites_root": "/srv/homesrvctl/sites",
+                "docker_network": "web",
+                "traefik_url": "http://localhost:8081",
+                "cloudflared_config": "/etc/cloudflared/config.yml",
+                "cloudflare_api_token_present": False,
+                "profiles": {"edge": {"docker_network": "edge", "traefik_url": "http://localhost:9000"}},
+            },
+        },
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 0
+
+    detail = app._detail_text()
+    command_bar = app._command_bar_text()
+
+    assert "Config Detail" in detail
+    assert "docker network: web" in detail
+    assert "profiles: 1" in detail
+    assert "focus: Config" in command_bar
 
 
 def test_app_init_template_screen_renders_options() -> None:
@@ -393,11 +532,12 @@ def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": False}]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 2
+    app.selected_control_index = 3
     pushed: list[tuple[object, object]] = []
 
     monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
@@ -412,11 +552,22 @@ def test_textual_app_stack_detail_includes_last_action_result() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 2
+    app.selected_control_index = 3
+    app.stack_config_views["example.com"] = {
+        "ok": True,
+        "stack": {
+            "profile": None,
+            "has_local_config": False,
+            "effective": {"docker_network": "web", "traefik_url": "http://localhost:8081"},
+            "effective_sources": {"docker_network": "global-config", "traefik_url": "global-config"},
+            "stack_config_path": "/srv/homesrvctl/sites/example.com/homesrvctl.yml",
+        },
+    }
     app.last_stack_actions["example.com"] = {
         "action": "doctor",
         "payload": {
@@ -439,6 +590,7 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
         "cloudflared": {
             "ok": True,
@@ -449,7 +601,7 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
         },
         "validate": {"ok": False, "checks": [{"name": "docker", "ok": False, "detail": "missing"}]},
     }
-    app.selected_control_index = 0
+    app.selected_control_index = 1
 
     detail = app._detail_text()
     command_bar = app._command_bar_text()
@@ -464,6 +616,7 @@ def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
         "cloudflared": {
             "ok": True,
@@ -474,7 +627,7 @@ def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
         },
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 0
+    app.selected_control_index = 1
     app.last_tool_actions["cloudflared"] = {
         "action": "config-test",
         "payload": {
@@ -501,12 +654,14 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     snapshots = [
         {
             "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": False}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
             "validate": {"ok": True, "checks": []},
         },
         {
             "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
             "validate": {"ok": True, "checks": []},
@@ -515,7 +670,7 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 2
+    app.selected_control_index = 3
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -538,12 +693,14 @@ def test_textual_app_app_init_prompt_runs_selected_template(monkeypatch) -> None
     snapshots = [
         {
             "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "app.example.com", "compose": False}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
             "validate": {"ok": True, "checks": []},
         },
         {
             "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "app.example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
             "validate": {"ok": True, "checks": []},
@@ -552,7 +709,7 @@ def test_textual_app_app_init_prompt_runs_selected_template(monkeypatch) -> None
     calls: list[tuple[str, str, str | None]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 2
+    app.selected_control_index = 3
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -575,6 +732,7 @@ def test_textual_app_app_init_prompt_cancel_updates_status(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
         "list": {"ok": True, "sites": [{"hostname": "app.example.com", "compose": False}]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
@@ -590,12 +748,14 @@ def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:
     snapshots = [
         {
             "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
             "validate": {"ok": True, "checks": []},
         },
         {
             "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {
                 "ok": True,
@@ -610,7 +770,7 @@ def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 0
+    app.selected_control_index = 1
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
