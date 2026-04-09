@@ -160,6 +160,36 @@ def test_run_stack_action_dispatches_domain_repair(monkeypatch) -> None:
     assert calls == [["domain", "repair", "example.com"]]
 
 
+def test_run_stack_action_dispatches_domain_add(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action("example.com", "domain-add")
+
+    assert payload["ok"] is True
+    assert calls == [["domain", "add", "example.com"]]
+
+
+def test_run_stack_action_dispatches_domain_remove(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action("example.com", "domain-remove")
+
+    assert payload["ok"] is True
+    assert calls == [["domain", "remove", "example.com"]]
+
+
 def test_run_tool_action_dispatches_to_existing_commands(monkeypatch) -> None:
     calls: list[list[str]] = []
 
@@ -237,6 +267,14 @@ def test_summarize_stack_action_labels_domain_repair() -> None:
     summary = data.summarize_stack_action("example.com", "domain-repair", {"ok": False, "error": "duplicate DNS records"})
 
     assert summary == "domain repair failed for example.com: duplicate DNS records"
+
+
+def test_summarize_stack_action_labels_domain_add_and_remove() -> None:
+    add_summary = data.summarize_stack_action("example.com", "domain-add", {"ok": False, "error": "zone not found"})
+    remove_summary = data.summarize_stack_action("example.com", "domain-remove", {"ok": False, "error": "permission denied"})
+
+    assert add_summary == "domain add failed for example.com: zone not found"
+    assert remove_summary == "domain remove failed for example.com: permission denied"
 
 
 def test_render_stack_action_detail_formats_doctor_checks() -> None:
@@ -610,6 +648,13 @@ def test_app_init_template_screen_renders_options() -> None:
     assert "5. python" in rendered
 
 
+def test_confirm_action_screen_uses_supplied_copy() -> None:
+    screen = prompts.ConfirmActionScreen("Confirm Domain Add", "Run domain add for example.com?")
+
+    assert screen.title == "Confirm Domain Add"
+    assert screen.body == "Run domain add for example.com?"
+
+
 def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
@@ -628,6 +673,46 @@ def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
 
     assert len(pushed) == 1
     assert isinstance(pushed[0][0], prompts.AppInitTemplateScreen)
+
+
+def test_textual_app_domain_add_prompt_pushes_modal(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 3
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app.action_domain_add_prompt()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.ConfirmActionScreen)
+
+
+def test_textual_app_domain_remove_prompt_pushes_modal(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 3
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app.action_domain_remove_prompt()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.ConfirmActionScreen)
 
 
 def test_textual_app_stack_detail_includes_last_action_result() -> None:
@@ -738,6 +823,39 @@ def test_textual_app_domain_repair_rejects_subdomain(monkeypatch) -> None:
     app.action_domain_repair()
 
     assert app.status_message == "domain repair is only available for apex stacks: notes.example.com"
+
+
+def test_textual_app_domain_add_rejects_subdomain(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "notes.example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 3
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app.action_domain_add_prompt()
+
+    assert app.status_message == "domain add/remove is only available for apex stacks: notes.example.com"
+
+
+def test_textual_app_domain_remove_cancel_updates_status(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._complete_domain_confirmation("example.com", "domain-remove", False)
+
+    assert app.status_message == "domain remove cancelled for example.com"
 
 
 def test_textual_app_tool_detail_and_command_bar_text() -> None:
@@ -879,6 +997,82 @@ def test_textual_app_domain_repair_refreshes_status(monkeypatch) -> None:
     assert calls == [("example.com", "domain-repair")]
     assert app.status_message == "domain repair succeeded for example.com"
     assert app.last_stack_actions["example.com"]["action"] == "domain-repair"
+
+
+def test_textual_app_domain_add_refreshes_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 3
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action: calls.append((hostname, action)) or {"ok": True},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._complete_domain_confirmation("example.com", "domain-add", True)
+
+    assert calls == [("example.com", "domain-add")]
+    assert app.status_message == "domain add succeeded for example.com"
+    assert app.last_stack_actions["example.com"]["action"] == "domain-add"
+
+
+def test_textual_app_domain_remove_refreshes_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 3
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action: calls.append((hostname, action)) or {"ok": True},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._complete_domain_confirmation("example.com", "domain-remove", True)
+
+    assert calls == [("example.com", "domain-remove")]
+    assert app.status_message == "domain remove succeeded for example.com"
+    assert app.last_stack_actions["example.com"]["action"] == "domain-remove"
 
 
 def test_textual_app_app_init_prompt_runs_selected_template(monkeypatch) -> None:

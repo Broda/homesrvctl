@@ -20,7 +20,7 @@ from homesrvctl.tui.data import (
     summarize_stack_action,
     summarize_tool_action,
 )
-from homesrvctl.tui.prompts import AppInitTemplateScreen
+from homesrvctl.tui.prompts import AppInitTemplateScreen, ConfirmActionScreen
 from homesrvctl.utils import validate_bare_domain
 
 
@@ -130,8 +130,23 @@ class HomesrvctlTextualApp(App[None]):
         background: rgba(3, 8, 10, 0.72);
     }
 
+    ConfirmActionScreen {
+        align: center middle;
+        background: rgba(3, 8, 10, 0.72);
+    }
+
     #app_init_prompt {
         width: 72;
+        max-width: 90%;
+        height: auto;
+        padding: 1 2;
+        background: #0b1419;
+        border: round #ffcf5a;
+        color: #d7fff7;
+    }
+
+    #confirm_prompt {
+        width: 64;
         max-width: 90%;
         height: auto;
         padding: 1 2;
@@ -158,7 +173,9 @@ class HomesrvctlTextualApp(App[None]):
         Binding("w,up", "previous_control", "Prev", show=False),
         Binding("s,down,tab", "next_control", "Next", show=False),
         Binding("a", "app_init_prompt", "App Init", show=False),
+        Binding("n", "domain_add_prompt", "Add Domain", show=False),
         Binding("p", "domain_repair", "Repair Domain", show=False),
+        Binding("m", "domain_remove_prompt", "Remove Domain", show=False),
         Binding("c", "cloudflared_config_test", "Config Test", show=False),
         Binding("l", "cloudflared_reload", "Reload", show=False),
         Binding("k", "cloudflared_restart", "Restart CF", show=False),
@@ -230,6 +247,9 @@ class HomesrvctlTextualApp(App[None]):
         hostname = str(item.get("hostname", ""))
         self.push_screen(AppInitTemplateScreen(), lambda template: self._complete_app_init_prompt(hostname, template))
 
+    def action_domain_add_prompt(self) -> None:
+        self._push_domain_confirmation("domain-add", "Confirm Domain Add")
+
     def action_domain_repair(self) -> None:
         item = self._selected_control_item()
         if item.get("kind") != "stack":
@@ -244,6 +264,9 @@ class HomesrvctlTextualApp(App[None]):
             self._render()
             return
         self._run_stack_action_for_hostname(hostname, "domain-repair")
+
+    def action_domain_remove_prompt(self) -> None:
+        self._push_domain_confirmation("domain-remove", "Confirm Domain Remove")
 
     def action_cloudflared_config_test(self) -> None:
         self._run_selected_tool_action("cloudflared", "config-test")
@@ -296,6 +319,30 @@ class HomesrvctlTextualApp(App[None]):
             self._render()
             return
         self._run_stack_action_for_hostname(hostname, "app-init", template=template)
+
+    def _push_domain_confirmation(self, action: str, title: str) -> None:
+        item = self._selected_control_item()
+        if item.get("kind") != "stack":
+            self.status_message = "select an apex stack for domain actions"
+            self._render()
+            return
+        hostname = str(item.get("hostname", ""))
+        try:
+            validate_bare_domain(hostname)
+        except Exception:
+            action_label = "domain add/remove" if action in {"domain-add", "domain-remove"} else action
+            self.status_message = f"{action_label} is only available for apex stacks: {hostname}"
+            self._render()
+            return
+        body = f"Run {action.replace('-', ' ')} for {hostname}?"
+        self.push_screen(ConfirmActionScreen(title=title, body=body), lambda confirmed: self._complete_domain_confirmation(hostname, action, confirmed))
+
+    def _complete_domain_confirmation(self, hostname: str, action: str, confirmed: bool) -> None:
+        if not confirmed:
+            self.status_message = f"{action.replace('-', ' ')} cancelled for {hostname}"
+            self._render()
+            return
+        self._run_stack_action_for_hostname(hostname, action)
 
     def _run_stack_action_for_hostname(self, hostname: str, action: str, template: str | None = None) -> None:
         if template is None:
@@ -408,7 +455,7 @@ class HomesrvctlTextualApp(App[None]):
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"
         if item.get("kind") == "stack":
             focus = f"focus: {item.get('hostname', '<unknown>')}"
-            actions = "actions: a app-init | p domain-repair | i site-init | g doctor | u up | t restart | x down | r refresh | q quit"
+            actions = "actions: a app-init | n domain-add | p domain-repair | m domain-remove | i site-init | g doctor | u up | t restart | x down | r refresh | q quit"
         else:
             focus = f"focus: {item.get('label', 'Tool')}"
             if item.get("tool") == "config":
@@ -475,6 +522,7 @@ class HomesrvctlTextualApp(App[None]):
             "",
             "This pane is the control surface for stack lifecycle work.",
             "Use a to choose an app scaffold template for the focused hostname.",
+            "Use n to confirm domain add and m to confirm domain remove for apex domains.",
             "Use p to run domain repair when the focused hostname is an apex domain.",
             "Use i to scaffold a simple site if the hostname directory is empty.",
             "Use u to start the stack, g to run doctor, t to restart, or x to stop it.",

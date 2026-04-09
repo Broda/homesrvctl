@@ -65,8 +65,12 @@ def stack_sites(snapshot: dict[str, object]) -> list[dict[str, object]]:
 def run_stack_action(hostname: str, action: str, template: str | None = None) -> dict[str, object]:
     if action == "doctor":
         return run_json_subcommand(["doctor", hostname])
+    if action == "domain-add":
+        return run_json_subcommand(["domain", "add", hostname])
     if action == "domain-repair":
         return run_json_subcommand(["domain", "repair", hostname])
+    if action == "domain-remove":
+        return run_json_subcommand(["domain", "remove", hostname])
     if action == "init-site":
         return run_json_subcommand(["site", "init", hostname])
     if action == "app-init":
@@ -124,8 +128,12 @@ def action_label(action: str) -> str:
         return "site init"
     if action == "app-init":
         return "app init"
+    if action == "domain-add":
+        return "domain add"
     if action == "domain-repair":
         return "domain repair"
+    if action == "domain-remove":
+        return "domain remove"
     return action
 
 

@@ -72,3 +72,27 @@ class AppInitTemplateScreen(ModalScreen[str | None]):
             lines.append(f"  {description}")
             lines.append("")
         return "\n".join(lines).rstrip()
+
+
+class ConfirmActionScreen(ModalScreen[bool]):
+    BINDINGS = [
+        Binding("enter,y", "confirm", "Confirm", show=False),
+        Binding("escape,q,n", "cancel", "Cancel", show=False),
+    ]
+
+    def __init__(self, title: str, body: str) -> None:
+        super().__init__()
+        self.title = title
+        self.body = body
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm_prompt"):
+            yield Static(self.title, classes="prompt_title")
+            yield Static(self.body, classes="prompt_help")
+            yield Static("Enter or y confirms. Esc, q, or n cancels.")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
