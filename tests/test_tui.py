@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from homesrvctl.commands import tui_cmd
 from homesrvctl.main import app
 from homesrvctl.shell import CommandResult
-from homesrvctl.tui import app as textual_app, dashboard, data, prompts
+from homesrvctl.tui import app as textual_app, data, prompts
 
 
 def test_run_json_command_parses_success_payload(monkeypatch) -> None:
@@ -478,65 +478,6 @@ def test_render_stack_action_detail_formats_app_init_result() -> None:
     assert "node" in rendered
     assert "files: 2" in rendered
     assert "target dir: /srv/homesrvctl/sites/app.example.com" in rendered
-
-
-def test_render_dashboard_includes_sections_and_failures() -> None:
-    snapshot = {
-        "generated_at": "2026-04-08 12:00:00",
-        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
-        "cloudflared": {
-            "ok": True,
-            "mode": "docker",
-            "active": True,
-            "detail": "running container(s): cloudflared",
-            "config_validation": {
-                "ok": True,
-                "detail": "fallback service http_status:404",
-                "warnings": ["earlier wildcard rule *.com may capture later hostname *.example.com"],
-            },
-        },
-        "validate": {
-            "ok": False,
-            "checks": [
-                {"name": "docker", "ok": True, "detail": "found"},
-                {"name": "Traefik URL", "ok": False, "detail": "unreachable"},
-            ],
-        },
-    }
-
-    rendered = dashboard.render_dashboard(snapshot, width=80, selected="validate")
-
-    assert "homesrvctl dashboard" in rendered
-    assert "Summary" in rendered
-    assert "> Validate: 2 checks, 1 failing" in rendered
-    assert "Cloudflared: docker (active), 1 warning(s)" in rendered
-    assert "Validate detail" in rendered
-    assert "Traefik URL: unreachable" in rendered
-    assert "controls: q quit | r refresh | tab/arrow or w/s move | stacks a/d/i/g/u/t/x | mode: manual refresh" in rendered
-
-
-def test_render_dashboard_stack_detail_includes_stack_rows() -> None:
-    snapshot = {
-        "generated_at": "2026-04-08 12:00:00",
-        "list": {
-            "ok": True,
-            "sites": [
-                {"hostname": "example.com", "compose": True},
-                {"hostname": "notes.example.com", "compose": False},
-            ],
-        },
-        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
-        "validate": {"ok": True, "checks": []},
-    }
-
-    rendered = dashboard.render_dashboard_state(snapshot, width=80, selected="stacks", selected_stack_index=1)
-
-    assert "> Stacks: 2 stack(s), 1 ready" in rendered
-    assert "Stacks detail" in rendered
-    assert "selected stack: notes.example.com" in rendered
-    assert "stack actions: a/d select | i init site | g doctor | u up | t restart | x down" in rendered
-    assert "- example.com [compose=yes]" in rendered
-    assert "> notes.example.com [compose=no]" in rendered
 
 
 def test_tui_requires_interactive_terminal(monkeypatch) -> None:

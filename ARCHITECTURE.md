@@ -126,10 +126,7 @@ Responsibilities:
 - keep TUI-specific state and refresh behavior out of the command modules
 
 This layer should stay separate from CLI wiring so future dashboard/view growth does not bloat `homesrvctl/commands`.
-The current curses renderer is transitional; Textual is the planned long-term implementation for `homesrvctl tui`.
-Today the repo still contains both:
-- the active Textual implementation in [`homesrvctl/tui/app.py`](homesrvctl/tui/app.py)
-- the older transitional curses renderer in [`homesrvctl/tui/dashboard.py`](homesrvctl/tui/dashboard.py)
+Textual is now the active and only retained implementation for `homesrvctl tui`.
 The command wrapper should import the Textual app lazily so the rest of the CLI can still start cleanly if the local environment has not yet been refreshed to include the new dependency.
 
 ### Public contract changes should be deliberate

@@ -36,11 +36,9 @@ This document is a quick orientation guide to the repository. It is intentionall
 - [`homesrvctl/shell.py`](homesrvctl/shell.py)
   Shared subprocess execution helpers.
 - [`homesrvctl/tui`](homesrvctl/tui)
-  Terminal UI implementation. This is the home for the current Textual app, the retained transitional curses renderer, and the JSON-backed data/action loading used by the TUI.
+  Terminal UI implementation. This is the home for the current Textual app and the JSON-backed data/action loading used by the TUI.
 - [`homesrvctl/tui/app.py`](homesrvctl/tui/app.py)
   The current Textual app entrypoint for `homesrvctl tui`.
-- [`homesrvctl/tui/dashboard.py`](homesrvctl/tui/dashboard.py)
-  Older curses dashboard renderer that remains in the repo during the Textual migration.
 - [`homesrvctl/tui/data.py`](homesrvctl/tui/data.py)
   JSON-backed data loading, action dispatch, and detail rendering helpers for the Textual TUI.
 - [`homesrvctl/tui/prompts.py`](homesrvctl/tui/prompts.py)

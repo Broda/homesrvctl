@@ -515,7 +515,7 @@ Goal: move `homesrvctl tui` to Textual before the current terminal dashboard gro
 
 Migration policy:
 - Textual is the planned long-term TUI implementation.
-- The current `curses` dashboard is transitional and should be retired after the first Textual dashboard reaches parity.
+- The old `curses` dashboard is retired.
 - `homesrvctl tui` remains the public entrypoint throughout the migration.
 - The first Textual implementation should continue consuming existing `--json` command output rather than introducing a new backend service.
 
@@ -556,7 +556,7 @@ Current baseline:
 
 ### 5.2 Reach dashboard parity in Textual
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Reproduce the current dashboard capabilities in Textual before removing the old renderer.
@@ -813,7 +813,7 @@ Current baseline:
   - prompt rendering
   - keyboard-driven action dispatch
   - status and detail rendering
-- The legacy curses renderer is still present, so this milestone remains open until retirement and final parity review are complete.
+- The old curses renderer is now removed from the repo.
 
 ## Milestone 6: TUI Mouse Support
 
