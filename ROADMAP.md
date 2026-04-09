@@ -721,12 +721,25 @@ Tasks:
 - Replace the plain-text left control pane with clickable Textual widgets.
 - Keep the current visual grouping of `Tools` above `Stacks`.
 - Keep keyboard focus and mouse focus aligned to the same selected item.
+- Give selected rows a visually unambiguous highlight — not just a `>` prefix.
+- Show compose status as a compact colored symbol rather than verbose `[compose=yes]` / `[compose=no]` text.
 
 Subtasks:
 - Introduce reusable row widgets for:
   - tool items
   - stack items
 - Preserve the current selected-state styling for the active row.
+  Current baseline: selected item is indicated by a `>` prefix in plain text — replace this with a highlight background or bold colored text so the selection is immediately obvious.
+- Stack rows should display compose status as a colored symbol:
+  - `●` in the teal accent color when a compose file is present
+  - `○` in dim/muted color when no compose file exists
+  This replaces the current `[compose=yes]` / `[compose=no]` notation and frees ~14 characters per row.
+- Section headers ("Tools", "Stacks") should be styled as non-clickable label widgets with the accent color, clearly visually distinct from the clickable item rows below them.
+- Define three explicit CSS states for control row widgets:
+  - normal (default)
+  - `--selected` (highlighted — drives both keyboard and mouse focus)
+  - hover (subtle tint for mouse affordance)
+- Keep keyboard focus and click focus on the same selected widget — the internal `selected_control_index` state should drive which widget receives the `--selected` class.
 - Support click-to-focus for:
   - `Config`
   - `Cloudflared`
@@ -745,11 +758,20 @@ Status: planned
 Tasks:
 - Convert guided prompt screens from text-only option lists into clickable option rows or buttons.
 - Preserve full keyboard support for every prompt.
+- Keep the visual style of modal option rows consistent with the control pane row widgets.
 
 Subtasks:
 - Make the app-template picker clickable.
 - Make the stack action menu clickable.
 - Make confirmation prompts clickable.
+  Current baseline: `ConfirmActionScreen` shows plain `Static` text. Replace with real `Button` widgets for "Confirm" and "Cancel" using the existing palette — the confirm/cancel text body stays as a `Static` above them.
+- When converting option lists to widgets, each option row should:
+  - Show the number shortcut as a styled dim badge (1–9 still fires immediately via `on_key`)
+  - Show the option label prominently
+  - Show the description in muted text below or inline
+  Current baseline: options are rendered as `> 1. label\n  description` string lines — the `>` prefix is the only selection indicator.
+- Use the same `--selected` CSS class and styling for selected modal rows as for control pane rows — one consistent selection visual, not a second design system.
+- Review modal container widths in CSS (`#app_init_prompt` at 72, `#confirm_prompt` at 64, `#stack_action_prompt` at 72) and adjust if widget rows with padding require more space than tight string columns.
 - Ensure clicking an option triggers the same underlying callback path as pressing Enter.
 - Add tests for:
   - clicking a template option
@@ -763,16 +785,26 @@ Status: planned
 Tasks:
 - Let the focused detail pane expose clickable actions for the current item instead of relying only on hotkeys and menu prompts.
 - Keep the action set consistent with the currently focused tool or stack.
+- Structure the detail pane as two zones: a scrollable content area and a fixed action button strip.
 
 Subtasks:
-- Add action buttons or equivalent widgets for focused stacks:
-  - `app init`
-  - `site init`
-  - `doctor`
-  - `up`
-  - `restart`
-  - `down`
-- Add apex-only detail actions for:
+- Restructure the detail pane layout into two zones:
+  - A scrollable content area at the top (hostname/tool info, config, domain status, last action result).
+    Current baseline: `#detail_box` is a plain `Static` inside a `Vertical` with no scroll — long output (many DNS records, many checks, long file lists) overflows silently. Replace with a `VerticalScroll` or `ScrollableContainer`.
+  - A fixed action button strip at the bottom, always visible.
+- The action button strip should show only the 3–5 highest-value actions for the current focus:
+  - Stacks: `Up`, `Down`, `Restart`, `Doctor`, `Actions Menu`
+  - Cloudflared: `Config Test`, `Reload`, `Restart`
+  - Config / Validate: `Refresh`
+  Destructive or lower-frequency operations (domain add/remove) remain in the guided action menu, not as persistent buttons.
+- When the action button strip is present, simplify the command bar to global-only keys (`w/s navigate · r refresh · q quit`).
+  Current baseline: the command bar for stack focus dumps 12+ bindings in a single line. Once actions are visible in the pane, contextual keys no longer need to live in the bar.
+- Button labels should be 1–2 words. Define button states in CSS using the existing palette:
+  - normal: teal border
+  - focused/hover: amber border or teal background
+  - active/pressed: inverted
+- Action buttons should dispatch through the same `action_*` methods that keyboard bindings already use — no new command paths.
+- Add apex-only detail actions (within the action menu flow, not as persistent buttons):
   - `domain add`
   - `domain repair`
   - `domain remove`
@@ -790,18 +822,79 @@ Status: planned
 Tasks:
 - Decide whether the top summary strip should remain informational only or support click-to-focus behavior.
 - Avoid adding clicks there unless they improve navigation rather than duplicating the control pane needlessly.
+- Fix the current card styling gap when converting to widgets.
+
+Decision guidance:
+- Make cards clickable to focus the related tool in the control pane.
+  Clicking the Stacks card focuses the first stack item. Clicking Cloudflared focuses the Cloudflared tool row. Clicking Validate focuses the Validate tool row.
+  This is shallow, predictable, and adds discoverability without ambiguity.
+- Keep cards informational-only in the keyboard flow — `w/s` still drives the control pane exclusively. The click is additive.
 
 Subtasks:
 - Evaluate whether clicking a summary card should:
-  - focus the related tool
+  - focus the related tool (recommended — see above)
   - open a related menu
   - remain disabled by design
-- If enabled, add click handling for:
+- When converting cards to widgets, fix the current styling:
+  Current baseline: `_summary_card()` emits `f"{title}\n\n{detail}"` — the title is unstyled plain text, indistinguishable from the detail text.
+  - Render the card title in the accent color (`#ffcf5a` bold).
+  - Add a single-line status indicator as the first line of the card body, before secondary detail text:
+    - Stacks card: `✓ 3 ready` / `○ none ready` / `✗ error`
+    - Cloudflared card: `✓ active` / `⚠ 2 warnings` / `✗ inactive`
+    - Validate card: `✓ all passing` / `✗ 2 failing`
+  The status symbol line makes health state readable at a glance without reading full sentences.
+- If click-to-focus is enabled, add click handling for:
   - stacks summary
   - cloudflared summary
   - validate summary
 - Keep the interaction shallow and predictable.
 - Document the decision either way in the TUI docs.
+
+### 6.6 Integrate visual polish during widget migration
+
+Status: planned
+
+Goal: apply visual improvements that are not directly about clickability but belong in the same implementation pass as the widget migration. Patching the string-rendering layer before M6 would create throwaway work — these changes should land together with 6.1–6.4.
+
+Tasks:
+- Add status-based color to rendered detail text using Rich markup.
+- Apply Rich markup to section headers in detail view render helpers.
+- Make the right pane title dynamic and contextual.
+- Collapse multi-line help text blocks to compact single-line hints.
+- Simplify the command bar to global-only keys once contextual actions live in the detail pane.
+- Add a CSS palette reference for status color states.
+
+Subtasks:
+- Update `render_stack_action_detail()` in `data.py`:
+  - Wrap status `"ok"` in green markup, `"failed"` in red.
+  - Wrap `PASS` check markers in green, `FAIL` in red.
+- Update `render_tool_action_detail()` in `data.py`: same color pattern for `"ok"` / `"failed"` status values.
+- Update `render_domain_status_detail()` in `data.py`:
+  - Color domain overall status: `"ok"` green, `"partial"` yellow, `"misconfigured"` red.
+  - Color individual DNS record status values per entry.
+- Update `_cloudflared_detail_text()` in `app.py`:
+  - Color `active` green, `inactive` yellow.
+  - Color `config ok: True` green, `config ok: False` red.
+- Apply accent color markup to section headers in all four render helpers in `data.py`:
+  - "Effective config", "Domain status", "Last action", "Cloudflared Detail", "Config Detail", "Validate Detail"
+  Currently these are plain strings at the same visual weight as data rows.
+- Replace the static `"Detail"` pane title with a dynamic title reflecting the focused item:
+  - `Stack: example.com`
+  - `Tool: Cloudflared`
+  - `Tool: Validate`
+  - `Tool: Config`
+  Update this title in `_render()` alongside other widget updates.
+- Replace the multi-line help text at the bottom of each detail view with a single compact hint line.
+  Current baseline: `_stack_detail_text()` ends with 7 lines of prose describing available key bindings.
+  Replace with one short line, e.g. `· enter menu  · u up  · x down  · r refresh`.
+  This hint line can be removed entirely once action buttons from 6.3 are visible in the pane.
+- Add a CSS comment block near the top of the `CSS` string in `app.py` documenting the intended palette use for status states:
+  - status ok / success: green
+  - status warning: yellow / amber
+  - status error / failed: red
+  - accent / titles: `#ffcf5a`
+  - primary borders / highlights: `#1fd6c1` / `#13bfae`
+- Verify all Rich markup renders correctly in Textual `Static` widgets (no visible escape sequences).
 
 ### 6.5 Keep mouse support testable and accessible
 
