@@ -203,6 +203,7 @@ Status: in progress
 Tasks:
 - Add more domain-level diagnostics for unsafe or ambiguous `cloudflared` config states.
 - Keep parser errors concrete and remediation-oriented.
+- Formalize severity so clearly dangerous semantic states are treated as blocking while lower-confidence risks stay advisory.
 
 Subtasks:
 - Detect more cases where one ingress rule unintentionally captures another hostname.
@@ -210,8 +211,15 @@ Subtasks:
 - Improve guidance around wildcard precedence.
   Current warnings now include direct fix hints for reordering or narrowing risky wildcard rules.
 - Improve messaging when the config file is valid YAML but semantically unsafe.
-- Decide whether `cloudflared status` should surface config warnings directly.
-  Current behavior keeps structurally valid ingress warnings advisory in `cloudflared status`.
+- Normalize warning severity in text and JSON output rather than relying only on free-form strings.
+- Keep `cloudflared status` healthy for advisory warnings, but fail it for a narrow set of blocking semantic-danger states.
+- Treat these states as blocking:
+  - duplicate exact hostname entries
+  - exact hostname shadowed by an earlier broader rule
+  - invalid fallback ordering
+- Keep these states advisory unless a stronger concrete conflict is detected:
+  - wildcard precedence risk
+  - broader wildcard may capture traffic intended for a narrower wildcard
 
 Current baseline:
 - `cloudflared status` and `cloudflared config-test` already surface non-fatal ingress warnings for risky wildcard ordering.
@@ -223,28 +231,39 @@ Current baseline:
   - missing fallback service
   - malformed YAML/list structure
 
+Decision:
+- Severity policy uses blocking tiers rather than treating every semantic risk as a hard failure.
+- Blocking states should be explicit and narrow so dashboards and routine operator checks do not become noisy.
+- Severity should be normalized in command output so the TUI and future automation can consume it predictably.
+
 ### 2.2 Explore safe reload behavior
 
 Status: in progress
 
 Tasks:
-- Decide whether `cloudflared reload` is safe and worth exposing.
-- Keep `restart` as the current baseline unless reload is clearly reliable.
+- Keep `cloudflared reload` as an explicit operator capability where it is genuinely supported.
+- Keep `restart` as the baseline command for mutation flows.
 
 Subtasks:
-- Check whether systemd-managed `cloudflared` supports a meaningful reload path.
-- Check whether Docker-managed `cloudflared` has a safe reload equivalent.
-- Decide whether reload should:
-  - be a standalone command
-  - be used automatically by domain mutation flows
-  - remain unsupported
-- Document the operator tradeoff if reload is not reliable across runtimes.
+- Keep `reload` standalone-only rather than auto-using it in domain mutation flows.
+- Keep runtime-specific support narrow:
+  - allow systemd reload only when `CanReload=yes`
+  - keep Docker-managed and process-managed runtimes on restart/manual paths
+- Document the operator tradeoff:
+  - `reload` is lower-impact when supported
+  - `restart` remains the predictable cross-runtime baseline
+- Do not introduce hidden runtime-dependent mutation behavior just because reload exists.
 
 Current baseline:
 - `cloudflared reload` now exists as a standalone command.
 - Systemd-managed `cloudflared` exposes `reload` only when `systemctl show cloudflared --property CanReload --value` reports support.
 - Docker-managed and process-managed runtimes currently do not expose reload.
 - Domain mutation flows still keep `restart` as the explicit operator path rather than switching to reload automatically.
+
+Decision:
+- `cloudflared reload` remains a standalone operator command.
+- Domain mutation flows should not auto-reload or auto-prefer reload over restart.
+- Runtime behavior should stay explicit rather than clever.
 
 ### 2.3 Expand config introspection
 
@@ -278,6 +297,7 @@ Tasks:
 - Preserve a simple operator model where one command does the obvious thing.
 - Avoid adding overlapping flags unless they clearly improve safety or automation.
 - Keep command naming consistent across lifecycle flows.
+- Keep Milestone 2 narrow and policy-focused rather than expanding the command surface.
 
 Subtasks:
 - Review new flag proposals against existing domain and deploy verbs.
@@ -286,6 +306,13 @@ Subtasks:
   - a new runtime branch
   - a new output mode
   - a new mutation side effect
+- Do not add new flags or subcommands for warning policy unless the normalized severity model proves insufficient.
+
+Decision:
+- Milestone 2 should stay narrow:
+  - finalize severity policy
+  - improve unsafe-config detection and messaging
+  - preserve the current command shapes
 
 ## Milestone 3: Scaffold and Template Expansion
 
