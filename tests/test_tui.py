@@ -1687,7 +1687,7 @@ def test_control_row_widget_click_updates_selected_index(monkeypatch) -> None:
         def fake_build_snapshot():  # noqa: ANN202
             return snapshot
 
-        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+        monkeypatch.setattr(textual_app, "build_dashboard_snapshot", fake_build_snapshot)
 
         app = textual_app.HomesrvctlTextualApp()
         async with app.run_test(size=(120, 40)) as pilot:
@@ -1923,7 +1923,7 @@ def test_detail_button_press_dispatches_action(monkeypatch) -> None:
         def fake_build_snapshot():  # noqa: ANN202
             return snapshot
 
-        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+        monkeypatch.setattr(textual_app, "build_dashboard_snapshot", fake_build_snapshot)
         monkeypatch.setattr(
             textual_app.HomesrvctlTextualApp,
             "action_refresh",
@@ -2037,7 +2037,7 @@ def test_summary_card_click_focuses_control_row(monkeypatch) -> None:
         def fake_build_snapshot():  # noqa: ANN202
             return snapshot
 
-        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+        monkeypatch.setattr(textual_app, "build_dashboard_snapshot", fake_build_snapshot)
 
         app = textual_app.HomesrvctlTextualApp()
         app.selected_control_index = 0  # start on Config
@@ -2076,7 +2076,7 @@ def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
         def fake_build_snapshot():  # noqa: ANN202
             return snapshot
 
-        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+        monkeypatch.setattr(textual_app, "build_dashboard_snapshot", fake_build_snapshot)
 
         trace: list[int] = []
         app = textual_app.HomesrvctlTextualApp()
@@ -2128,7 +2128,7 @@ def test_click_selection_applies_selected_class(monkeypatch) -> None:
         def fake_build_snapshot():  # noqa: ANN202
             return snapshot
 
-        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+        monkeypatch.setattr(textual_app, "build_dashboard_snapshot", fake_build_snapshot)
 
         app = textual_app.HomesrvctlTextualApp()
         async with app.run_test(size=(120, 40)) as pilot:
