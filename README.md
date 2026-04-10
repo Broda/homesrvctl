@@ -304,9 +304,9 @@ homesrvctl up example.com --dry-run
 - stack-local config may select a named routing profile with `profile`, and direct stack-local overrides still win over profile-provided values.
 - `domain status` reports expected tunnel target, apex and wildcard DNS state, apex and wildcard `cloudflared` ingress state, whether a route is missing, duplicated, shadowed by an earlier ingress rule, or pointed at the wrong target, whether Cloudflare DNS is missing, of the wrong type, pointed at the wrong target, or ambiguous because multiple conflicting records exist, whether coverage is apex-only or wildcard-only, and whether `homesrvctl domain repair` is likely to fix the current state automatically.
 - `domain status` also reports routing context for the apex stack, including the default ingress target, effective ingress target, selected profile, and source attribution for the effective target.
-- `domain status` now also surfaces non-fatal ingress warnings when the configured `cloudflared` ingress file contains risky wildcard precedence, including earlier wildcard rules that may shadow later hostnames or capture traffic intended for a narrower wildcard.
-- Those ingress warnings now include direct remediation hints, such as moving a narrower rule above a broader wildcard or removing an unused catch-all rule.
-- `cloudflared status` keeps those warnings advisory: the command stays healthy when the runtime is active and the ingress file is structurally valid, while still surfacing the warnings in text and JSON output.
+- `domain status` now also surfaces normalized ingress issues from the configured `cloudflared` file, separating blocking states from advisory wildcard-precedence risks.
+- Blocking ingress issues include duplicate exact hostname entries and exact hostnames shadowed by an earlier broader rule; advisory issues keep direct remediation hints for risky wildcard ordering.
+- `cloudflared status` keeps advisory ingress issues non-fatal while failing on a narrow set of blocking semantic-danger states, and the same normalized severity is available in text and JSON output.
 - `list`, `domain status`, `validate`, and `doctor` support `--json` for machine-readable output.
 - `up`, `down`, and `restart` support `--json` for machine-readable command results.
 - `site init` and `app init` support `--json` for machine-readable scaffold results, including the selected template and rendered template-to-output mapping.
@@ -333,9 +333,9 @@ homesrvctl up example.com --dry-run
 - `cloudflared logs` prints the right `journalctl` or `docker logs` command for the detected runtime and supports `--follow` plus `--json`.
 - `cloudflared restart` also supports `--json` for automation-friendly dry-run and failure reporting.
 - `cloudflared reload` is available when the detected runtime exposes a safe reload command; today that is primarily a systemd capability check rather than a guaranteed cross-runtime feature.
-- `cloudflared config-test` now reports non-fatal warnings for risky ingress ordering even when the config is otherwise valid.
+- `cloudflared config-test` now reports normalized ingress issues in JSON and fails on blocking semantic-danger states while keeping broader wildcard-precedence risks advisory.
 - `doctor` now reports routing profile, default ingress target, and effective ingress target before the hostname-specific routing checks.
-- `doctor` now also includes `cloudflared ingress warnings` when the ingress file is structurally valid but risky.
+- `doctor` now also includes normalized `cloudflared` ingress issue severity so advisory risks remain visible without being flattened into hard failures.
 - `domain add` also reconciles apex and wildcard hostname entries in the configured `cloudflared` ingress file so new domains route locally to Traefik.
 - `domain add`, `domain status`, and `domain repair` honor stack-local `traefik_url` overrides stored in `<stack>/homesrvctl.yml` for the apex hostname.
 - `domain repair` converges apex and wildcard DNS records and matching `cloudflared` ingress entries to the expected state.

@@ -11,6 +11,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ### Fixed
 - Keep `--json` status and validation output free of probe noise so the terminal dashboard can consume `cloudflared status`, `validate`, and `doctor` reliably.
 - Tightened `domain status` diagnostics so DNS and ingress conflicts now distinguish missing records, wrong types, wrong targets, duplicate ingress entries, shadowing, and manual-cleanup cases more explicitly.
+- Normalized `cloudflared` ingress issue severity so blocking semantic-danger states now fail health checks while broader wildcard-precedence risks remain advisory.
 - Refreshed the roadmap and repo docs so milestone status and current TUI/template baselines match the shipped implementation more closely.
 - Removed the dead curses dashboard module and its obsolete tests now that `homesrvctl tui` is fully on the Textual path.
 
@@ -60,6 +61,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Reworked the Textual dashboard layout into a roomy warm-console design with a top summary strip, a unified left control pane, a right operational detail pane, and a persistent command/status bar.
 - Replaced the old section-plus-stack split navigation model in the Textual dashboard with a single vertical control cursor through `Tools` and `Stacks`.
 - Clarified the routing-profile model in the docs: top-level routing keys are the implicit default profile, stacks opt in with `profile`, and direct stack-local overrides remain first-class and win last.
+- Updated `cloudflared status`, `cloudflared config-test`, `validate`, `doctor`, `domain status`, and the TUI to expose normalized ingress issue severity in JSON and operator-facing detail views.
 
 ## 0.2.0 - 2026-04-08
 

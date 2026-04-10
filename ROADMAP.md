@@ -192,13 +192,13 @@ Completed in this milestone:
 
 ## Milestone 2: Operator UX and Config Safety
 
-Status: next
+Status: shipped
 
 Goal: make the tool safer to use interactively and easier to reason about when local config gets more complex.
 
 ### 2.1 Improve `cloudflared` config safety messaging
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Add more domain-level diagnostics for unsafe or ambiguous `cloudflared` config states.
@@ -236,9 +236,16 @@ Decision:
 - Blocking states should be explicit and narrow so dashboards and routine operator checks do not become noisy.
 - Severity should be normalized in command output so the TUI and future automation can consume it predictably.
 
+Completed in this milestone:
+- `cloudflared status` and `cloudflared config-test` now normalize ingress issues in text and JSON with explicit blocking versus advisory severity.
+- Exact hostname shadowing by an earlier broader rule now fails config health instead of surfacing only as a free-form warning.
+- Duplicate exact hostname entries are now treated as blocking semantic config issues even when the YAML is structurally valid.
+- Advisory wildcard-precedence risks remain surfaced without flipping healthy runtime status.
+- `validate`, `doctor`, `domain status`, and the TUI now consume the same normalized severity model.
+
 ### 2.2 Explore safe reload behavior
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Keep `cloudflared reload` as an explicit operator capability where it is genuinely supported.
@@ -267,7 +274,7 @@ Decision:
 
 ### 2.3 Expand config introspection
 
-Status: mostly shipped
+Status: shipped
 
 Tasks:
 - Keep the current effective-config surface stable and understandable.
@@ -291,7 +298,7 @@ Current baseline:
 
 ### 2.4 Keep command surfaces convergent and predictable
 
-Status: ongoing
+Status: shipped
 
 Tasks:
 - Preserve a simple operator model where one command does the obvious thing.
@@ -313,6 +320,11 @@ Decision:
   - finalize severity policy
   - improve unsafe-config detection and messaging
   - preserve the current command shapes
+
+Completed in this milestone:
+- No new warning-policy flags or extra subcommands were added; the existing command surfaces absorbed the severity work.
+- Advisory ingress issues now stay advisory in operator-facing reports instead of being flattened into hard failures everywhere.
+- Blocking semantic ingress-danger states now fail the relevant health/report commands without changing the deploy or domain mutation verb model.
 
 ## Milestone 3: Scaffold and Template Expansion
 
