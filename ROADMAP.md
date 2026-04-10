@@ -328,7 +328,7 @@ Completed in this milestone:
 
 ## Milestone 3: Scaffold and Template Expansion
 
-Status: next
+Status: in progress
 
 Goal: make `app init` more useful without turning `homesrvctl` into a full framework generator.
 
@@ -472,7 +472,7 @@ Decision notes:
 
 ### 3.5.1 Clean up Jekyll template parity and release confidence
 
-Status: in progress
+Status: shipped
 
 Goal: keep the shipped Jekyll scaffold aligned with the other app templates and safe to release without expanding the product boundary.
 
@@ -507,10 +507,12 @@ Current baseline:
   - keeping the generated stack wiring files
   - replacing the `site/` contents with the adopted Jekyll source tree
   - extending the Dockerfile when native gem dependencies require more packages
-- Remaining follow-up is mainly:
-  - parity-style coherence coverage
-  - routing-override coverage
-  - built-distribution verification
+
+Completed in this milestone:
+- Added a dedicated Jekyll artifact-coherence test covering compose labels, healthcheck behavior, Dockerfile build flow assumptions, starter `site/` files, and generated README adoption guidance.
+- Added `app init --template jekyll` regression coverage for `--profile`, `--docker-network`, and `--traefik-url`.
+- Added release-oriented verification that fresh wheel and sdist builds include the full `homesrvctl/templates/app/jekyll` template asset set.
+- Expanded generated Jekyll adoption guidance to state which root-level scaffold files operators should keep, which `site/` contents they should replace, how the adopted source root should be laid out, and when native gem dependencies require Dockerfile edits.
 
 ## Milestone 4: API Reliability and Cloudflare Coverage
 
