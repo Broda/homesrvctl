@@ -45,6 +45,13 @@ class DnsRecordStatus:
     records: list[dict[str, object]] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class TunnelStatus:
+    id: str
+    name: str
+    status: str
+
+
 class CloudflareApiClient:
     def __init__(self, api_token: str) -> None:
         token = api_token.strip()
@@ -66,6 +73,30 @@ class CloudflareApiClient:
         if not isinstance(zone, dict) or not zone.get("id"):
             raise CloudflareApiError(f"Cloudflare returned an invalid zone response for {zone_name}")
         return zone
+
+    def get_tunnel(self, account_id: str, tunnel_ref: str) -> TunnelStatus:
+        candidate = tunnel_ref.strip()
+        if not candidate:
+            raise CloudflareApiError("missing tunnel reference")
+
+        if UUID_RE.match(candidate):
+            payload = self._request_json("GET", f"/accounts/{account_id}/cfd_tunnel/{candidate.lower()}")
+            result = payload.get("result")
+            return _parse_tunnel_status(result, candidate)
+
+        encoded_name = urllib.parse.quote(candidate, safe="")
+        payload = self._request_json("GET", f"/accounts/{account_id}/cfd_tunnel?name={encoded_name}")
+        result = payload.get("result", [])
+        if not isinstance(result, list):
+            raise CloudflareApiError(f"Cloudflare returned an invalid tunnel list for {candidate}")
+
+        matches = [_parse_tunnel_status(item, candidate) for item in result if isinstance(item, dict)]
+        exact_matches = [match for match in matches if match.name == candidate]
+        if not exact_matches:
+            raise CloudflareApiError(f"Cloudflare tunnel not found in account for {candidate}")
+        if len(exact_matches) > 1:
+            raise CloudflareApiError(f"multiple Cloudflare tunnels matched {candidate}; refine configuration")
+        return exact_matches[0]
 
     def plan_dns_record(self, zone_id: str, record_name: str, content: str) -> ApiPlan:
         existing = self._list_dns_records(zone_id, record_name)
@@ -253,17 +284,37 @@ def tunnel_cname_target(config: HomesrvctlConfig) -> str:
     return f"{tunnel_id}.cfargotunnel.com"
 
 
-def _resolve_tunnel_id(config: HomesrvctlConfig) -> str:
-    if UUID_RE.match(config.tunnel_name):
-        return config.tunnel_name.lower()
+def local_tunnel_cname_target(config: HomesrvctlConfig) -> str | None:
+    tunnel_id = _resolve_local_tunnel_id(config)
+    if tunnel_id is None:
+        return None
+    return f"{tunnel_id}.cfargotunnel.com"
 
-    if config.cloudflared_config.exists():
-        parsed = yaml.safe_load(config.cloudflared_config.read_text(encoding="utf-8")) or {}
-        tunnel_value = str(parsed.get("tunnel", "")).strip()
-        if UUID_RE.match(tunnel_value):
-            return tunnel_value.lower()
-        if tunnel_value and UUID_RE.match(config.tunnel_name):
-            return config.tunnel_name.lower()
+
+def tunnel_cname_target_for_account(
+    config: HomesrvctlConfig,
+    *,
+    account_id: str,
+    api_client: CloudflareApiClient,
+) -> str:
+    tunnel_id = _resolve_tunnel_id_for_account(config, account_id=account_id, api_client=api_client)
+    return f"{tunnel_id}.cfargotunnel.com"
+
+
+def account_id_from_zone(zone: dict[str, object]) -> str:
+    account = zone.get("account")
+    if not isinstance(account, dict):
+        raise CloudflareApiError("Cloudflare zone response did not include account details for tunnel lookup")
+    account_id = str(account.get("id", "")).strip()
+    if not account_id:
+        raise CloudflareApiError("Cloudflare zone response did not include an account ID for tunnel lookup")
+    return account_id
+
+
+def _resolve_tunnel_id(config: HomesrvctlConfig) -> str:
+    tunnel_id = _resolve_local_tunnel_id(config)
+    if tunnel_id is not None:
+        return tunnel_id
 
     result = run_command(["cloudflared", "tunnel", "info", config.tunnel_name])
     if not result.ok:
@@ -277,6 +328,51 @@ def _resolve_tunnel_id(config: HomesrvctlConfig) -> str:
                 return tunnel_id.lower()
 
     raise typer.BadParameter(f"could not parse tunnel ID from cloudflared tunnel info for {config.tunnel_name}")
+
+
+def _resolve_tunnel_id_for_account(
+    config: HomesrvctlConfig,
+    *,
+    account_id: str,
+    api_client: CloudflareApiClient,
+) -> str:
+    tunnel_id = _resolve_local_tunnel_id(config)
+    if tunnel_id is not None:
+        return tunnel_id
+
+    try:
+        tunnel = api_client.get_tunnel(account_id, config.tunnel_name)
+    except CloudflareApiError as exc:
+        raise typer.BadParameter(f"could not resolve tunnel ID for {config.tunnel_name}: {exc}") from exc
+    return tunnel.id.lower()
+
+
+def _resolve_local_tunnel_id(config: HomesrvctlConfig) -> str | None:
+    if UUID_RE.match(config.tunnel_name):
+        return config.tunnel_name.lower()
+
+    if config.cloudflared_config.exists():
+        parsed = yaml.safe_load(config.cloudflared_config.read_text(encoding="utf-8")) or {}
+        tunnel_value = str(parsed.get("tunnel", "")).strip()
+        if UUID_RE.match(tunnel_value):
+            return tunnel_value.lower()
+        if tunnel_value and UUID_RE.match(config.tunnel_name):
+            return config.tunnel_name.lower()
+
+    return None
+
+
+def _parse_tunnel_status(result: object, tunnel_ref: str) -> TunnelStatus:
+    if not isinstance(result, dict):
+        raise CloudflareApiError(f"Cloudflare returned an invalid tunnel response for {tunnel_ref}")
+    tunnel_id = str(result.get("id", "")).strip()
+    if not UUID_RE.match(tunnel_id):
+        raise CloudflareApiError(f"Cloudflare returned an invalid tunnel ID for {tunnel_ref}")
+    return TunnelStatus(
+        id=tunnel_id,
+        name=str(result.get("name", "")).strip(),
+        status=str(result.get("status", "")).strip(),
+    )
 
 
 def _render_dns_record(record: dict[str, object]) -> str:

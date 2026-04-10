@@ -4,7 +4,14 @@ import json
 
 import typer
 
-from homesrvctl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
+from homesrvctl.cloudflare import (
+    CloudflareApiClient,
+    CloudflareApiError,
+    account_id_from_zone,
+    local_tunnel_cname_target,
+    tunnel_cname_target,
+    tunnel_cname_target_for_account,
+)
 from homesrvctl.cloudflared import (
     CloudflaredConfigError,
     apply_domain_ingress,
@@ -215,7 +222,7 @@ def domain_status(
     try:
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
-        target = tunnel_cname_target(config)
+        target = _resolve_domain_tunnel_target(config, zone, client)
         records = [bare_domain, f"*.{bare_domain}"]
 
         dns_statuses = [client.get_dns_record_status(zone_id, record_name, target) for record_name in records]
@@ -351,7 +358,7 @@ def _upsert_domain_routing(
     try:
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
-        target = tunnel_cname_target(config)
+        target = _resolve_domain_tunnel_target(config, zone, client)
         records = [bare_domain, f"*.{bare_domain}"]
 
         for record_name in records:
@@ -731,3 +738,15 @@ def _dns_status_detail(status) -> str:  # noqa: ANN001
     if status.proxied:
         rendered += " (proxied)"
     return rendered
+
+
+def _resolve_domain_tunnel_target(
+    config,
+    zone: dict[str, object],
+    client: CloudflareApiClient,
+) -> str:  # noqa: ANN001
+    local_target = local_tunnel_cname_target(config)
+    if local_target is not None:
+        return local_target
+    account_id = account_id_from_zone(zone)
+    return tunnel_cname_target_for_account(config, account_id=account_id, api_client=client)

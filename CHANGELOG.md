@@ -16,6 +16,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Keep `--json` status and validation output free of probe noise so the terminal dashboard can consume `cloudflared status`, `validate`, and `doctor` reliably.
 - Tightened `domain status` diagnostics so DNS and ingress conflicts now distinguish missing records, wrong types, wrong targets, duplicate ingress entries, shadowing, and manual-cleanup cases more explicitly.
 - Normalized `cloudflared` ingress issue severity so blocking semantic-danger states now fail health checks while broader wildcard-precedence risks remain advisory.
+- Reduced domain tunnel-target lookup dependence on local `cloudflared tunnel info` by resolving the tunnel UUID through the Cloudflare API when local UUID sources are unavailable.
 - Refreshed the roadmap and repo docs so milestone status and current TUI/template baselines match the shipped implementation more closely.
 - Removed the dead curses dashboard module and its obsolete tests now that `homesrvctl tui` is fully on the Textual path.
 

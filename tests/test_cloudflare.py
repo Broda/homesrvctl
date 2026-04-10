@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 import typer
 
-from homesrvctl.cloudflare import CloudflareApiClient, CloudflareApiError, tunnel_cname_target
+from homesrvctl.cloudflare import (
+    CloudflareApiClient,
+    CloudflareApiError,
+    account_id_from_zone,
+    tunnel_cname_target,
+    tunnel_cname_target_for_account,
+)
 from homesrvctl.models import HomesrvctlConfig
 from homesrvctl.shell import CommandResult
 
@@ -153,6 +159,100 @@ def test_tunnel_cname_target_falls_back_to_cloudflared_info(monkeypatch, tmp_pat
     )
 
     assert tunnel_cname_target(config) == "11111111-2222-4333-8444-555555555555.cfargotunnel.com"
+
+
+def test_account_id_from_zone_returns_nested_account_id() -> None:
+    zone = {"id": "zone-123", "account": {"id": "account-456"}}
+
+    assert account_id_from_zone(zone) == "account-456"
+
+
+def test_account_id_from_zone_errors_when_missing() -> None:
+    with pytest.raises(CloudflareApiError):
+        account_id_from_zone({"id": "zone-123"})
+
+
+def test_get_tunnel_looks_up_by_name(monkeypatch) -> None:
+    client = CloudflareApiClient("test-token")
+
+    def fake_request_json(method: str, path: str, body: dict[str, object] | None = None) -> dict[str, object]:
+        assert method == "GET"
+        assert body is None
+        assert path == "/accounts/account-123/cfd_tunnel?name=homesrvctl-tunnel"
+        return {
+            "success": True,
+            "result": [
+                {"id": "11111111-2222-4333-8444-555555555555", "name": "homesrvctl-tunnel", "status": "healthy"},
+            ],
+        }
+
+    monkeypatch.setattr(client, "_request_json", fake_request_json)
+
+    tunnel = client.get_tunnel("account-123", "homesrvctl-tunnel")
+
+    assert tunnel.id == "11111111-2222-4333-8444-555555555555"
+    assert tunnel.name == "homesrvctl-tunnel"
+    assert tunnel.status == "healthy"
+
+
+def test_get_tunnel_errors_when_multiple_names_match(monkeypatch) -> None:
+    client = CloudflareApiClient("test-token")
+
+    monkeypatch.setattr(
+        client,
+        "_request_json",
+        lambda method, path, body=None: {
+            "success": True,
+            "result": [
+                {"id": "11111111-2222-4333-8444-555555555555", "name": "homesrvctl-tunnel", "status": "healthy"},
+                {"id": "66666666-7777-4888-9999-000000000000", "name": "homesrvctl-tunnel", "status": "down"},
+            ],
+        },
+    )
+
+    with pytest.raises(CloudflareApiError, match="multiple Cloudflare tunnels matched homesrvctl-tunnel"):
+        client.get_tunnel("account-123", "homesrvctl-tunnel")
+
+
+def test_tunnel_cname_target_for_account_uses_api_lookup(monkeypatch, tmp_path: Path) -> None:
+    client = CloudflareApiClient("test-token")
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
+        sites_root=tmp_path / "sites",
+        docker_network="web",
+        traefik_url="http://localhost:8081",
+        cloudflared_config=tmp_path / "missing.yml",
+        cloudflare_api_token="token",
+    )
+
+    monkeypatch.setattr(
+        client,
+        "get_tunnel",
+        lambda account_id, tunnel_ref: type(
+            "Tunnel",
+            (),
+            {"id": "11111111-2222-4333-8444-555555555555", "name": tunnel_ref, "status": "healthy"},
+        )(),
+    )
+
+    target = tunnel_cname_target_for_account(config, account_id="account-123", api_client=client)
+
+    assert target == "11111111-2222-4333-8444-555555555555.cfargotunnel.com"
+
+
+def test_tunnel_cname_target_for_account_surfaces_lookup_error(tmp_path: Path) -> None:
+    client = CloudflareApiClient("test-token")
+    config = HomesrvctlConfig(
+        tunnel_name="homesrvctl-tunnel",
+        sites_root=tmp_path / "sites",
+        docker_network="web",
+        traefik_url="http://localhost:8081",
+        cloudflared_config=tmp_path / "missing.yml",
+        cloudflare_api_token="token",
+    )
+
+    with pytest.raises(typer.BadParameter, match="could not resolve tunnel ID for homesrvctl-tunnel"):
+        tunnel_cname_target_for_account(config, account_id="account-123", api_client=client)
 
 
 def test_client_requires_api_token() -> None:

@@ -1819,6 +1819,71 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
     assert "[dry-run] create ingress *.example.com -> http://localhost:8081" in result.output
 
 
+def test_domain_add_dry_run_uses_api_tunnel_lookup_when_local_uuid_missing(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import domain_cmd
+
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    cloudflared_config.write_text(
+        yaml.safe_dump(
+            {
+                "tunnel": "homesrvctl-tunnel",
+                "credentials-file": "/etc/cloudflared/example.json",
+                "ingress": [{"service": "http_status:404"}],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["cloudflared_config"] = str(cloudflared_config)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    class FakeClient:
+        def __init__(self, api_token: str) -> None:
+            assert api_token == "test-token"
+
+        def get_zone(self, zone_name: str) -> dict[str, object]:
+            assert zone_name == "example.com"
+            return {"id": "zone-123", "account": {"id": "account-456"}}
+
+        def get_tunnel(self, account_id: str, tunnel_ref: str):  # noqa: ANN202
+            assert account_id == "account-456"
+            assert tunnel_ref == "homesrvctl-tunnel"
+            return type(
+                "Tunnel",
+                (),
+                {"id": "11111111-2222-4333-8444-555555555555", "name": tunnel_ref, "status": "healthy"},
+            )()
+
+        def plan_dns_record(self, zone_id: str, record_name: str, content: str):  # noqa: ANN202
+            assert zone_id == "zone-123"
+            assert content == "11111111-2222-4333-8444-555555555555.cfargotunnel.com"
+            return type("Plan", (), {"action": "create", "record_type": "CNAME", "record_name": record_name, "content": content})()
+
+    monkeypatch.setattr(domain_cmd, "CloudflareApiClient", FakeClient)
+    monkeypatch.setattr(
+        domain_cmd,
+        "detect_cloudflared_runtime",
+        lambda: CloudflaredRuntime(
+            mode="systemd",
+            active=True,
+            detail="systemd service is active",
+            restart_command=["systemctl", "restart", "cloudflared"],
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["domain", "add", "example.com", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "[dry-run] create DNS CNAME example.com -> 11111111-2222-4333-8444-555555555555.cfargotunnel.com" in result.output
+
+
 def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) -> None:
     from homesrvctl.commands import domain_cmd
 
