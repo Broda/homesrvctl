@@ -334,8 +334,8 @@ def test_render_stack_action_detail_formats_doctor_checks() -> None:
     assert "action" in rendered
     assert "doctor" in rendered
     assert "checks: 2 total, 1 failing, 0 advisory" in rendered
-    assert "PASS docker-compose.yml: /srv/homesrvctl/sites/example.com/docker-compose.yml" in rendered
-    assert "FAIL host-header request: request failed: connection refused" in rendered
+    assert "[green]PASS[/green] docker-compose.yml: /srv/homesrvctl/sites/example.com/docker-compose.yml" in rendered
+    assert "[red]FAIL[/red] host-header request: request failed: connection refused" in rendered
 
 
 def test_render_stack_action_detail_formats_command_results() -> None:
@@ -976,7 +976,7 @@ def test_textual_app_stack_detail_includes_last_action_result() -> None:
     assert "Last action" in detail
     assert "action" in detail
     assert "doctor" in detail
-    assert "FAIL host-header request: request failed: connection refused" in detail
+    assert "[red]FAIL[/red] host-header request: request failed: connection refused" in detail
 
 
 def test_textual_app_stack_detail_includes_domain_status() -> None:

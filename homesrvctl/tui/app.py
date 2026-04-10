@@ -33,6 +33,14 @@ from homesrvctl.utils import validate_bare_domain
 class HomesrvctlTextualApp(App[None]):
     TITLE = "Home Server Controller"
     CSS = """
+    /* Palette reference:
+     *   status ok / success : green (#00ff7f or Rich [green])
+     *   status warning       : yellow / amber ([yellow])
+     *   status error / failed: red ([red])
+     *   accent / titles      : #ffcf5a (bold)
+     *   primary borders      : #1fd6c1 / #13bfae
+     */
+
     Screen {
         layout: vertical;
         background: #081014;
@@ -230,7 +238,7 @@ class HomesrvctlTextualApp(App[None]):
                 yield Static("Controls", classes="pane_title")
                 yield Static("", id="controls_box")
             with Vertical(id="detail_pane"):
-                yield Static("Detail", classes="pane_title")
+                yield Static("Detail", id="detail_pane_title", classes="pane_title")
                 yield Static("", id="detail_box")
         with Horizontal(id="command_bar"):
             yield Static("", id="command_bar_text")
@@ -513,6 +521,7 @@ class HomesrvctlTextualApp(App[None]):
         self.query_one("#summary_cloudflared", Static).update(self._summary_card("Cloudflared", self._cloudflared_summary()))
         self.query_one("#summary_validate", Static).update(self._summary_card("Validate", self._validate_summary()))
         self.query_one("#controls_box", Static).update(self._control_list_text())
+        self.query_one("#detail_pane_title", Static).update(self._detail_pane_title())
         self.query_one("#detail_box", Static).update(self._detail_text())
         self.query_one("#command_bar_text", Static).update(self._command_bar_text())
 
@@ -567,6 +576,17 @@ class HomesrvctlTextualApp(App[None]):
             compose = "compose=yes" if item.get("compose") else "compose=no"
             lines.append(f"{marker} {item['label']} [{compose}]")
         return "\n".join(lines)
+
+    def _detail_pane_title(self) -> str:
+        item = self._selected_control_item()
+        if item.get("kind") == "stack":
+            return f"Stack: {item.get('hostname', '<unknown>')}"
+        tool = str(item.get("tool", ""))
+        if tool == "config":
+            return "Tool: Config"
+        if tool == "cloudflared":
+            return "Tool: Cloudflared"
+        return "Tool: Validate"
 
     def _detail_text(self) -> str:
         item = self._selected_control_item()
@@ -647,7 +667,7 @@ class HomesrvctlTextualApp(App[None]):
             domain_view = run_stack_domain_status(hostname)
             self.stack_domain_views[hostname] = domain_view
         lines = [
-            "Stack Detail",
+            "[bold #ffcf5a]Stack Detail[/bold #ffcf5a]",
             "",
             f"hostname: {hostname or '<unknown>'}",
             f"compose file: {'yes' if compose else 'no'}",
@@ -656,13 +676,7 @@ class HomesrvctlTextualApp(App[None]):
             "",
             *render_domain_status_detail(hostname, domain_view),
             "",
-            "This pane is the control surface for stack lifecycle work.",
-            "Use Enter or o to open the guided action menu for the focused stack.",
-            "Use a to choose an app scaffold template for the focused hostname.",
-            "Use n to confirm domain add and m to confirm domain remove for apex domains.",
-            "Use p to run domain repair when the focused hostname is an apex domain.",
-            "Use i to scaffold a simple site if the hostname directory is empty.",
-            "Use u to start the stack, g to run doctor, t to restart, or x to stop it.",
+            "· enter menu  · u up  · x down  · t restart  · g doctor  · r refresh",
         ]
         cached = self.last_stack_actions.get(hostname)
         if isinstance(cached, dict):
@@ -676,19 +690,23 @@ class HomesrvctlTextualApp(App[None]):
         payload = self.snapshot.get("cloudflared")
         if not isinstance(payload, dict):
             return "Cloudflared detail unavailable"
+        active = payload.get("active", False)
+        active_markup = "[green]active[/green]" if active else "[yellow]inactive[/yellow]"
         lines = [
-            "Cloudflared Detail",
+            "[bold #ffcf5a]Cloudflared Detail[/bold #ffcf5a]",
             "",
             f"runtime: {payload.get('mode', 'unknown')}",
-            f"active: {payload.get('active', False)}",
+            f"active: {active_markup}",
             f"detail: {payload.get('detail', 'unknown')}",
         ]
         config_validation = payload.get("config_validation")
         if isinstance(config_validation, dict):
+            config_ok = config_validation.get("ok", False)
+            config_ok_markup = "[green]True[/green]" if config_ok else "[red]False[/red]"
             lines.extend(
                 [
                     "",
-                    f"config ok: {config_validation.get('ok', False)}",
+                    f"config ok: {config_ok_markup}",
                     f"config severity: {config_validation.get('max_severity', 'none')}",
                     f"config detail: {config_validation.get('detail', 'unknown')}",
                 ]
@@ -717,21 +735,21 @@ class HomesrvctlTextualApp(App[None]):
             payload = cached.get("payload")
             if isinstance(action, str) and isinstance(payload, dict):
                 lines.extend(["", *render_tool_action_detail("cloudflared", action, payload)])
-        lines.extend(["", "This is a global tool item. Use Enter to open the guided tool menu, including logs guidance."])
+        lines.extend(["", "· enter menu  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _config_detail_text(self) -> str:
         payload = self.snapshot.get("config")
         if not isinstance(payload, dict):
             return "Config detail unavailable"
-        lines = ["Config Detail", "", *render_config_payload_detail(payload)]
+        lines = ["[bold #ffcf5a]Config Detail[/bold #ffcf5a]", "", *render_config_payload_detail(payload)]
         cached = self.last_tool_actions.get("config")
         if isinstance(cached, dict):
             action = cached.get("action")
             action_payload = cached.get("payload")
             if isinstance(action, str) and isinstance(action_payload, dict):
                 lines.extend(["", *render_tool_action_detail("config", action, action_payload)])
-        lines.extend(["", "This is a global tool item. Use Enter to open the guided tool menu for config actions."])
+        lines.extend(["", "· enter menu  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _validate_detail_text(self) -> str:
@@ -742,15 +760,15 @@ class HomesrvctlTextualApp(App[None]):
             return f"error: {payload.get('error', 'unknown error')}"
         checks = payload.get("checks", [])
         failures = [check for check in checks if not check.get("ok")]
-        lines = ["Validate Detail", ""]
+        lines = ["[bold #ffcf5a]Validate Detail[/bold #ffcf5a]", ""]
         if not failures:
-            lines.append("All validation checks are currently passing.")
+            lines.append("[green]All validation checks are currently passing.[/green]")
         else:
             lines.append("Failing checks:")
             lines.append("")
             for check in failures[:10]:
-                lines.append(f"- {check.get('name', '<unknown>')}: {check.get('detail', '')}")
+                lines.append(f"- [red]{check.get('name', '<unknown>')}[/red]: {check.get('detail', '')}")
             if len(failures) > 10:
                 lines.append(f"... {len(failures) - 10} more")
-        lines.extend(["", "This is a global tool item. Use it to monitor baseline operator health."])
+        lines.extend(["", "· w/s navigate  · r refresh  · q quit"])
         return "\n".join(lines)

@@ -155,14 +155,15 @@ def action_label(action: str) -> str:
 
 def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[str]:
     label = action_label(action)
-    status = "ok" if payload.get("ok") else "failed"
+    ok = payload.get("ok")
+    status_markup = "[green]ok[/green]" if ok else "[red]failed[/red]"
     lines = [
-        "Last action",
+        "[bold #ffcf5a]Last action[/bold #ffcf5a]",
         "",
         *format_key_value_lines(
             [
                 ("action", label),
-                ("status", status),
+                ("status", status_markup),
             ]
         ),
     ]
@@ -191,7 +192,12 @@ def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[
             if not isinstance(check, dict):
                 continue
             severity = str(check.get("severity") or ("pass" if check.get("ok") else "blocking"))
-            marker = "WARN" if severity == "advisory" else ("PASS" if check.get("ok") else "FAIL")
+            if severity == "advisory":
+                marker = "[yellow]WARN[/yellow]"
+            elif check.get("ok"):
+                marker = "[green]PASS[/green]"
+            else:
+                marker = "[red]FAIL[/red]"
             lines.append(f"{marker} {check.get('name', '<unknown>')}: {check.get('detail', '')}")
         if len(checks) > 8:
             lines.append(f"... {len(checks) - 8} more")
@@ -246,14 +252,16 @@ def summarize_tool_action(tool: str, action: str, payload: dict[str, object]) ->
 
 
 def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]) -> list[str]:
+    ok = payload.get("ok")
+    status_markup = "[green]ok[/green]" if ok else "[red]failed[/red]"
     lines = [
-        "Last action",
+        "[bold #ffcf5a]Last action[/bold #ffcf5a]",
         "",
         *format_key_value_lines(
             [
                 ("tool", tool),
                 ("action", action),
-                ("status", "ok" if payload.get("ok") else "failed"),
+                ("status", status_markup),
             ]
         ),
     ]
@@ -382,7 +390,7 @@ def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
     effective = stack.get("effective", {})
     effective_sources = stack.get("effective_sources", {})
     return [
-        "Effective config",
+        "[bold #ffcf5a]Effective config[/bold #ffcf5a]",
         "",
         *format_key_value_lines(
             [
@@ -407,7 +415,7 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
         validate_bare_domain(hostname)
     except Exception:
         return [
-            "Domain status",
+            "[bold #ffcf5a]Domain status[/bold #ffcf5a]",
             "",
             "Not available for subdomain stacks.",
             "Focus the apex hostname to inspect domain-level DNS and ingress state.",
@@ -415,17 +423,25 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
 
     if not payload.get("ok") and "domain" not in payload:
         return [
-            "Domain status",
+            "[bold #ffcf5a]Domain status[/bold #ffcf5a]",
             "",
-            f"error: {payload.get('error', 'unknown error')}",
+            f"[red]error:[/red] {payload.get('error', 'unknown error')}",
         ]
 
+    overall = str(payload.get("overall", "unknown"))
+    if overall == "ok":
+        overall_markup = "[green]ok[/green]"
+    elif overall == "partial":
+        overall_markup = "[yellow]partial[/yellow]"
+    else:
+        overall_markup = f"[red]{overall}[/red]"
+
     lines = [
-        "Domain status",
+        "[bold #ffcf5a]Domain status[/bold #ffcf5a]",
         "",
         *format_key_value_lines(
             [
-                ("overall", str(payload.get("overall", "unknown"))),
+                ("overall", overall_markup),
                 ("repairable", str(payload.get("repairable", False))),
                 ("manual fix required", str(payload.get("manual_fix_required", False))),
                 ("expected tunnel target", str(payload.get("expected_tunnel_target", "<unknown>"))),
@@ -470,7 +486,10 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
         for item in dns[:2]:
             if not isinstance(item, dict):
                 continue
-            status = "ok" if item.get("matches_expected") else "mismatch"
+            if item.get("matches_expected"):
+                status = "[green]ok[/green]"
+            else:
+                status = "[red]mismatch[/red]"
             lines.append(f"- {item.get('record_name', '<unknown>')}: {status} | {item.get('detail', '')}")
 
     ingress = payload.get("ingress")
@@ -479,7 +498,10 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
         for item in ingress[:2]:
             if not isinstance(item, dict):
                 continue
-            status = "ok" if item.get("matches_expected") else "mismatch"
+            if item.get("matches_expected"):
+                status = "[green]ok[/green]"
+            else:
+                status = "[red]mismatch[/red]"
             lines.append(f"- {item.get('hostname', '<unknown>')}: {status} | {item.get('detail', '')}")
 
     suggested_command = payload.get("suggested_command")
