@@ -3405,11 +3405,12 @@ def test_domain_status_json_reports_shadowed_ingress_as_manual_fix(monkeypatch, 
     assert payload["manual_fix_required"] is True
     assert payload["suggested_command"] is None
     assert payload["ingress_warnings"] == [
-        "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
-        "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first",
         "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for later wildcard *.example.com at ingress index 2. "
         "Hint: move the narrower wildcard *.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed",
     ]
+    assert payload["ingress_issues"][0]["severity"] == "blocking"
+    assert payload["ingress_issues"][0]["code"] == "wildcard-shadows-hostname"
+    assert payload["ingress_issues"][1]["severity"] == "advisory"
     assert payload["ingress"][0]["shadowed"] is True
     assert payload["ingress"][0]["effective_hostname"] == "*.com"
     assert payload["ingress"][1]["shadowed"] is True
@@ -3863,6 +3864,7 @@ def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["hostname"] == "example.com"
     assert payload["ok"] is True
     assert payload["checks"][1]["name"] == "host-header request"
+    assert payload["checks"][1]["severity"] == "pass"
 
 
 def test_doctor_json_output_includes_routing_context(monkeypatch, tmp_path: Path) -> None:
@@ -3892,9 +3894,11 @@ def test_doctor_json_output_includes_routing_context(monkeypatch, tmp_path: Path
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     details = {item["name"]: item["detail"] for item in payload["checks"]}
+    severities = {item["name"]: item["severity"] for item in payload["checks"]}
     assert details["routing profile"] == "edge"
     assert details["default ingress target"] == "http://localhost:8081"
     assert details["effective ingress target"] == "http://localhost:9000 (profile:edge)"
+    assert severities["host-header request"] == "pass"
 
 
 def test_domain_status_reports_ingress_warnings(monkeypatch, tmp_path: Path) -> None:
@@ -3961,7 +3965,7 @@ def test_domain_status_reports_ingress_warnings(monkeypatch, tmp_path: Path) -> 
 
     assert result.exit_code == 1, result.output
     assert (
-        "Ingress warning: earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
+        "Ingress blocking issue: earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
         "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
         in result.output
     )

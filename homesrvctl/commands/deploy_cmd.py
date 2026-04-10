@@ -147,17 +147,27 @@ def doctor(
     config, global_sources = load_config_details()
     valid_hostname = validate_hostname(hostname)
     results = build_hostname_doctor_report(config, valid_hostname, global_sources, quiet=json_output)
-    failures = [item for item in results if not item.ok]
+    failures = [item for item in results if _doctor_check_is_blocking_failure(item)]
+    advisories = [item for item in results if _doctor_check_severity(item) == "advisory"]
     if json_output:
         payload = with_json_schema({
             "hostname": valid_hostname,
             "ok": not failures,
-            "checks": [{"name": result.name, "ok": result.ok, "detail": result.detail} for result in results],
+            "checks": [
+                {
+                    "name": result.name,
+                    "ok": result.ok,
+                    "detail": result.detail,
+                    "severity": _doctor_check_severity(result),
+                }
+                for result in results
+            ],
         })
         typer.echo(json.dumps(payload, indent=2))
     else:
         for result in results:
-            symbol = "PASS" if result.ok else "FAIL"
+            severity = _doctor_check_severity(result)
+            symbol = "WARN" if severity == "advisory" else ("PASS" if result.ok else "FAIL")
             info(f"{symbol} {result.name}: {result.detail}")
 
     if failures:
@@ -166,6 +176,8 @@ def doctor(
         raise typer.Exit(code=1)
 
     if not json_output:
+        if advisories:
+            warn(f"Doctor found {len(advisories)} advisory issue(s) for {valid_hostname}")
         success(f"Doctor checks passed for {valid_hostname}")
 
 
@@ -252,3 +264,14 @@ def _resolve_stack_dir_for_output(hostname: str, json_output: bool, action: str,
             typer.echo(json.dumps(payload, indent=2))
             raise typer.Exit(code=1) from exc
         raise
+
+
+def _doctor_check_severity(result) -> str:  # noqa: ANN001
+    severity = getattr(result, "severity", None)
+    if severity:
+        return str(severity)
+    return "pass" if getattr(result, "ok", False) else "blocking"
+
+
+def _doctor_check_is_blocking_failure(result) -> bool:  # noqa: ANN001
+    return not getattr(result, "ok", False) and _doctor_check_severity(result) != "advisory"

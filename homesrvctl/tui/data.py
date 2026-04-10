@@ -161,17 +161,21 @@ def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[
     checks = payload.get("checks")
     if isinstance(checks, list):
         failing_checks = [check for check in checks if isinstance(check, dict) and not check.get("ok")]
+        advisory_checks = [
+            check for check in checks if isinstance(check, dict) and str(check.get("severity")) == "advisory"
+        ]
         lines.extend(
             [
                 "",
-                f"checks: {len(checks)} total, {len(failing_checks)} failing",
+                f"checks: {len(checks)} total, {len(failing_checks)} failing, {len(advisory_checks)} advisory",
                 "",
             ]
         )
         for check in checks[:8]:
             if not isinstance(check, dict):
                 continue
-            marker = "PASS" if check.get("ok") else "FAIL"
+            severity = str(check.get("severity") or ("pass" if check.get("ok") else "blocking"))
+            marker = "WARN" if severity == "advisory" else ("PASS" if check.get("ok") else "FAIL")
             lines.append(f"{marker} {check.get('name', '<unknown>')}: {check.get('detail', '')}")
         if len(checks) > 8:
             lines.append(f"... {len(checks) - 8} more")
@@ -253,14 +257,31 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
         if len(warnings) > 5:
             lines.append(f"... {len(warnings) - 5} more")
 
+    issues = payload.get("issues")
+    if isinstance(issues, list):
+        blocking_count = sum(1 for issue in issues if isinstance(issue, dict) and issue.get("blocking"))
+        advisory_count = sum(
+            1 for issue in issues if isinstance(issue, dict) and issue.get("severity") == "advisory"
+        )
+        lines.extend(["", f"issues: {len(issues)} total, {blocking_count} blocking, {advisory_count} advisory", ""])
+        for issue in issues[:5]:
+            if not isinstance(issue, dict):
+                continue
+            severity = "blocking" if issue.get("blocking") else str(issue.get("severity", "unknown"))
+            lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
+        if len(issues) > 5:
+            lines.append(f"... {len(issues) - 5} more")
+
     config_validation = payload.get("config_validation")
     if isinstance(config_validation, dict):
+        max_severity = str(config_validation.get("max_severity") or "none")
         lines.extend(
             [
                 "",
                 *format_key_value_lines(
                     [
                         ("config ok", str(config_validation.get("ok", False))),
+                        ("config severity", max_severity),
                         ("config detail", str(config_validation.get("detail", "unknown"))),
                     ]
                 ),
@@ -273,6 +294,22 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
                 lines.append(f"- {warning}")
             if len(validation_warnings) > 5:
                 lines.append(f"... {len(validation_warnings) - 5} more")
+        validation_issues = config_validation.get("issues", [])
+        if isinstance(validation_issues, list):
+            blocking_count = sum(
+                1 for issue in validation_issues if isinstance(issue, dict) and issue.get("blocking")
+            )
+            advisory_count = sum(
+                1 for issue in validation_issues if isinstance(issue, dict) and issue.get("severity") == "advisory"
+            )
+            lines.extend(["", f"config issues: {len(validation_issues)} total, {blocking_count} blocking, {advisory_count} advisory", ""])
+            for issue in validation_issues[:5]:
+                if not isinstance(issue, dict):
+                    continue
+                severity = "blocking" if issue.get("blocking") else str(issue.get("severity", "unknown"))
+                lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
+            if len(validation_issues) > 5:
+                lines.append(f"... {len(validation_issues) - 5} more")
 
     return lines
 
@@ -388,6 +425,20 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
             lines.append(f"- {warning}")
         if len(ingress_warnings) > 3:
             lines.append(f"... {len(ingress_warnings) - 3} more")
+    ingress_issues = payload.get("ingress_issues")
+    if isinstance(ingress_issues, list):
+        blocking_count = sum(1 for issue in ingress_issues if isinstance(issue, dict) and issue.get("blocking"))
+        advisory_count = sum(
+            1 for issue in ingress_issues if isinstance(issue, dict) and issue.get("severity") == "advisory"
+        )
+        lines.extend(["", f"ingress issues: {len(ingress_issues)} total, {blocking_count} blocking, {advisory_count} advisory"])
+        for issue in ingress_issues[:3]:
+            if not isinstance(issue, dict):
+                continue
+            severity = "blocking" if issue.get("blocking") else str(issue.get("severity", "unknown"))
+            lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
+        if len(ingress_issues) > 3:
+            lines.append(f"... {len(ingress_issues) - 3} more")
 
     dns = payload.get("dns")
     if isinstance(dns, list):

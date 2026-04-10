@@ -8,11 +8,11 @@ import typer
 import yaml
 
 from homesrvctl.cloudflared import (
-    find_hostname_route,
-    test_cloudflared_config,
     CloudflaredConfigError,
-    collect_cloudflared_config_warnings,
+    find_hostname_route,
     describe_cloudflared_config_error,
+    inspect_cloudflared_config_issues,
+    test_cloudflared_config,
 )
 from homesrvctl.cloudflared_service import detect_cloudflared_runtime
 from homesrvctl.config import load_config, load_stack_settings, stack_routing_context
@@ -34,13 +34,13 @@ def validate_with_format(
     checks = build_validate_report(config, quiet=json_output)
     if json_output:
         payload = with_json_schema({
-            "ok": all(check.ok for check in checks),
+            "ok": not any(_check_is_blocking_failure(check) for check in checks),
             "checks": [_check_to_dict(check) for check in checks],
         })
         typer.echo(json.dumps(payload, indent=2))
     else:
         _print_report(checks)
-    if any(not check.ok for check in checks):
+    if any(_check_is_blocking_failure(check) for check in checks):
         raise typer.Exit(code=1)
 
 
@@ -197,12 +197,22 @@ def _check_cloudflared_hostname(config: HomesrvctlConfig, hostname: str) -> Chec
 
 def _check_cloudflared_ingress_warnings(config: HomesrvctlConfig) -> list[CheckResult]:
     try:
-        warnings = collect_cloudflared_config_warnings(config.cloudflared_config)
+        issues = inspect_cloudflared_config_issues(config.cloudflared_config)
     except (CloudflaredConfigError, typer.BadParameter) as exc:
-        return [CheckResult("cloudflared ingress warnings", False, describe_cloudflared_config_error(exc))]
-    if not warnings:
-        return [CheckResult("cloudflared ingress warnings", True, "no non-fatal ingress warnings detected")]
-    return [CheckResult("cloudflared ingress warnings", False, warning) for warning in warnings]
+        return [CheckResult("cloudflared ingress issues", False, describe_cloudflared_config_error(exc))]
+    if not issues:
+        return [CheckResult("cloudflared ingress issues", True, "no ingress issues detected")]
+    checks: list[CheckResult] = []
+    for issue in issues:
+        checks.append(
+            CheckResult(
+                "cloudflared ingress issue",
+                not issue.blocking,
+                issue.render(),
+                severity="blocking" if issue.blocking else "advisory",
+            )
+        )
+    return checks
 
 
 def _compose_ps_detail(result) -> str:
@@ -282,8 +292,22 @@ def _check_tunnel_reference(config: HomesrvctlConfig) -> CheckResult:
 
 def _print_report(checks: list[CheckResult]) -> None:
     for check in checks:
+        severity = _check_severity(check)
+        if severity == "advisory":
+            bullet_report("WARN", check.name, check.detail, False)
+            continue
         bullet_report("PASS" if check.ok else "FAIL", check.name, check.detail, check.ok)
 
 
 def _check_to_dict(check: CheckResult) -> dict[str, object]:
-    return {"name": check.name, "ok": check.ok, "detail": check.detail}
+    return {"name": check.name, "ok": check.ok, "detail": check.detail, "severity": _check_severity(check)}
+
+
+def _check_severity(check: CheckResult) -> str:
+    if check.severity:
+        return check.severity
+    return "pass" if check.ok else "blocking"
+
+
+def _check_is_blocking_failure(check: CheckResult) -> bool:
+    return not check.ok and _check_severity(check) != "advisory"

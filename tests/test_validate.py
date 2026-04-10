@@ -210,7 +210,7 @@ def test_build_hostname_doctor_report_uses_profile_backed_traefik_url(monkeypatc
     assert indexed["host-header request"].ok
 
 
-def test_build_hostname_doctor_report_includes_ingress_warnings(monkeypatch, tmp_path: Path) -> None:
+def test_build_hostname_doctor_report_includes_ingress_issues(monkeypatch, tmp_path: Path) -> None:
     stack_dir = tmp_path / "sites" / "example.com"
     stack_dir.mkdir(parents=True)
     (stack_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
@@ -245,10 +245,11 @@ def test_build_hostname_doctor_report_includes_ingress_warnings(monkeypatch, tmp
     monkeypatch.setattr(validate_cmd.urllib.request, "urlopen", fake_urlopen)
 
     checks = validate_cmd.build_hostname_doctor_report(config, "example.com")
-    warning_checks = [check for check in checks if check.name == "cloudflared ingress warnings"]
+    warning_checks = [check for check in checks if check.name == "cloudflared ingress issue"]
 
     assert len(warning_checks) == 1
     assert not warning_checks[0].ok
+    assert warning_checks[0].severity == "blocking"
     assert warning_checks[0].detail == (
         "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
         "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"

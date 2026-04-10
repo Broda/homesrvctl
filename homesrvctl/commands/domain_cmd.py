@@ -9,8 +9,8 @@ from homesrvctl.cloudflared import (
     CloudflaredConfigError,
     apply_domain_ingress,
     apply_domain_ingress_removal,
-    collect_cloudflared_config_warnings,
     describe_cloudflared_config_error,
+    inspect_cloudflared_config_issues,
     inspect_hostname_route,
     list_exact_hostname_routes,
     plan_domain_ingress,
@@ -224,7 +224,7 @@ def domain_status(
             bare_domain,
             stack_settings.traefik_url,
         )
-        ingress_warnings = collect_cloudflared_config_warnings(config.cloudflared_config)
+        ingress_issues = inspect_cloudflared_config_issues(config.cloudflared_config)
     except (CloudflareApiError, typer.BadParameter) as exc:
         raise typer.Exit(code=_exit_with_error(_format_domain_error(exc))) from exc
     except CloudflaredConfigError as exc:
@@ -246,7 +246,8 @@ def domain_status(
             "manual_fix_required": not repairable and overall != "ok",
             "suggested_command": suggested_command,
             "coverage_issues": coverage_issues,
-            "ingress_warnings": ingress_warnings,
+            "ingress_warnings": [issue.render() for issue in ingress_issues if issue.severity == "advisory"],
+            "ingress_issues": [_ingress_issue_to_dict(issue) for issue in ingress_issues],
             "dns": [
                 {
                     "record_name": status.record_name,
@@ -309,8 +310,9 @@ def domain_status(
                 str(status["detail"]),
                 ok,
             )
-        for warning_message in ingress_warnings:
-            warn(f"Ingress warning: {warning_message}")
+        for issue in ingress_issues:
+            prefix = "Ingress advisory" if issue.severity == "advisory" else "Ingress blocking issue"
+            warn(f"{prefix}: {issue.render()}")
 
     if overall == "ok":
         if not json_output:
@@ -683,6 +685,17 @@ def _ingress_result_to_dict(change) -> dict[str, object]:
         "action": change.action,
         "hostname": change.hostname,
         "service": change.service,
+    }
+
+
+def _ingress_issue_to_dict(issue) -> dict[str, object]:  # noqa: ANN001
+    return {
+        "code": issue.code,
+        "severity": issue.severity,
+        "blocking": issue.blocking,
+        "detail": issue.detail,
+        "hint": issue.hint,
+        "message": issue.render(),
     }
 
 

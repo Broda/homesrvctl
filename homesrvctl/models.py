@@ -52,3 +52,4 @@ class CheckResult:
     name: str
     ok: bool
     detail: str
+    severity: str | None = None

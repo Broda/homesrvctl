@@ -538,8 +538,16 @@ class HomesrvctlTextualApp(App[None]):
         runtime = payload.get("mode", "unknown")
         active = "active" if payload.get("active") else "inactive"
         config_validation = payload.get("config_validation")
-        if isinstance(config_validation, dict) and config_validation.get("warnings"):
-            return f"{runtime} ({active})\n\n{len(config_validation['warnings'])} warning(s)"
+        if isinstance(config_validation, dict):
+            issues = config_validation.get("issues", [])
+            if isinstance(issues, list) and issues:
+                blocking_count = sum(1 for issue in issues if isinstance(issue, dict) and issue.get("blocking"))
+                advisory_count = sum(
+                    1 for issue in issues if isinstance(issue, dict) and issue.get("severity") == "advisory"
+                )
+                return f"{runtime} ({active})\n\n{blocking_count} blocking, {advisory_count} advisory"
+            if config_validation.get("warnings"):
+                return f"{runtime} ({active})\n\n{len(config_validation['warnings'])} warning(s)"
         return f"{runtime} ({active})\n\n{payload.get('detail', 'no detail')}"
 
     def _validate_summary(self) -> str:
@@ -606,6 +614,7 @@ class HomesrvctlTextualApp(App[None]):
                 [
                     "",
                     f"config ok: {config_validation.get('ok', False)}",
+                    f"config severity: {config_validation.get('max_severity', 'none')}",
                     f"config detail: {config_validation.get('detail', 'unknown')}",
                 ]
             )
@@ -616,6 +625,17 @@ class HomesrvctlTextualApp(App[None]):
                 lines.extend(f"- {warning}" for warning in warnings[:5])
             else:
                 lines.append("warnings: none")
+            issues = config_validation.get("issues", [])
+            lines.append("")
+            if issues:
+                lines.append("issues:")
+                for issue in issues[:5]:
+                    if not isinstance(issue, dict):
+                        continue
+                    severity = "blocking" if issue.get("blocking") else str(issue.get("severity", "unknown"))
+                    lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
+            else:
+                lines.append("issues: none")
         cached = self.last_tool_actions.get("cloudflared")
         if isinstance(cached, dict):
             action = cached.get("action")

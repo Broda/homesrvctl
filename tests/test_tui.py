@@ -283,8 +283,18 @@ def test_render_stack_action_detail_formats_doctor_checks() -> None:
         {
             "ok": False,
             "checks": [
-                {"name": "docker-compose.yml", "ok": True, "detail": "/srv/homesrvctl/sites/example.com/docker-compose.yml"},
-                {"name": "host-header request", "ok": False, "detail": "request failed: connection refused"},
+                {
+                    "name": "docker-compose.yml",
+                    "ok": True,
+                    "detail": "/srv/homesrvctl/sites/example.com/docker-compose.yml",
+                    "severity": "pass",
+                },
+                {
+                    "name": "host-header request",
+                    "ok": False,
+                    "detail": "request failed: connection refused",
+                    "severity": "blocking",
+                },
             ],
         },
     )
@@ -293,7 +303,7 @@ def test_render_stack_action_detail_formats_doctor_checks() -> None:
 
     assert "action" in rendered
     assert "doctor" in rendered
-    assert "checks: 2 total, 1 failing" in rendered
+    assert "checks: 2 total, 1 failing, 0 advisory" in rendered
     assert "PASS docker-compose.yml: /srv/homesrvctl/sites/example.com/docker-compose.yml" in rendered
     assert "FAIL host-header request: request failed: connection refused" in rendered
 
@@ -333,6 +343,13 @@ def test_render_tool_action_detail_formats_cloudflared_result() -> None:
             "ok": True,
             "detail": "fallback service http_status:404",
             "warnings": ["earlier wildcard rule *.com may capture later hostname *.example.com"],
+            "issues": [
+                {
+                    "severity": "advisory",
+                    "blocking": False,
+                    "message": "earlier wildcard rule *.com may capture later hostname *.example.com",
+                }
+            ],
         },
     )
 
@@ -345,6 +362,7 @@ def test_render_tool_action_detail_formats_cloudflared_result() -> None:
     assert "status" in rendered
     assert "ok" in rendered
     assert "warnings: 1" in rendered
+    assert "issues: 1 total, 0 blocking, 1 advisory" in rendered
     assert "- earlier wildcard rule *.com may capture later hostname *.example.com" in rendered
 
 
@@ -422,6 +440,13 @@ def test_render_domain_status_detail_formats_apex_status() -> None:
             "expected_ingress_service": "http://localhost:8081",
             "coverage_issues": ["Ingress coverage is apex-only; wildcard ingress is missing"],
             "ingress_warnings": ["earlier ingress rule *.com may shadow later hostname example.com"],
+            "ingress_issues": [
+                {
+                    "severity": "blocking",
+                    "blocking": True,
+                    "message": "earlier ingress rule *.com may shadow later hostname example.com",
+                }
+            ],
             "dns": [
                 {"record_name": "example.com", "matches_expected": True, "detail": "CNAME -> 1234.cfargotunnel.com (proxied)"},
                 {"record_name": "*.example.com", "matches_expected": False, "detail": "record missing"},
@@ -441,6 +466,7 @@ def test_render_domain_status_detail_formats_apex_status() -> None:
     assert "repairable" in rendered
     assert "True" in rendered
     assert "coverage issues: 1" in rendered
+    assert "ingress issues: 1 total, 1 blocking, 0 advisory" in rendered
     assert "dns records: 2" in rendered
     assert "ingress routes: 2" in rendered
     assert "suggested command" in rendered
@@ -950,7 +976,13 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
             "mode": "systemd",
             "active": True,
             "detail": "systemd service is active",
-            "config_validation": {"ok": True, "detail": "Validating rules\nOK", "warnings": []},
+            "config_validation": {
+                "ok": True,
+                "detail": "Validating rules\nOK",
+                "warnings": [],
+                "issues": [],
+                "max_severity": None,
+            },
         },
         "validate": {"ok": False, "checks": [{"name": "docker", "ok": False, "detail": "missing"}]},
     }
@@ -976,7 +1008,13 @@ def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
             "mode": "systemd",
             "active": True,
             "detail": "systemd service is active",
-            "config_validation": {"ok": True, "detail": "Validating rules\nOK", "warnings": []},
+            "config_validation": {
+                "ok": True,
+                "detail": "Validating rules\nOK",
+                "warnings": [],
+                "issues": [],
+                "max_severity": None,
+            },
         },
         "validate": {"ok": True, "checks": []},
     }
@@ -987,6 +1025,13 @@ def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
             "ok": True,
             "detail": "fallback service http_status:404",
             "warnings": ["earlier wildcard rule *.com may capture later hostname *.example.com"],
+            "issues": [
+                {
+                    "severity": "advisory",
+                    "blocking": False,
+                    "message": "earlier wildcard rule *.com may capture later hostname *.example.com",
+                }
+            ],
         },
     }
 
@@ -996,6 +1041,7 @@ def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
     assert "action" in detail
     assert "config-test" in detail
     assert "warnings: 1" in detail
+    assert "issues: 1 total, 0 blocking, 1 advisory" in detail
 
 
 def test_textual_app_uses_human_readable_title() -> None:
@@ -1230,7 +1276,13 @@ def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:
                 "mode": "systemd",
                 "active": True,
                 "detail": "systemd service is active",
-                "config_validation": {"ok": True, "detail": "Validating rules\nOK", "warnings": []},
+                "config_validation": {
+                    "ok": True,
+                    "detail": "Validating rules\nOK",
+                    "warnings": [],
+                    "issues": [],
+                    "max_severity": None,
+                },
             },
             "validate": {"ok": True, "checks": []},
         },
