@@ -741,7 +741,7 @@ class HomesrvctlTextualApp(App[None]):
         controls_box.mount(ControlSectionLabel("Stacks"))
         stack_items = items[tool_count:]
         if not stack_items:
-            controls_box.mount(Static("(no stacks found)", id="controls_no_stacks"))
+            controls_box.mount(Static("(no stacks found)"))
         for offset, item in enumerate(stack_items):
             index = tool_count + offset
             has_compose = bool(item.get("compose"))
