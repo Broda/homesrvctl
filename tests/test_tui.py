@@ -1674,3 +1674,105 @@ def test_detail_pane_title_reflects_focused_tool() -> None:
 
     app.selected_control_index = 3
     assert app._detail_pane_title() == "Stack: example.com"
+
+
+def test_option_row_widget_renders_label_and_description() -> None:
+    row = prompts.OptionRowWidget(0, 1, "app init", "Choose a scaffold template.")
+
+    assert row.option_index == 0
+    assert row._label == "app init"
+    assert row._description == "Choose a scaffold template."
+
+
+def test_option_row_widget_click_calls_select_on_screen() -> None:
+    import asyncio
+    from textual.app import App, ComposeResult
+    from textual.widgets import Static as TStatic
+
+    dismissed: list[str] = []
+
+    async def _run() -> None:
+        screen = prompts.StackActionMenuScreen("example.com", is_apex_domain=False)
+
+        class WrapperApp(App[None]):
+            def compose(self) -> ComposeResult:
+                yield TStatic("")
+
+            def on_mount(self) -> None:
+                self.push_screen(screen, lambda result: dismissed.append(result or ""))
+
+        wrapper = WrapperApp()
+        async with wrapper.run_test(size=(80, 30)) as pilot:
+            await pilot.pause()  # let on_mount / push_screen complete
+            # Click the second option row (index 1 = site-init); query the active screen
+            rows = list(wrapper.screen.query(prompts.OptionRowWidget))
+            if len(rows) >= 2:
+                await pilot.click(rows[1])
+                await pilot.pause()
+                # Press enter to confirm the highlighted selection
+                await pilot.press("enter")
+                await pilot.pause()
+
+    asyncio.run(_run())
+    # Should have dismissed with site-init (index 1 in non-apex options)
+    assert dismissed and dismissed[0] == "site-init"
+
+
+def test_confirm_action_screen_has_title_and_body() -> None:
+    screen = prompts.ConfirmActionScreen("Confirm Action", "Proceed?")
+    assert screen.title == "Confirm Action"
+    assert screen.body == "Proceed?"
+
+
+def test_confirm_action_screen_dismiss_on_button_click() -> None:
+    import asyncio
+    from textual.app import App, ComposeResult
+    from textual.widgets import Static as TStatic
+
+    dismissed: list[bool] = []
+
+    async def _run() -> None:
+        screen = prompts.ConfirmActionScreen("Confirm", "Do it?")
+
+        class WrapperApp(App[None]):
+            def compose(self) -> ComposeResult:
+                yield TStatic("")
+
+            def on_mount(self) -> None:
+                self.push_screen(screen, lambda result: dismissed.append(result))
+
+        wrapper = WrapperApp()
+        async with wrapper.run_test(size=(80, 20)) as pilot:
+            await pilot.pause()
+            await pilot.click("#btn_confirm")
+            await pilot.pause()
+
+    asyncio.run(_run())
+    assert dismissed == [True]
+
+
+def test_confirm_action_screen_cancel_button_dismisses_false() -> None:
+    import asyncio
+    from textual.app import App, ComposeResult
+    from textual.widgets import Static as TStatic
+
+    dismissed: list[bool] = []
+
+    async def _run() -> None:
+        screen = prompts.ConfirmActionScreen("Confirm", "Do it?")
+
+        class WrapperApp(App[None]):
+            def compose(self) -> ComposeResult:
+                yield TStatic("")
+
+            def on_mount(self) -> None:
+                self.push_screen(screen, lambda result: dismissed.append(result))
+
+        wrapper = WrapperApp()
+        async with wrapper.run_test(size=(80, 20)) as pilot:
+            await pilot.pause()
+            await pilot.click("#btn_cancel")
+            await pilot.pause()
+
+    asyncio.run(_run())
+    assert dismissed == [False]

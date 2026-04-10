@@ -2,14 +2,73 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.events import Key
+from textual.containers import Horizontal, Vertical
+from textual.events import Click, Key
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widget import Widget
+from textual.widgets import Button, Static
 
 from homesrvctl.template_catalog import app_template_options
 
 APP_INIT_TEMPLATE_OPTIONS: list[tuple[str, str]] = app_template_options()
+
+
+class OptionRowWidget(Widget, can_focus=False):
+    """Clickable option row for modal prompt screens.
+
+    Carries --selected CSS class when it is the active choice.
+    Clicking fires the screen's select callback directly via the screen ref.
+    """
+
+    DEFAULT_CSS = """
+    OptionRowWidget {
+        height: auto;
+        padding: 0 1;
+        color: #d7fff7;
+    }
+    OptionRowWidget:hover {
+        background: #0d2028;
+    }
+    OptionRowWidget.--selected {
+        background: #13bfae;
+        color: #081014;
+        text-style: bold;
+    }
+    OptionRowWidget .option_number {
+        color: #8ccfc5;
+    }
+    OptionRowWidget.--selected .option_number {
+        color: #081014;
+    }
+    OptionRowWidget .option_description {
+        color: #8ccfc5;
+    }
+    OptionRowWidget.--selected .option_description {
+        color: #0d3030;
+    }
+    """
+
+    def __init__(self, index: int, number: int, label: str, description: str = "") -> None:
+        super().__init__()
+        self._index = index
+        self._number = number
+        self._label = label
+        self._description = description
+
+    @property
+    def option_index(self) -> int:
+        return self._index
+
+    def compose(self) -> ComposeResult:
+        num = f" [{self._number}]" if self._number > 0 else ""
+        yield Static(f"[dim]{num}[/dim] {self._label}", classes="option_label")
+        if self._description:
+            yield Static(f"   {self._description}", classes="option_description")
+
+    def on_click(self, event: Click) -> None:  # noqa: ARG002
+        screen = self.screen
+        if hasattr(screen, "_select_option_by_index"):
+            screen._select_option_by_index(self._index)
 
 
 def stack_action_options(is_apex_domain: bool) -> list[tuple[str, str, str]]:
@@ -64,30 +123,31 @@ class AppInitTemplateScreen(ModalScreen[str | None]):
         with Vertical(id="app_init_prompt"):
             yield Static("App Init Template", classes="prompt_title")
             yield Static(
-                "Choose a scaffold template for the focused hostname. Use w/s or arrow keys, Enter to confirm, Esc to cancel.",
+                "· w/s navigate  · enter select  · esc cancel",
                 classes="prompt_help",
             )
-            yield Static("", id="app_init_options")
-
-    def on_mount(self) -> None:
-        self._render()
+            with Vertical(id="app_init_options"):
+                for i, (template, description) in enumerate(APP_INIT_TEMPLATE_OPTIONS):
+                    row = OptionRowWidget(i, i + 1, template, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
 
     def on_key(self, event: Key) -> None:
         if event.character and event.character.isdigit():
             index = int(event.character) - 1
             if 0 <= index < len(APP_INIT_TEMPLATE_OPTIONS):
-                self.selected_index = index
-                self._render()
+                self._select_option_by_index(index)
                 self.action_select_template()
                 event.stop()
 
     def action_previous_template(self) -> None:
         self.selected_index = (self.selected_index - 1) % len(APP_INIT_TEMPLATE_OPTIONS)
-        self._render()
+        self._update_selection()
 
     def action_next_template(self) -> None:
         self.selected_index = (self.selected_index + 1) % len(APP_INIT_TEMPLATE_OPTIONS)
-        self._render()
+        self._update_selection()
 
     def action_select_template(self) -> None:
         self.dismiss(APP_INIT_TEMPLATE_OPTIONS[self.selected_index][0])
@@ -95,10 +155,19 @@ class AppInitTemplateScreen(ModalScreen[str | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-    def _render(self) -> None:
-        self.query_one("#app_init_options", Static).update(self._options_text())
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
 
     def _options_text(self) -> str:
+        """Legacy text rendering kept for tests."""
         lines: list[str] = []
         for index, (template, description) in enumerate(APP_INIT_TEMPLATE_OPTIONS):
             marker = ">" if index == self.selected_index else " "
@@ -114,6 +183,34 @@ class ConfirmActionScreen(ModalScreen[bool]):
         Binding("escape,q,n", "cancel", "Cancel", show=False),
     ]
 
+    DEFAULT_CSS = """
+    ConfirmActionScreen #confirm_buttons {
+        height: auto;
+        margin-top: 1;
+        align: center middle;
+    }
+    ConfirmActionScreen Button {
+        margin: 0 1;
+        min-width: 12;
+    }
+    ConfirmActionScreen Button.confirm_btn {
+        background: #13bfae;
+        color: #081014;
+        border: tall #1fd6c1;
+    }
+    ConfirmActionScreen Button.confirm_btn:hover {
+        background: #1fd6c1;
+    }
+    ConfirmActionScreen Button.cancel_btn {
+        background: #1a2a30;
+        color: #d7fff7;
+        border: tall #3a5a5a;
+    }
+    ConfirmActionScreen Button.cancel_btn:hover {
+        background: #0d2028;
+    }
+    """
+
     def __init__(self, title: str, body: str) -> None:
         super().__init__()
         self.title = title
@@ -123,7 +220,15 @@ class ConfirmActionScreen(ModalScreen[bool]):
         with Vertical(id="confirm_prompt"):
             yield Static(self.title, classes="prompt_title")
             yield Static(self.body, classes="prompt_help")
-            yield Static("Enter or y confirms. Esc, q, or n cancels.")
+            with Horizontal(id="confirm_buttons"):
+                yield Button("Confirm", id="btn_confirm", classes="confirm_btn")
+                yield Button("Cancel", id="btn_cancel", classes="cancel_btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn_confirm":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
 
     def action_confirm(self) -> None:
         self.dismiss(True)
@@ -150,30 +255,31 @@ class ToolActionMenuScreen(ModalScreen[str | None]):
         with Vertical(id="stack_action_prompt"):
             yield Static("Tool Actions", classes="prompt_title")
             yield Static(
-                f"Choose an action for {self.tool}. Use w/s or arrow keys, Enter to confirm, Esc to cancel.",
+                f"Tool: {self.tool}  · w/s navigate  · enter select  · esc cancel",
                 classes="prompt_help",
             )
-            yield Static("", id="tool_action_options")
-
-    def on_mount(self) -> None:
-        self._render()
+            with Vertical(id="tool_action_options"):
+                for i, (_, label, description) in enumerate(self.options):
+                    row = OptionRowWidget(i, i + 1, label, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
 
     def on_key(self, event: Key) -> None:
         if event.character and event.character.isdigit():
             index = int(event.character) - 1
             if 0 <= index < len(self.options):
-                self.selected_index = index
-                self._render()
+                self._select_option_by_index(index)
                 self.action_select_action()
                 event.stop()
 
     def action_previous_action(self) -> None:
         self.selected_index = (self.selected_index - 1) % len(self.options)
-        self._render()
+        self._update_selection()
 
     def action_next_action(self) -> None:
         self.selected_index = (self.selected_index + 1) % len(self.options)
-        self._render()
+        self._update_selection()
 
     def action_select_action(self) -> None:
         self.dismiss(self.options[self.selected_index][0])
@@ -181,10 +287,19 @@ class ToolActionMenuScreen(ModalScreen[str | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-    def _render(self) -> None:
-        self.query_one("#tool_action_options", Static).update(self._options_text())
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
 
     def _options_text(self) -> str:
+        """Legacy text rendering kept for tests."""
         lines: list[str] = []
         for index, (_, label, description) in enumerate(self.options):
             marker = ">" if index == self.selected_index else " "
@@ -215,30 +330,31 @@ class CloudflaredLogsModeScreen(ModalScreen[bool | None]):
         with Vertical(id="stack_action_prompt"):
             yield Static("Cloudflared Logs Mode", classes="prompt_title")
             yield Static(
-                "Choose whether to show the standard or follow log command. Use w/s or arrow keys, Enter to confirm, Esc to cancel.",
+                "· w/s navigate  · enter select  · esc cancel",
                 classes="prompt_help",
             )
-            yield Static("", id="cloudflared_logs_mode_options")
-
-    def on_mount(self) -> None:
-        self._render()
+            with Vertical(id="cloudflared_logs_mode_options"):
+                for i, (_, label, description) in enumerate(self.OPTIONS):
+                    row = OptionRowWidget(i, i + 1, label, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
 
     def on_key(self, event: Key) -> None:
         if event.character and event.character.isdigit():
             index = int(event.character) - 1
             if 0 <= index < len(self.OPTIONS):
-                self.selected_index = index
-                self._render()
+                self._select_option_by_index(index)
                 self.action_select_mode()
                 event.stop()
 
     def action_previous_mode(self) -> None:
         self.selected_index = (self.selected_index - 1) % len(self.OPTIONS)
-        self._render()
+        self._update_selection()
 
     def action_next_mode(self) -> None:
         self.selected_index = (self.selected_index + 1) % len(self.OPTIONS)
-        self._render()
+        self._update_selection()
 
     def action_select_mode(self) -> None:
         self.dismiss(self.OPTIONS[self.selected_index][0])
@@ -246,10 +362,19 @@ class CloudflaredLogsModeScreen(ModalScreen[bool | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-    def _render(self) -> None:
-        self.query_one("#cloudflared_logs_mode_options", Static).update(self._options_text())
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
 
     def _options_text(self) -> str:
+        """Legacy text rendering kept for tests."""
         lines: list[str] = []
         for index, (_, label, description) in enumerate(self.OPTIONS):
             marker = ">" if index == self.selected_index else " "
@@ -277,30 +402,31 @@ class StackActionMenuScreen(ModalScreen[str | None]):
         with Vertical(id="stack_action_prompt"):
             yield Static("Stack Actions", classes="prompt_title")
             yield Static(
-                f"Choose an action for {self.hostname}. Use w/s or arrow keys, Enter to confirm, Esc to cancel.",
+                f"{self.hostname}  · w/s navigate  · enter select  · esc cancel",
                 classes="prompt_help",
             )
-            yield Static("", id="stack_action_options")
-
-    def on_mount(self) -> None:
-        self._render()
+            with Vertical(id="stack_action_options"):
+                for i, (_, label, description) in enumerate(self.options):
+                    row = OptionRowWidget(i, i + 1, label, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
 
     def on_key(self, event: Key) -> None:
         if event.character and event.character.isdigit():
             index = int(event.character) - 1
             if 0 <= index < len(self.options):
-                self.selected_index = index
-                self._render()
+                self._select_option_by_index(index)
                 self.action_select_action()
                 event.stop()
 
     def action_previous_action(self) -> None:
         self.selected_index = (self.selected_index - 1) % len(self.options)
-        self._render()
+        self._update_selection()
 
     def action_next_action(self) -> None:
         self.selected_index = (self.selected_index + 1) % len(self.options)
-        self._render()
+        self._update_selection()
 
     def action_select_action(self) -> None:
         self.dismiss(self.options[self.selected_index][0])
@@ -308,10 +434,19 @@ class StackActionMenuScreen(ModalScreen[str | None]):
     def action_cancel(self) -> None:
         self.dismiss(None)
 
-    def _render(self) -> None:
-        self.query_one("#stack_action_options", Static).update(self._options_text())
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
 
     def _options_text(self) -> str:
+        """Legacy text rendering kept for tests."""
         lines: list[str] = []
         for index, (_, label, description) in enumerate(self.options):
             marker = ">" if index == self.selected_index else " "
