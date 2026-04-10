@@ -2095,7 +2095,7 @@ def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
             rows = list(app.query(textual_app.ControlRowWidget))
             target = [r for r in rows if r.row_index == 5]  # second stack
             if target:
-                await pilot.click(target[0])
+                await pilot.click(target[0], offset=(1, 0))
                 await pilot.pause()
                 trace.append(app.selected_control_index)
 
