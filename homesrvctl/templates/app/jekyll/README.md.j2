@@ -15,11 +15,29 @@ This scaffold is a narrow Jekyll build-and-serve baseline for `{{ hostname }}`.
 ## Local adjustments
 
 1. For a new site, edit the files under `site/` and build with `docker compose up --build`.
-2. To adopt an existing Jekyll repo, copy the repo contents into `site/` and keep the generated `docker-compose.yml` and `Dockerfile` in the stack root.
-3. Make sure the adopted `site/` tree includes the files Jekyll needs at its source root, such as `_config.yml`, `Gemfile`, pages, posts, collections, layouts, includes, and assets.
-4. Run `docker compose up --build`.
-5. Verify the container becomes healthy and that `https://{{ hostname }}/` serves the generated site.
-6. If your adopted site needs native gem dependencies beyond the starter baseline, extend the generated `Dockerfile` accordingly.
+2. To adopt an existing Jekyll repo, keep the generated root-level stack wiring files:
+   - `docker-compose.yml`
+   - `Dockerfile`
+   - `.dockerignore`
+   - `README.md`
+3. Replace the generated contents under `site/` with the adopted Jekyll source tree.
+4. Make sure the adopted source root lives directly under `site/`, so files like `_config.yml`, `Gemfile`, pages, posts, collections, layouts, includes, and assets are not nested under an extra top-level directory.
+5. Run `docker compose up --build`.
+6. Verify the container becomes healthy and that `https://{{ hostname }}/` serves the generated site.
+7. If your adopted site needs native gem dependencies beyond the starter baseline, extend the generated `Dockerfile` accordingly.
+8. Common examples include gems that need extra Alpine packages during `apk add`, additional headers, or other build tools before `bundle install` runs.
+
+Do not replace:
+
+- the generated root-level `docker-compose.yml`
+- the generated root-level `Dockerfile`
+- the generated root-level `.dockerignore`
+
+Replace as needed:
+
+- the generated contents under `site/`
+- the generated starter `Gemfile` if the adopted site already has its own
+- the generated starter `_config.yml` and page content
 
 ## Runtime behavior
 

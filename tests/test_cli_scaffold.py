@@ -421,11 +421,112 @@ def test_app_init_jekyll_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     assert "bundle exec jekyll build" in dockerfile
     assert "FROM nginx:alpine" in dockerfile
     assert "docker compose up --build" in readme
-    assert "copy the repo contents into `site/`" in readme
+    assert "Replace the generated contents under `site/`" in readme
     assert "Gemfile" in readme
     assert 'gem "jekyll"' in gemfile
     assert 'title: "blog.example.com"' in config_yml
     assert "blog.example.com" in index_md
+
+
+def test_app_init_jekyll_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "blog.example.com", "--template", "jekyll"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "blog.example.com"
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerignore = (app_dir / ".dockerignore").read_text(encoding="utf-8")
+    dockerfile = (app_dir / "Dockerfile").read_text(encoding="utf-8")
+    readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    gemfile = (app_dir / "site" / "Gemfile").read_text(encoding="utf-8")
+    config_yml = (app_dir / "site" / "_config.yml").read_text(encoding="utf-8")
+    index_md = (app_dir / "site" / "index.md").read_text(encoding="utf-8")
+
+    assert "traefik.http.routers.blog-example-com.rule=Host(`blog.example.com`)" in compose
+    assert "traefik.docker.network=web" in compose
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]' in compose
+    assert "start_period: 10s" in compose
+    assert "site/.jekyll-cache" in dockerignore
+    assert "site/.sass-cache" in dockerignore
+    assert "site/vendor" in dockerignore
+    assert "RUN apk add --no-cache build-base libffi-dev linux-headers yaml-dev zlib-dev" in dockerfile
+    assert "RUN test -f Gemfile" in dockerfile
+    assert "bundle config set path vendor/bundle" in dockerfile
+    assert "bundle exec jekyll build --source /src --destination /out" in dockerfile
+    assert "COPY --from=build /out/ /usr/share/nginx/html/" in dockerfile
+    assert "keep the generated root-level stack wiring files" in readme
+    assert "Replace the generated contents under `site/`" in readme
+    assert "adopted source root lives directly under `site/`" in readme
+    assert "gems that need extra Alpine packages during `apk add`" in readme
+    assert "the generated root-level `.dockerignore`" in readme
+    assert 'gem "jekyll", "~> 4.4"' in gemfile
+    assert 'title: "blog.example.com"' in config_yml
+    assert "layout: home" in index_md
+
+
+def test_app_init_jekyll_with_profile_writes_profile_stack_config(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(
+        home,
+        sites_root,
+        profiles={
+            "edge": {
+                "docker_network": "edge",
+                "traefik_url": "http://localhost:9000",
+            }
+        },
+    )
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "blog.example.com", "--template", "jekyll", "--profile", "edge"])
+
+    assert result.exit_code == 0, result.output
+    stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
+    overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
+    assert overrides == {"profile": "edge"}
+
+
+def test_app_init_jekyll_with_docker_network_override_writes_stack_config(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["app", "init", "blog.example.com", "--template", "jekyll", "--docker-network", "edge"],
+    )
+
+    assert result.exit_code == 0, result.output
+    stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
+    overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
+    assert overrides == {"docker_network": "edge"}
+
+
+def test_app_init_jekyll_with_traefik_override_writes_stack_config(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["app", "init", "blog.example.com", "--template", "jekyll", "--traefik-url", "http://localhost:9000"],
+    )
+
+    assert result.exit_code == 0, result.output
+    stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
+    overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
+    assert overrides == {"traefik_url": "http://localhost:9000"}
 
 
 def test_app_init_node_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
