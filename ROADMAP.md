@@ -606,7 +606,7 @@ Subtasks:
 
 ## Milestone 5: Terminal UI (Textual Migration)
 
-Status: in progress
+Status: shipped
 
 Goal: move `homesrvctl tui` to Textual before the current terminal dashboard grows much larger, while keeping the same CLI entrypoint and the same terminal-first operator model.
 
@@ -747,7 +747,7 @@ Current baseline:
 
 ### 5.4 Add guided flows for common operations
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Make the common multi-step operations easier to run without memorizing command sequences.
@@ -822,6 +822,7 @@ Current baseline:
 - The Textual TUI now includes a first guided scaffold flow for `app init`, using a minimal template picker that still shells out to the existing CLI command underneath.
 - Apex-focused stacks now also support guided confirmation prompts for `domain add` and `domain remove`.
 - Focused stacks now also have a guided stack action menu so the existing stack and apex-domain actions are discoverable without relying only on hotkeys.
+- Focused `Config` and `Cloudflared` tool items now also have guided tool menus for low-frequency global actions.
 - Focused stacks can already launch:
   - `site init`
   - `app init`
@@ -832,14 +833,16 @@ Current baseline:
   - `domain add`
   - `domain repair`
   - `domain remove`
-- Remaining guided-flow gaps are mostly around global tools such as:
-  - `config init`
-  - `cloudflared logs`
-  - richer prompt coverage for shared inputs beyond the current template picker and confirmations
+
+Completed in this milestone:
+- Added guided tool menus for focused `Config` and `Cloudflared` items so global operations are discoverable through the same `Enter` or `o` flow as stack actions.
+- Added a guided default-path `config init` flow in the TUI, including overwrite confirmation only when the underlying CLI reports an existing config file that would require `--force`.
+- Added a guided `cloudflared logs` flow in the TUI, including a prompt for standard versus `--follow` log-command guidance.
+- Kept the launched-command results visible in the focused detail pane so guided flows still resolve to ordinary `homesrvctl` command output.
 
 ### 5.5 Make diagnostics explorable
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Turn the existing rich status output into something easier to inspect interactively.
@@ -876,11 +879,15 @@ Current baseline:
   - cached doctor output
   - `cloudflared status`
   - cached `cloudflared config-test` output
-- The main remaining read-heavy gap in this milestone is `cloudflared logs`.
+- cached `cloudflared logs` guidance
+
+Completed in this milestone:
+- Added cached `cloudflared logs` guidance to the focused `Cloudflared` detail pane so operators can inspect the suggested runtime log command after running the guided flow.
+- Kept cached `config init` results visible in the focused `Config` detail pane so global tool actions follow the same inspectable pattern as stack and cloudflared actions.
 
 ### 5.6 Retire curses and keep the Textual TUI testable
 
-Status: in progress
+Status: shipped
 
 Tasks:
 - Remove the transitional curses implementation after the Textual dashboard reaches parity.
@@ -911,6 +918,12 @@ Current baseline:
   - keyboard-driven action dispatch
   - status and detail rendering
 - The old curses renderer is now removed from the repo.
+- The README, architecture notes, and file map now reflect the shipped Textual-only TUI and its terminal/runtime assumptions.
+
+Completed in this milestone:
+- Kept the CLI as the source of truth underneath the TUI by routing the shipped Textual flows through existing JSON-backed command surfaces.
+- Added TUI regression coverage for the new guided tool-menu paths, cached tool detail rendering, and prompt-driven `config init` / `cloudflared logs` flows.
+- Documented the current TUI environment assumptions: interactive terminal I/O plus the same local runtime access that the launched CLI commands require.
 
 ## Milestone 6: TUI Mouse Support
 

@@ -44,7 +44,7 @@ This document is a quick orientation guide to the repository. It is intentionall
 - [`homesrvctl/tui/data.py`](homesrvctl/tui/data.py)
   JSON-backed data loading, action dispatch, and detail rendering helpers for the Textual TUI.
 - [`homesrvctl/tui/prompts.py`](homesrvctl/tui/prompts.py)
-  Small Textual prompt screens used by guided TUI flows such as template selection for scaffolding.
+  Small Textual prompt screens used by guided TUI flows such as stack actions, tool menus, confirmations, and template selection.
 
 ## Cloudflare And Cloudflared Helpers
 

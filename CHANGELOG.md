@@ -34,6 +34,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Added apex-only `domain repair` as a stack action in the Textual TUI so an operator can act on the surfaced repairability signal without leaving the dashboard.
 - Added apex-only confirmed `domain add` and `domain remove` actions to the Textual TUI so domain onboarding and teardown can be launched from the focused stack pane without leaving the dashboard.
 - Added a guided stack action menu to the Textual TUI so focused stacks expose their stack-local and apex-domain actions through a discoverable modal in addition to the direct hotkeys.
+- Added guided global tool menus to the Textual TUI so focused `Config` and `Cloudflared` items can launch `config init`, `cloudflared logs`, and other low-frequency tool actions without leaving the dashboard.
 - Added [`FILE_MAP.md`](FILE_MAP.md) as a repository orientation guide.
 - Reorganized [`ROADMAP.md`](ROADMAP.md) into milestone-based planning with tasks and subtasks.
 - Added `config show` with text and JSON output for global config inspection and effective stack-local override inspection.
@@ -67,6 +68,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Expanded Jekyll scaffold regression coverage to lock down compose labels, healthcheck behavior, build flow assumptions, starter files, and stack-local routing override output.
 - Reworked the Textual dashboard layout into a roomy warm-console design with a top summary strip, a unified left control pane, a right operational detail pane, and a persistent command/status bar.
 - Replaced the old section-plus-stack split navigation model in the Textual dashboard with a single vertical control cursor through `Tools` and `Stacks`.
+- Extended the Textual TUI so `cloudflared logs` guidance and default-path `config init` results now stay explorable in the focused tool detail pane, closing the remaining Milestone 5 command-coverage gaps.
 - Clarified the routing-profile model in the docs: top-level routing keys are the implicit default profile, stacks opt in with `profile`, and direct stack-local overrides remain first-class and win last.
 - Updated `cloudflared status`, `cloudflared config-test`, `validate`, `doctor`, `domain status`, and the TUI to expose normalized ingress issue severity in JSON and operator-facing detail views.
 

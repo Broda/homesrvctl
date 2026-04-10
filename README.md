@@ -314,6 +314,7 @@ homesrvctl up example.com --dry-run
 - `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `cloudflared status`, and `validate`.
 - The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
+- `tui` requires an interactive terminal on both stdin and stdout, and it assumes the local machine has the same runtime access as the CLI commands it launches: Docker where stack actions are used, local config-file access, and local `cloudflared` runtime access where `cloudflared` tools are used.
 - The JSON forms of `cloudflared status`, `validate`, and `doctor` stay quiet so they can be consumed directly by scripts and the terminal dashboard.
 - The dashboard now uses a roomy warm-console layout with a full-width summary strip, a left control pane, a right detail pane, and a persistent command/status bar.
 - After you run a stack action from the TUI, the focused stack detail pane keeps the last action result visible, including `doctor` checks and compose command results where available.
@@ -322,11 +323,14 @@ homesrvctl up example.com --dry-run
 - TUI navigation uses `tab`, arrow keys, or `w`/`s` to move through the control pane.
 - When a stack is focused, `a` opens a small Textual template picker for `app init`, and the scaffold result stays visible in the stack detail pane after the prompt completes.
 - The TUI now includes a `Config` tool item that renders the base `config show` output, and focused stack details also surface the effective per-stack config derived from `config show --stack`.
+- Focused `Config` and `Cloudflared` tool items can now open guided tool menus with `Enter` or `o`, so low-frequency global actions stay discoverable without replacing the underlying CLI verbs.
+- The guided `Config` tool flow can now run the default-path `config init` path from inside the TUI, and it asks for overwrite confirmation only when the existing config file would need `--force`.
 - Focused apex stacks now also surface `domain status` detail in the TUI, including overall state, repairability, coverage issues, and suggested repair command when available.
 - Focused apex stacks can now run `domain repair` from the TUI with `p`, using the same CLI mutation path underneath and surfacing the result back in the stack pane.
 - Focused apex stacks can now also confirm `domain add` with `n` and `domain remove` with `m` through a small modal prompt before the mutation runs.
 - Focused stacks can also open a guided action menu with `Enter` or `o`, which lists the currently available stack actions and apex-domain actions for the selected hostname.
 - When the `Cloudflared` tool is focused, the TUI can run `config-test` with `c`, `reload` with `l`, and `restart` with `k`, and the detail pane keeps the last tool result visible.
+- The guided `Cloudflared` tool flow now also covers `cloudflared logs`, including a choice between standard and `--follow` guidance, and the suggested runtime log command stays visible in the detail pane after the prompt completes.
 - When a stack is focused in the control pane, the TUI supports `site init` with `i`, and can run `doctor`, `up`, `restart`, and `down` for the selected hostname with `g`, `u`, `t`, and `x`.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
 - `cloudflared status` now also surfaces non-fatal config warnings when the ingress file is structurally valid but risky, such as an earlier wildcard rule that may shadow a later hostname rule or capture traffic intended for a narrower wildcard.

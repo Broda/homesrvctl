@@ -132,6 +132,7 @@ Responsibilities:
 This layer should stay separate from CLI wiring so future dashboard/view growth does not bloat `homesrvctl/commands`.
 Textual is now the active and only retained implementation for `homesrvctl tui`.
 The command wrapper should import the Textual app lazily so the rest of the CLI can still start cleanly if the local environment has not yet been refreshed to include the new dependency.
+The shipped TUI now covers the public CLI surface with a mix of guided mutation flows, focused tool menus, and read-only detail views instead of relying on a separate backend model.
 
 ### Public contract changes should be deliberate
 
