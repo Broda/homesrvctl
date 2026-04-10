@@ -64,6 +64,30 @@ def test_site_init_scaffolds_files(monkeypatch, tmp_path: Path) -> None:
     assert "test.example.com" in index_file.read_text(encoding="utf-8")
 
 
+def test_site_init_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["site", "init", "test.example.com"])
+
+    assert result.exit_code == 0, result.output
+    stack_dir = sites_root / "test.example.com"
+    compose = (stack_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    index_html = (stack_dir / "html" / "index.html").read_text(encoding="utf-8")
+
+    assert "image: nginx:alpine" in compose
+    assert "volumes:" in compose
+    assert "./html:/usr/share/nginx/html:ro" in compose
+    assert "traefik.http.services.test-example-com.loadbalancer.server.port=80" in compose
+    assert "healthcheck:" not in compose
+    assert not (stack_dir / "README.md").exists()
+    assert "This site was scaffolded by homesrvctl." in index_html
+    assert "<title>test.example.com</title>" in index_html
+
+
 def test_site_init_writes_stack_overrides(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -312,6 +336,35 @@ def test_app_init_static_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     assert "Static site scaffold loaded for www.example.com" in main_js
 
 
+def test_app_init_static_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "www.example.com", "--template", "static"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "www.example.com"
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    index_html = (app_dir / "html" / "index.html").read_text(encoding="utf-8")
+    main_css = (app_dir / "html" / "assets" / "css" / "main.css").read_text(encoding="utf-8")
+    main_js = (app_dir / "html" / "assets" / "js" / "main.js").read_text(encoding="utf-8")
+
+    assert "healthcheck:" in compose
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]' in compose
+    assert "loadbalancer.server.port=80" in compose
+    assert "docker compose up -d" in readme
+    assert "html/assets/images/" in readme
+    assert '<link rel="stylesheet" href="/assets/css/main.css">' in index_html
+    assert '<script src="/assets/js/main.js"></script>' in index_html
+    assert "font-size: clamp(2.25rem, 6vw, 4rem);" in main_css
+    assert 'console.log("Static site scaffold loaded for www.example.com");' in main_js
+    assert not (app_dir / ".dockerignore").exists()
+
+
 def test_app_init_static_api_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -324,6 +377,7 @@ def test_app_init_static_api_template_creates_scaffold(monkeypatch, tmp_path: Pa
     assert result.exit_code == 0, result.output
     app_dir = sites_root / "portal.example.com"
     assert (app_dir / "docker-compose.yml").exists()
+    assert (app_dir / ".dockerignore").exists()
     assert (app_dir / "README.md").exists()
     assert (app_dir / "html" / "index.html").exists()
     assert (app_dir / "html" / "favicon.svg").exists()
@@ -333,6 +387,7 @@ def test_app_init_static_api_template_creates_scaffold(monkeypatch, tmp_path: Pa
     assert (app_dir / "api" / "requirements.txt").exists()
     assert (app_dir / "api" / "app" / "main.py").exists()
     compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerignore = (app_dir / ".dockerignore").read_text(encoding="utf-8")
     readme = (app_dir / "README.md").read_text(encoding="utf-8")
     index_html = (app_dir / "html" / "index.html").read_text(encoding="utf-8")
     main_js = (app_dir / "html" / "assets" / "js" / "main.js").read_text(encoding="utf-8")
@@ -341,12 +396,41 @@ def test_app_init_static_api_template_creates_scaffold(monkeypatch, tmp_path: Pa
     assert "api:" in compose
     assert "PathPrefix(`/api`)" in compose
     assert "priority=100" in compose
+    assert ".env" in dockerignore
     assert "docker compose up --build" in readme
     assert "/api/status" in readme
     assert "portal.example.com" in index_html
     assert "/api/status" in main_js
     assert 'self.path == "/api/status"' in api_main
     assert 'self.path == "/healthz"' in api_main
+
+
+def test_app_init_static_api_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "portal.example.com", "--template", "static-api"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "portal.example.com"
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerignore = (app_dir / ".dockerignore").read_text(encoding="utf-8")
+    readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    api_dockerfile = (app_dir / "api" / "Dockerfile").read_text(encoding="utf-8")
+    api_main = (app_dir / "api" / "app" / "main.py").read_text(encoding="utf-8")
+
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]' in compose
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/healthz >/dev/null || exit 1"]' in compose
+    assert "traefik.http.routers.portal-example-com-api.priority=100" in compose
+    assert "__pycache__" in dockerignore
+    assert "api/*.pyc" in dockerignore
+    assert ".env" in dockerignore
+    assert ".dockerignore" in readme
+    assert "python -m pip install --no-cache-dir -r requirements.txt" in api_dockerfile
+    assert '"message": "Replace api/app/main.py with your real API."' in api_main
 
 
 def test_app_init_python_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
@@ -426,6 +510,29 @@ def test_app_init_jekyll_template_creates_scaffold(monkeypatch, tmp_path: Path) 
     assert 'gem "jekyll"' in gemfile
     assert 'title: "blog.example.com"' in config_yml
     assert "blog.example.com" in index_md
+
+
+def test_app_init_placeholder_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "hold.example.com", "--template", "placeholder"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "hold.example.com"
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    env_example = (app_dir / ".env.example").read_text(encoding="utf-8")
+
+    assert "image: nginx:alpine" in compose
+    assert "loadbalancer.server.port=80" in compose
+    assert "healthcheck:" not in compose
+    assert "HOSTNAME=hold.example.com" in env_example
+    assert "APP_TEMPLATE=placeholder" in env_example
+    assert not (app_dir / "README.md").exists()
+    assert not (app_dir / ".dockerignore").exists()
 
 
 def test_app_init_jekyll_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
@@ -912,6 +1019,7 @@ def test_app_init_static_api_json_output(monkeypatch, tmp_path: Path) -> None:
     templates = {entry["template"] for entry in payload["rendered_templates"]}
     assert templates == {
         "app/static-api/docker-compose.yml.j2",
+        "app/static-api/dockerignore.j2",
         "app/static-api/README.md.j2",
         "app/static-api/index.html.j2",
         "app/static-api/favicon.svg.j2",

@@ -71,6 +71,7 @@ APP_TEMPLATE_SPECS: tuple[AppTemplateSpec, ...] = (
         description="Static site plus a small Python API.",
         outputs=(
             TemplateOutputSpec("docker-compose.yml", "app/static-api/docker-compose.yml.j2"),
+            TemplateOutputSpec(".dockerignore", "app/static-api/dockerignore.j2"),
             TemplateOutputSpec("README.md", "app/static-api/README.md.j2"),
             TemplateOutputSpec("html/index.html", "app/static-api/index.html.j2"),
             TemplateOutputSpec("html/favicon.svg", "app/static-api/favicon.svg.j2"),
@@ -83,7 +84,7 @@ APP_TEMPLATE_SPECS: tuple[AppTemplateSpec, ...] = (
         ),
         has_readme=True,
         has_healthcheck=True,
-        has_dockerignore=False,
+        has_dockerignore=True,
     ),
     AppTemplateSpec(
         name="node",
@@ -161,3 +162,10 @@ def app_template_spec(name: str) -> AppTemplateSpec:
             return template
     available = ", ".join(app_template_names())
     raise ValueError(f"unknown app template `{name}`. Expected one of: {available}")
+
+
+def expected_packaged_template_files() -> set[str]:
+    expected = {spec.template for spec in SITE_TEMPLATE_SPEC.outputs}
+    for template in APP_TEMPLATE_SPECS:
+        expected.update(spec.template for spec in template.outputs)
+    return {f"homesrvctl/templates/{template_path}" for template_path in expected}

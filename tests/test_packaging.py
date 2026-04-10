@@ -6,19 +6,12 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+from homesrvctl.template_catalog import expected_packaged_template_files
 
-EXPECTED_JEKYLL_TEMPLATE_FILES = {
-    "homesrvctl/templates/app/jekyll/docker-compose.yml.j2",
-    "homesrvctl/templates/app/jekyll/dockerignore.j2",
-    "homesrvctl/templates/app/jekyll/Dockerfile.j2",
-    "homesrvctl/templates/app/jekyll/README.md.j2",
-    "homesrvctl/templates/app/jekyll/site.Gemfile.j2",
-    "homesrvctl/templates/app/jekyll/site._config.yml.j2",
-    "homesrvctl/templates/app/jekyll/site.index.md.j2",
-}
+EXPECTED_TEMPLATE_FILES = expected_packaged_template_files()
 
 
-def test_build_artifacts_include_jekyll_template_assets(tmp_path: Path) -> None:
+def test_build_artifacts_include_shipped_template_assets(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     outdir = tmp_path / "dist"
 
@@ -35,11 +28,11 @@ def test_build_artifacts_include_jekyll_template_assets(tmp_path: Path) -> None:
 
     with zipfile.ZipFile(wheel_path) as wheel:
         wheel_names = set(wheel.namelist())
-    missing_from_wheel = EXPECTED_JEKYLL_TEMPLATE_FILES - wheel_names
-    assert not missing_from_wheel, f"wheel is missing Jekyll template assets: {sorted(missing_from_wheel)}"
+    missing_from_wheel = EXPECTED_TEMPLATE_FILES - wheel_names
+    assert not missing_from_wheel, f"wheel is missing shipped template assets: {sorted(missing_from_wheel)}"
 
     with tarfile.open(sdist_path, "r:gz") as sdist:
         sdist_names = set(sdist.getnames())
     sdist_paths = {name.split("/", 1)[1] for name in sdist_names if "/" in name}
-    missing_from_sdist = EXPECTED_JEKYLL_TEMPLATE_FILES - sdist_paths
-    assert not missing_from_sdist, f"sdist is missing Jekyll template assets: {sorted(missing_from_sdist)}"
+    missing_from_sdist = EXPECTED_TEMPLATE_FILES - sdist_paths
+    assert not missing_from_sdist, f"sdist is missing shipped template assets: {sorted(missing_from_sdist)}"
