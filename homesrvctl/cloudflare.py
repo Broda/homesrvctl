@@ -11,6 +11,7 @@ from pathlib import Path
 import typer
 import yaml
 
+from homesrvctl import __version__
 from homesrvctl.models import HomesrvctlConfig
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -271,7 +272,7 @@ class CloudflareApiClient:
             headers={
                 "Authorization": f"Bearer {self._api_token}",
                 "Content-Type": "application/json",
-                "User-Agent": "homesrvctl/0.2.0",
+                "User-Agent": f"homesrvctl/{__version__}",
             },
         )
         try:

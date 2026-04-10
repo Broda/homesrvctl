@@ -7,6 +7,7 @@ import urllib.request
 import typer
 import yaml
 
+from homesrvctl import __version__
 from homesrvctl.cloudflare import (
     CloudflareApiClient,
     CloudflareApiError,
@@ -155,7 +156,7 @@ def _check_cloudflared_service(quiet: bool = False) -> CheckResult:
 
 
 def _check_traefik_http(config: HomesrvctlConfig) -> CheckResult:
-    request = urllib.request.Request(config.traefik_url, headers={"User-Agent": "homesrvctl/0.2.0"})
+    request = urllib.request.Request(config.traefik_url, headers={"User-Agent": f"homesrvctl/{__version__}"})
     try:
         with urllib.request.urlopen(request, timeout=3) as response:
             return CheckResult("Traefik URL", True, f"{config.traefik_url} returned HTTP {response.status}")
@@ -177,7 +178,7 @@ def _check_cloudflared_ingress_config(config: HomesrvctlConfig) -> CheckResult:
 def _check_host_header(traefik_url: str, hostname: str) -> CheckResult:
     request = urllib.request.Request(
         traefik_url,
-        headers={"Host": hostname, "User-Agent": "homesrvctl/0.2.0"},
+        headers={"Host": hostname, "User-Agent": f"homesrvctl/{__version__}"},
     )
     try:
         with urllib.request.urlopen(request, timeout=3) as response:

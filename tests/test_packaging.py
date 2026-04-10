@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import tomllib
 import subprocess
 import sys
 import tarfile
 import zipfile
 from pathlib import Path
 
+from homesrvctl import __version__
 from homesrvctl.template_catalog import expected_packaged_template_files
 
 EXPECTED_TEMPLATE_FILES = expected_packaged_template_files()
+
+
+def test_package_version_matches_pyproject_metadata() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert project["project"]["version"] == __version__
 
 
 def test_build_artifacts_include_shipped_template_assets(tmp_path: Path) -> None:

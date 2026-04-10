@@ -1187,7 +1187,7 @@ Subtasks:
 
 ### 7.2 Strengthen packaging polish
 
-Status: planned
+Status: in progress
 
 Tasks:
 - Keep package metadata accurate and public-facing docs aligned with the actual install path.
@@ -1197,6 +1197,11 @@ Subtasks:
 - Review whether version strings are defined in too many places.
 - Decide whether version sourcing should be centralized further.
 - Keep README install guidance aligned with the active release channels.
+
+Current baseline:
+- Fresh local `sdist` and wheel builds remain reproducible through `.venv/bin/python -m build`.
+- Packaging coverage now asserts that `homesrvctl.__version__` matches `pyproject.toml` so runtime version strings do not drift silently from release metadata.
+- Runtime HTTP user-agent strings now derive from the package version instead of hard-coded release literals.
 
 ### 7.3 Decide how much release-note automation is enough
 
