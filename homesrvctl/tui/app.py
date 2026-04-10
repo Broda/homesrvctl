@@ -3,7 +3,9 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Static
+from textual.events import Click
+from textual.widget import Widget
+from textual.widgets import Header, Label, Static
 
 from homesrvctl.tui.data import (
     build_dashboard_snapshot,
@@ -28,6 +30,68 @@ from homesrvctl.tui.prompts import (
     ToolActionMenuScreen,
 )
 from homesrvctl.utils import validate_bare_domain
+
+
+class ControlSectionLabel(Widget):
+    """Non-clickable section header in the controls pane."""
+
+    DEFAULT_CSS = """
+    ControlSectionLabel {
+        height: auto;
+        color: #1fd6c1;
+        text-style: bold;
+        padding: 0 0;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, text: str) -> None:
+        super().__init__()
+        self._text = text
+
+    def render(self) -> str:
+        return self._text
+
+
+class ControlRowWidget(Widget, can_focus=False):
+    """Clickable row in the controls pane. Carries --selected when active."""
+
+    DEFAULT_CSS = """
+    ControlRowWidget {
+        height: 1;
+        padding: 0 1;
+        color: #d7fff7;
+    }
+    ControlRowWidget:hover {
+        background: #0d2028;
+    }
+    ControlRowWidget.--selected {
+        background: #13bfae;
+        color: #081014;
+        text-style: bold;
+    }
+    """
+
+    def __init__(self, index: int, label: str, suffix: str = "") -> None:
+        super().__init__()
+        self._index = index
+        self._label = label
+        self._suffix = suffix
+
+    @property
+    def row_index(self) -> int:
+        return self._index
+
+    def render(self) -> str:
+        if self._suffix:
+            return f"{self._label} {self._suffix}"
+        return self._label
+
+    def on_click(self, event: Click) -> None:  # noqa: ARG002
+        app = self.app
+        if isinstance(app, HomesrvctlTextualApp):
+            app.selected_control_index = self._index
+            app._render()
 
 
 class HomesrvctlTextualApp(App[None]):
@@ -97,6 +161,15 @@ class HomesrvctlTextualApp(App[None]):
         padding: 1 2;
         background: #0b1419;
         border: round #13bfae;
+        overflow-y: auto;
+    }
+
+    .compose_yes {
+        color: #1fd6c1;
+    }
+
+    .compose_no {
+        color: #3a5a5a;
     }
 
     #detail_pane {
@@ -113,11 +186,16 @@ class HomesrvctlTextualApp(App[None]):
         margin-bottom: 1;
     }
 
-    #controls_box, #detail_box, #command_bar {
+    #detail_box, #command_bar {
         padding: 0 1;
     }
 
-    #controls_box, #detail_box {
+    #controls_box {
+        height: 1fr;
+        padding: 0;
+    }
+
+    #detail_box {
         height: 1fr;
     }
 
@@ -236,7 +314,7 @@ class HomesrvctlTextualApp(App[None]):
         with Horizontal(id="body"):
             with Vertical(id="controls_pane"):
                 yield Static("Controls", classes="pane_title")
-                yield Static("", id="controls_box")
+                yield Vertical(id="controls_box")
             with Vertical(id="detail_pane"):
                 yield Static("Detail", id="detail_pane_title", classes="pane_title")
                 yield Static("", id="detail_box")
@@ -520,10 +598,36 @@ class HomesrvctlTextualApp(App[None]):
         self.query_one("#summary_stacks", Static).update(self._summary_card("Stacks", self._stacks_summary()))
         self.query_one("#summary_cloudflared", Static).update(self._summary_card("Cloudflared", self._cloudflared_summary()))
         self.query_one("#summary_validate", Static).update(self._summary_card("Validate", self._validate_summary()))
-        self.query_one("#controls_box", Static).update(self._control_list_text())
+        self._rebuild_controls()
         self.query_one("#detail_pane_title", Static).update(self._detail_pane_title())
         self.query_one("#detail_box", Static).update(self._detail_text())
         self.query_one("#command_bar_text", Static).update(self._command_bar_text())
+
+    def _rebuild_controls(self) -> None:
+        controls_box = self.query_one("#controls_box", Vertical)
+        controls_box.remove_children()
+        items = self._control_items()
+        tool_count = 3
+        controls_box.mount(ControlSectionLabel("Tools"))
+        for index, item in enumerate(items[:tool_count]):
+            row = ControlRowWidget(index, str(item["label"]))
+            if index == self.selected_control_index:
+                row.add_class("--selected")
+            controls_box.mount(row)
+        controls_box.mount(ControlSectionLabel("Stacks"))
+        stack_items = items[tool_count:]
+        if not stack_items:
+            controls_box.mount(Static("(no stacks found)", id="controls_no_stacks"))
+        for offset, item in enumerate(stack_items):
+            index = tool_count + offset
+            has_compose = bool(item.get("compose"))
+            symbol = "●" if has_compose else "○"
+            symbol_class = "compose_yes" if has_compose else "compose_no"
+            suffix = f"[{symbol_class}]{symbol}[/{symbol_class}]"
+            row = ControlRowWidget(index, str(item["label"]), suffix)
+            if index == self.selected_control_index:
+                row.add_class("--selected")
+            controls_box.mount(row)
 
     def _summary_card(self, title: str, detail: str) -> str:
         return f"{title}\n\n{detail}"

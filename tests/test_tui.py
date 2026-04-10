@@ -1577,3 +1577,100 @@ def test_textual_app_complete_config_init_overwrite_cancel_updates_status(monkey
     app._complete_config_init_overwrite(False)
 
     assert app.status_message == "config init cancelled"
+
+
+def test_control_row_widget_has_correct_index_and_label() -> None:
+    row = textual_app.ControlRowWidget(2, "Validate")
+
+    assert row.row_index == 2
+    assert row.render() == "Validate"
+
+
+def test_control_row_widget_renders_with_suffix() -> None:
+    row = textual_app.ControlRowWidget(3, "example.com", "[compose_yes]●[/compose_yes]")
+
+    rendered = row.render()
+
+    assert "example.com" in rendered
+    assert "●" in rendered
+
+
+def test_control_row_widget_click_updates_selected_index(monkeypatch) -> None:
+    import asyncio
+
+    async def _run() -> int:
+        snapshot = {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+            "validate": {"ok": True, "checks": []},
+        }
+
+        def fake_build_snapshot():  # noqa: ANN202
+            return snapshot
+
+        monkeypatch.setattr(data, "build_dashboard_snapshot", fake_build_snapshot)
+
+        app = textual_app.HomesrvctlTextualApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            # Validate row is index 2 — click it
+            await pilot.click(textual_app.ControlRowWidget, offset=(1, 0))
+            # All three tool rows appear; the first ControlRowWidget is Config (index 0)
+            # We need the third row (Validate, index 2)
+            rows = app.query(textual_app.ControlRowWidget)
+            validate_row = [r for r in rows if r.row_index == 2][0]
+            await pilot.click(validate_row)
+            return app.selected_control_index
+
+    result = asyncio.run(_run())
+    assert result == 2
+
+
+def test_control_items_returns_tools_then_stacks() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [
+            {"hostname": "example.com", "compose": True},
+            {"hostname": "notes.example.com", "compose": False},
+        ]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+        "validate": {"ok": True, "checks": []},
+    }
+
+    items = app._control_items()
+
+    assert items[0] == {"kind": "tool", "tool": "config", "label": "Config"}
+    assert items[1] == {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"}
+    assert items[2] == {"kind": "tool", "tool": "validate", "label": "Validate"}
+    assert items[3]["kind"] == "stack"
+    assert items[3]["hostname"] == "example.com"
+    assert items[3]["compose"] is True
+    assert items[4]["kind"] == "stack"
+    assert items[4]["hostname"] == "notes.example.com"
+    assert items[4]["compose"] is False
+
+
+def test_detail_pane_title_reflects_focused_tool() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+        "validate": {"ok": True, "checks": []},
+    }
+
+    app.selected_control_index = 0
+    assert app._detail_pane_title() == "Tool: Config"
+
+    app.selected_control_index = 1
+    assert app._detail_pane_title() == "Tool: Cloudflared"
+
+    app.selected_control_index = 2
+    assert app._detail_pane_title() == "Tool: Validate"
+
+    app.selected_control_index = 3
+    assert app._detail_pane_title() == "Stack: example.com"
