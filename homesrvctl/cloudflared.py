@@ -31,6 +31,7 @@ class CloudflaredConfigValidation:
     detail: str
     command: list[str] | None = None
     method: str = "structural"
+    issues: list["CloudflaredConfigIssue"] | None = None
     warnings: list[str] | None = None
 
 
@@ -39,6 +40,23 @@ class CloudflaredConfigWarning:
     code: str
     detail: str
     hint: str | None = None
+
+    def render(self) -> str:
+        if not self.hint:
+            return self.detail
+        return f"{self.detail}. Hint: {self.hint}"
+
+
+@dataclass(slots=True)
+class CloudflaredConfigIssue:
+    code: str
+    severity: str
+    detail: str
+    hint: str | None = None
+
+    @property
+    def blocking(self) -> bool:
+        return self.severity == "blocking"
 
     def render(self) -> str:
         if not self.hint:
@@ -108,13 +126,18 @@ def test_cloudflared_config(config_path: Path) -> CloudflaredConfigValidation:
         command = ["cloudflared", "tunnel", "--config", str(config_path), "ingress", "validate"]
         result = run_command(command, quiet=True)
         if result.ok:
+            issues = inspect_cloudflared_config_issues(config_path)
+            blocking_issues = [issue for issue in issues if issue.blocking]
             detail = result.stdout or result.stderr or f"cloudflared ingress validate passed for {config_path}"
+            if blocking_issues:
+                detail = _summarize_cloudflared_issues(blocking_issues)
             return CloudflaredConfigValidation(
-                ok=True,
+                ok=not blocking_issues,
                 detail=detail,
                 command=command,
                 method="cloudflared",
-                warnings=collect_cloudflared_config_warnings(config_path),
+                issues=issues,
+                warnings=[issue.render() for issue in issues if issue.severity == "advisory"],
             )
         detail = result.stderr or result.stdout or "cloudflared ingress validate failed"
         return CloudflaredConfigValidation(ok=False, detail=detail, command=command, method="cloudflared")
@@ -128,23 +151,41 @@ def test_cloudflared_config(config_path: Path) -> CloudflaredConfigValidation:
             command=None,
             method="structural",
         )
+    issues = inspect_cloudflared_config_issues(config_path)
+    blocking_issues = [issue for issue in issues if issue.blocking]
+    detail = f"fallback service {fallback}"
+    if blocking_issues:
+        detail = _summarize_cloudflared_issues(blocking_issues)
     return CloudflaredConfigValidation(
-        ok=True,
-        detail=f"fallback service {fallback}",
+        ok=not blocking_issues,
+        detail=detail,
         command=None,
         method="structural",
-        warnings=collect_cloudflared_config_warnings(config_path),
+        issues=issues,
+        warnings=[issue.render() for issue in issues if issue.severity == "advisory"],
     )
 
 
 def collect_cloudflared_config_warnings(config_path: Path) -> list[str]:
-    return [warning.render() for warning in inspect_cloudflared_config_warnings(config_path)]
+    return [issue.render() for issue in inspect_cloudflared_config_issues(config_path) if issue.severity == "advisory"]
+
+
+def collect_cloudflared_config_issues(config_path: Path) -> list[str]:
+    return [issue.render() for issue in inspect_cloudflared_config_issues(config_path)]
 
 
 def inspect_cloudflared_config_warnings(config_path: Path) -> list[CloudflaredConfigWarning]:
+    return [
+        CloudflaredConfigWarning(code=issue.code, detail=issue.detail, hint=issue.hint)
+        for issue in inspect_cloudflared_config_issues(config_path)
+        if issue.severity == "advisory"
+    ]
+
+
+def inspect_cloudflared_config_issues(config_path: Path) -> list[CloudflaredConfigIssue]:
     parsed = _load_config(config_path)
     ingress = _normalize_ingress(parsed, config_path)
-    warnings: list[CloudflaredConfigWarning] = []
+    issues: list[CloudflaredConfigIssue] = []
     host_entries = [
         (index, str(entry.get("hostname", "")).strip().lower(), str(entry.get("service", "")).strip())
         for index, entry in enumerate(ingress[:-1])
@@ -153,11 +194,23 @@ def inspect_cloudflared_config_warnings(config_path: Path) -> list[CloudflaredCo
     for index, hostname, service in host_entries:
         for later_index, later_hostname, _later_service in host_entries[index + 1 :]:
             if hostname == later_hostname:
+                issues.append(
+                    CloudflaredConfigIssue(
+                        code="duplicate-exact-hostname",
+                        severity="blocking",
+                        detail=(
+                            "duplicate exact ingress hostname entries configured for "
+                            f"{hostname} at ingress index {later_index}"
+                        ),
+                        hint=f"remove the duplicate '{hostname}' ingress entry so the hostname appears only once",
+                    )
+                )
                 continue
             if _wildcard_precedence_risk(hostname, later_hostname):
-                warnings.append(
-                    CloudflaredConfigWarning(
+                issues.append(
+                    CloudflaredConfigIssue(
                         code="wildcard-precedence-risk",
+                        severity="advisory",
                         detail=(
                             "earlier wildcard rule "
                             f"{hostname} -> {service} may capture hosts intended for later wildcard {later_hostname} "
@@ -171,9 +224,10 @@ def inspect_cloudflared_config_warnings(config_path: Path) -> list[CloudflaredCo
                 )
                 continue
             if _hostname_matches(hostname, later_hostname):
-                warnings.append(
-                    CloudflaredConfigWarning(
+                issues.append(
+                    CloudflaredConfigIssue(
                         code="wildcard-shadows-hostname",
+                        severity="blocking",
                         detail=(
                             "earlier ingress rule "
                             f"{hostname} -> {service} may shadow later hostname {later_hostname} at ingress index "
@@ -185,7 +239,7 @@ def inspect_cloudflared_config_warnings(config_path: Path) -> list[CloudflaredCo
                         ),
                     )
                 )
-    return warnings
+    return issues
 
 
 def find_hostname_route(config_path: Path, hostname: str) -> str | None:
@@ -383,3 +437,11 @@ def _cloudflared_config_hint(message: str) -> str | None:
     if "invalid cloudflared config YAML" in message:
         return "fix the YAML syntax before retrying"
     return None
+
+
+def _summarize_cloudflared_issues(issues: list[CloudflaredConfigIssue]) -> str:
+    if not issues:
+        return "no cloudflared ingress issues detected"
+    if len(issues) == 1:
+        return issues[0].render()
+    return f"{len(issues)} blocking cloudflared ingress issues detected. First issue: {issues[0].render()}"

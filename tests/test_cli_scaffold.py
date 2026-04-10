@@ -998,9 +998,33 @@ def test_cloudflared_status_json_output(monkeypatch) -> None:
                 "detail": "Everything OK",
                 "command": ["cloudflared", "tunnel", "--config", str(path), "ingress", "validate"],
                 "method": "cloudflared",
+                "issues": [
+                    type(
+                        "Issue",
+                        (),
+                        {
+                            "code": "wildcard-precedence-risk",
+                            "severity": "advisory",
+                            "blocking": False,
+                            "detail": (
+                                "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for "
+                                "later wildcard *.example.com at ingress index 1"
+                            ),
+                            "hint": (
+                                "move the narrower wildcard *.example.com above *.com, or narrow/remove the broader "
+                                "wildcard if it is no longer needed"
+                            ),
+                            "render": lambda self: (
+                                "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for "
+                                "later wildcard *.example.com at ingress index 1. Hint: move the narrower wildcard "
+                                "*.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed"
+                            ),
+                        },
+                    )()
+                ],
                 "warnings": [
-                    "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
-                    "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+                    "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for later wildcard *.example.com at ingress index 1. "
+                    "Hint: move the narrower wildcard *.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed"
                 ],
             },
         )(),
@@ -1017,11 +1041,14 @@ def test_cloudflared_status_json_output(monkeypatch) -> None:
     assert payload["restart_command"] == ["docker", "restart", "cloudflared"]
     assert payload["reload_command"] is None
     assert payload["config_validation"]["ok"] is True
+    assert payload["config_validation"]["issues"][0]["severity"] == "advisory"
     assert payload["config_validation"]["warnings"] == [
-        "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
-        "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+        "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for later wildcard *.example.com at ingress index 1. "
+        "Hint: move the narrower wildcard *.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed"
     ]
     assert payload["config_validation"]["has_warnings"] is True
+    assert payload["config_validation"]["has_blocking_issues"] is False
+    assert payload["config_validation"]["max_severity"] == "advisory"
     assert payload["config_validation"]["warning_policy"] == "non-fatal"
 
 
@@ -1055,9 +1082,33 @@ def test_cloudflared_status_text_reports_warning_policy(monkeypatch) -> None:
                 "detail": "Everything OK",
                 "command": None,
                 "method": "structural",
+                "issues": [
+                    type(
+                        "Issue",
+                        (),
+                        {
+                            "code": "wildcard-precedence-risk",
+                            "severity": "advisory",
+                            "blocking": False,
+                            "detail": (
+                                "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for "
+                                "later wildcard *.example.com at ingress index 1"
+                            ),
+                            "hint": (
+                                "move the narrower wildcard *.example.com above *.com, or narrow/remove the broader "
+                                "wildcard if it is no longer needed"
+                            ),
+                            "render": lambda self: (
+                                "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for "
+                                "later wildcard *.example.com at ingress index 1. Hint: move the narrower wildcard "
+                                "*.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed"
+                            ),
+                        },
+                    )()
+                ],
                 "warnings": [
-                    "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
-                    "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+                    "earlier wildcard rule *.com -> http://localhost:9000 may capture hosts intended for later wildcard *.example.com at ingress index 1. "
+                    "Hint: move the narrower wildcard *.example.com above *.com, or narrow/remove the broader wildcard if it is no longer needed"
                 ],
             },
         )(),
@@ -1236,6 +1287,7 @@ def test_cloudflared_config_test_reports_cli_validation(monkeypatch, tmp_path: P
                 "detail": "Everything OK",
                 "command": ["cloudflared", "tunnel", "--config", str(path), "ingress", "validate"],
                 "method": "cloudflared",
+                "issues": [],
                 "warnings": [],
             },
         )(),
@@ -1274,6 +1326,7 @@ def test_cloudflared_config_test_json_reports_structural_fallback(monkeypatch, t
                 "detail": "fallback service http_status:404",
                 "command": None,
                 "method": "structural",
+                "issues": [],
                 "warnings": [],
             },
         )(),
@@ -1288,6 +1341,7 @@ def test_cloudflared_config_test_json_reports_structural_fallback(monkeypatch, t
     assert payload["method"] == "structural"
     assert payload["command"] is None
     assert payload["detail"] == "fallback service http_status:404"
+    assert payload["issues"] == []
     assert payload["warnings"] == []
 
 
@@ -1312,14 +1366,35 @@ def test_cloudflared_config_test_reports_shadowing_warning(monkeypatch, tmp_path
             "Validation",
             (),
             {
-                "ok": True,
-                "detail": "fallback service http_status:404",
-                "command": None,
-                "method": "structural",
-                "warnings": [
+                "ok": False,
+                "detail": (
                     "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
                     "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+                ),
+                "command": None,
+                "method": "structural",
+                "issues": [
+                    type(
+                        "Issue",
+                        (),
+                        {
+                            "code": "wildcard-shadows-hostname",
+                            "severity": "blocking",
+                            "blocking": True,
+                            "detail": (
+                                "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1"
+                            ),
+                            "hint": (
+                                "move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+                            ),
+                            "render": lambda self: (
+                                "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
+                                "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
+                            ),
+                        },
+                    )()
                 ],
+                "warnings": [],
             },
         )(),
     )
@@ -1327,9 +1402,9 @@ def test_cloudflared_config_test_reports_shadowing_warning(monkeypatch, tmp_path
     runner = CliRunner()
     result = runner.invoke(app, ["cloudflared", "config-test"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert (
-        "warning: earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
+        "blocking issue: earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
         "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
         in result.output
     )

@@ -466,10 +466,7 @@ def test_collect_cloudflared_config_warnings_reports_shadowing_wildcard(tmp_path
 
     warnings = collect_cloudflared_config_warnings(cloudflared_config)
 
-    assert warnings == [
-        "earlier ingress rule *.com -> http://localhost:9000 may shadow later hostname example.com at ingress index 1. "
-        "Hint: move example.com above *.com, or narrow/remove the earlier rule so the specific hostname matches first"
-    ]
+    assert warnings == []
 
 
 def test_collect_cloudflared_config_warnings_reports_wildcard_precedence_risk(tmp_path: Path) -> None:
@@ -486,3 +483,20 @@ def test_collect_cloudflared_config_warnings_reports_wildcard_precedence_risk(tm
         "*.example.com at ingress index 1. Hint: move the narrower wildcard *.example.com above *.com, "
         "or narrow/remove the broader wildcard if it is no longer needed"
     ]
+
+
+def test_collect_cloudflared_config_issues_reports_blocking_shadowed_hostname(tmp_path: Path) -> None:
+    from homesrvctl.cloudflared import inspect_cloudflared_config_issues
+
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    cloudflared_config.write_text(
+        "tunnel: 1234-uuid\ningress:\n  - hostname: '*.com'\n    service: http://localhost:9000\n  - hostname: example.com\n    service: http://localhost:8081\n  - service: http_status:404\n",
+        encoding="utf-8",
+    )
+
+    issues = inspect_cloudflared_config_issues(cloudflared_config)
+
+    assert len(issues) == 1
+    assert issues[0].severity == "blocking"
+    assert issues[0].code == "wildcard-shadows-hostname"
+    assert "may shadow later hostname example.com" in issues[0].detail

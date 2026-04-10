@@ -29,8 +29,11 @@ def cloudflared_status(
         config_validation = test_cloudflared_config(config.cloudflared_config)
     except typer.BadParameter:
         config_validation = None
+    runtime_ok = runtime.active
+    config_ok = config_validation is None or config_validation.ok
+    overall_ok = runtime_ok and config_ok
     if json_output:
-        payload = _runtime_payload(runtime, ok=runtime.active)
+        payload = _runtime_payload(runtime, ok=overall_ok)
         if config_validation is not None:
             payload["config_validation"] = _config_validation_payload(config_validation)
         typer.echo(json.dumps(with_json_schema(payload), indent=2))
@@ -45,15 +48,20 @@ def cloudflared_status(
         else:
             warn(detail)
         if config_validation is not None:
+            issues = list(getattr(config_validation, "issues", []) or [])
             if config_validation.ok:
                 info(f"config: {config_validation.detail}")
-                for warning_message in config_validation.warnings or []:
-                    warn(f"config warning: {warning_message}")
-                if config_validation.warnings:
+                for issue in issues:
+                    if issue.severity == "advisory":
+                        warn(f"config advisory: {issue.render()}")
+                if any(issue.severity == "advisory" for issue in issues):
                     info("config warnings are advisory; cloudflared status remains healthy while the config stays valid")
             else:
                 warn(f"config: {config_validation.detail}")
-    if not runtime.active:
+                for issue in issues:
+                    prefix = "config blocking issue" if issue.blocking else "config advisory"
+                    warn(f"{prefix}: {issue.render()}")
+    if not overall_ok:
         raise typer.Exit(code=1)
 
 
@@ -188,6 +196,7 @@ def cloudflared_config_test(
         "method": result.method,
         "command": result.command,
         "detail": result.detail,
+        "issues": _config_issue_payloads(getattr(result, "issues", []) or []),
         "warnings": result.warnings or [],
     })
     if json_output:
@@ -197,10 +206,11 @@ def cloudflared_config_test(
             info(f"$ {' '.join(result.command)}")
         if result.ok:
             success(result.detail)
-            for warning_message in result.warnings or []:
-                warn(f"warning: {warning_message}")
         else:
             warn(result.detail)
+        for issue in getattr(result, "issues", []) or []:
+            prefix = "warning" if issue.severity == "advisory" else "blocking issue"
+            warn(f"{prefix}: {issue.render()}")
     if not result.ok:
         raise typer.Exit(code=1)
 
@@ -227,15 +237,35 @@ def _runtime_payload(runtime, ok: bool, dry_run: bool | None = None) -> dict[str
 
 def _config_validation_payload(result) -> dict[str, object]:  # noqa: ANN001
     warnings = result.warnings or []
+    issues = list(getattr(result, "issues", []) or [])
+    has_blocking_issues = any(issue.blocking for issue in issues)
+    advisory_count = sum(1 for issue in issues if issue.severity == "advisory")
     return {
         "ok": result.ok,
         "detail": result.detail,
         "method": result.method,
         "command": result.command,
+        "issues": _config_issue_payloads(issues),
         "warnings": warnings,
         "has_warnings": bool(warnings),
+        "has_blocking_issues": has_blocking_issues,
+        "max_severity": "blocking" if has_blocking_issues else ("advisory" if advisory_count else None),
         "warning_policy": "non-fatal" if result.ok and warnings else None,
     }
+
+
+def _config_issue_payloads(issues) -> list[dict[str, object]]:  # noqa: ANN001
+    return [
+        {
+            "code": issue.code,
+            "severity": issue.severity,
+            "blocking": issue.blocking,
+            "detail": issue.detail,
+            "hint": issue.hint,
+            "message": issue.render(),
+        }
+        for issue in issues
+    ]
 
 
 def _logs_command(runtime, follow: bool) -> list[str] | None:  # noqa: ANN001
