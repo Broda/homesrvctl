@@ -27,10 +27,12 @@ from homesrvctl.tui.prompts import (
     AppInitTemplateScreen,
     CloudflaredLogsModeScreen,
     ConfirmActionScreen,
+    CreationModeScreen,
     StackActionMenuScreen,
+    TextEntryScreen,
     ToolActionMenuScreen,
 )
-from homesrvctl.utils import validate_bare_domain
+from homesrvctl.utils import validate_bare_domain, validate_hostname
 
 
 class SummaryCardWidget(Widget, can_focus=False):
@@ -301,6 +303,11 @@ class HomesrvctlTextualApp(App[None]):
         background: rgba(3, 8, 10, 0.72);
     }
 
+    TextEntryScreen {
+        align: center middle;
+        background: rgba(3, 8, 10, 0.72);
+    }
+
     StackActionMenuScreen {
         align: center middle;
         background: rgba(3, 8, 10, 0.72);
@@ -336,6 +343,16 @@ class HomesrvctlTextualApp(App[None]):
         color: #d7fff7;
     }
 
+    #text_entry_prompt {
+        width: 80;
+        max-width: 92%;
+        height: auto;
+        padding: 1 2;
+        background: #0b1419;
+        border: round #ffcf5a;
+        color: #d7fff7;
+    }
+
     .prompt_title {
         color: #ffcf5a;
         text-style: bold;
@@ -346,6 +363,14 @@ class HomesrvctlTextualApp(App[None]):
         color: #8ccfc5;
         margin-bottom: 1;
     }
+
+    .prompt_input {
+        min-height: 3;
+        padding: 1 1;
+        background: #081014;
+        border: round #13bfae;
+        color: #d7fff7;
+    }
     """
 
     BINDINGS = [
@@ -354,6 +379,7 @@ class HomesrvctlTextualApp(App[None]):
         Binding("enter,o", "stack_action_menu", "Actions", show=False),
         Binding("w,up", "previous_control", "Prev", show=False),
         Binding("s,down,tab", "next_control", "Next", show=False),
+        Binding("b", "create_stack_flow", "Create", show=False),
         Binding("a", "app_init_prompt", "App Init", show=False),
         Binding("n", "domain_add_prompt", "Add Domain", show=False),
         Binding("p", "domain_repair", "Repair Domain", show=False),
@@ -378,6 +404,7 @@ class HomesrvctlTextualApp(App[None]):
         self.stack_config_views: dict[str, dict[str, object]] = {}
         self.stack_domain_views: dict[str, dict[str, object]] = {}
         self.last_tool_actions: dict[str, dict[str, object]] = {}
+        self.pending_create_request: dict[str, object] | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -422,6 +449,17 @@ class HomesrvctlTextualApp(App[None]):
 
     def action_site_init(self) -> None:
         self._run_selected_stack_action("init-site")
+
+    def action_create_stack_flow(self) -> None:
+        self.pending_create_request = None
+        self.push_screen(
+            TextEntryScreen(
+                "New Stack Hostname",
+                "Enter the hostname to scaffold. Press enter to continue or esc to cancel.",
+                placeholder="app.example.com",
+            ),
+            self._complete_create_hostname,
+        )
 
     def action_stack_action_menu(self) -> None:
         item = self._selected_control_item()
@@ -581,6 +619,147 @@ class HomesrvctlTextualApp(App[None]):
             return
         self._run_selected_tool_action("cloudflared", "logs", follow=follow)
 
+    def _complete_create_hostname(self, hostname: str | None) -> None:
+        if hostname is None:
+            self.pending_create_request = None
+            self.status_message = "create flow cancelled"
+            self._render()
+            return
+        try:
+            valid_hostname = validate_hostname(hostname)
+        except Exception as exc:
+            self.pending_create_request = None
+            self.status_message = f"create flow rejected hostname: {exc}"
+            self._render()
+            return
+        self.pending_create_request = {"hostname": valid_hostname}
+        self.push_screen(CreationModeScreen(valid_hostname), self._complete_create_mode)
+
+    def _complete_create_mode(self, action: str | None) -> None:
+        if action is None:
+            self.pending_create_request = None
+            self.status_message = "create flow cancelled"
+            self._render()
+            return
+        if self.pending_create_request is None:
+            self.pending_create_request = {}
+        self.pending_create_request["action"] = action
+        hostname = str(self.pending_create_request.get("hostname", ""))
+        if action == "app-init":
+            self.push_screen(AppInitTemplateScreen(), lambda template: self._complete_create_template(hostname, template))
+            return
+        self._push_create_profile_prompt()
+
+    def _complete_create_template(self, hostname: str, template: str | None) -> None:
+        if template is None:
+            self.pending_create_request = None
+            self.status_message = f"app init cancelled for {hostname}"
+            self._render()
+            return
+        if self.pending_create_request is None:
+            self.pending_create_request = {"hostname": hostname, "action": "app-init"}
+        self.pending_create_request["template"] = template
+        self._push_create_profile_prompt()
+
+    def _push_create_profile_prompt(self) -> None:
+        self.push_screen(
+            TextEntryScreen(
+                "Routing Profile",
+                "Optional: enter a named profile, or leave blank to use direct/default settings.",
+                placeholder="edge",
+            ),
+            self._complete_create_profile,
+        )
+
+    def _complete_create_profile(self, profile: str | None) -> None:
+        if profile is None:
+            self.pending_create_request = None
+            self.status_message = "create flow cancelled"
+            self._render()
+            return
+        if self.pending_create_request is None:
+            self.pending_create_request = {}
+        self.pending_create_request["profile"] = profile or None
+        self.push_screen(
+            TextEntryScreen(
+                "Docker Network",
+                "Optional: enter a stack-local docker network override, or leave blank.",
+                placeholder="edge",
+            ),
+            self._complete_create_docker_network,
+        )
+
+    def _complete_create_docker_network(self, docker_network: str | None) -> None:
+        if docker_network is None:
+            self.pending_create_request = None
+            self.status_message = "create flow cancelled"
+            self._render()
+            return
+        if self.pending_create_request is None:
+            self.pending_create_request = {}
+        self.pending_create_request["docker_network"] = docker_network or None
+        self.push_screen(
+            TextEntryScreen(
+                "Traefik URL",
+                "Optional: enter a stack-local ingress target override, or leave blank.",
+                placeholder="http://localhost:8081",
+            ),
+            self._complete_create_traefik_url,
+        )
+
+    def _complete_create_traefik_url(self, traefik_url: str | None) -> None:
+        if traefik_url is None:
+            self.pending_create_request = None
+            self.status_message = "create flow cancelled"
+            self._render()
+            return
+        if self.pending_create_request is None:
+            self.pending_create_request = {}
+        self.pending_create_request["traefik_url"] = traefik_url or None
+        self._run_pending_create_request()
+
+    def _run_pending_create_request(self, *, force: bool = False) -> None:
+        request = dict(self.pending_create_request or {})
+        hostname = str(request.get("hostname", ""))
+        action = str(request.get("action", ""))
+        template = request.get("template")
+        payload = run_stack_action(
+            hostname,
+            action,
+            template=str(template) if isinstance(template, str) else None,
+            force=force,
+            profile=str(request["profile"]) if request.get("profile") else None,
+            docker_network=str(request["docker_network"]) if request.get("docker_network") else None,
+            traefik_url=str(request["traefik_url"]) if request.get("traefik_url") else None,
+        )
+        error_text = str(payload.get("error") or "")
+        if not payload.get("ok") and not force and "already exist" in error_text:
+            label = "app init" if action == "app-init" else "site init"
+            self.push_screen(
+                ConfirmActionScreen(
+                    title="Confirm Scaffold Overwrite",
+                    body=f"{label} reported existing files for {hostname}. Overwrite them?",
+                ),
+                self._complete_create_overwrite,
+            )
+            return
+        self.pending_create_request = None
+        self.last_stack_actions[hostname] = {"action": action, "payload": payload}
+        self.status_message = summarize_stack_action(hostname, action, payload)
+        self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
+        self.stack_domain_views = {}
+        self._reselect_hostname(hostname)
+        self._render()
+
+    def _complete_create_overwrite(self, confirmed: bool) -> None:
+        if not confirmed:
+            self.pending_create_request = None
+            self.status_message = "create overwrite cancelled"
+            self._render()
+            return
+        self._run_pending_create_request(force=True)
+
     def _run_config_init(self, *, force: bool = False) -> None:
         payload = run_tool_action("config", "init", force=force)
         if (
@@ -649,11 +828,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
-        items = self._control_items()
-        if items:
-            self.selected_control_index = min(self.selected_control_index, len(items) - 1)
-        else:
-            self.selected_control_index = 0
+        self._reselect_hostname(hostname)
         self._render()
 
     def _run_selected_tool_action(self, tool: str, action: str, *, follow: bool = False) -> None:
@@ -688,6 +863,17 @@ class HomesrvctlTextualApp(App[None]):
         self._rebuild_detail_buttons()
         self.query_one("#command_bar_text", Static).update(self._command_bar_text())
 
+    def _reselect_hostname(self, hostname: str) -> None:
+        items = self._control_items()
+        for index, item in enumerate(items):
+            if item.get("kind") == "stack" and item.get("hostname") == hostname:
+                self.selected_control_index = index
+                return
+        if items:
+            self.selected_control_index = min(self.selected_control_index, len(items) - 1)
+        else:
+            self.selected_control_index = 0
+
     #: Maps detail button label → action method name; rebuilt each render.
     _detail_button_actions: dict[str, str]
 
@@ -702,16 +888,19 @@ class HomesrvctlTextualApp(App[None]):
                 ("Restart", "restart"),
                 ("Doctor", "doctor"),
                 ("Actions", "stack_action_menu"),
+                ("Create", "create_stack_flow"),
             ]
         elif item.get("tool") == "cloudflared":
             specs = [
                 ("Config Test", "cloudflared_config_test"),
                 ("Reload", "cloudflared_reload"),
                 ("Restart CF", "cloudflared_restart"),
+                ("Create", "create_stack_flow"),
             ]
         else:
             specs = [
                 ("Refresh", "refresh"),
+                ("Create", "create_stack_flow"),
             ]
         self._detail_button_actions = {}
         for label, action in specs:
@@ -825,7 +1014,7 @@ class HomesrvctlTextualApp(App[None]):
 
     def _command_bar_text(self) -> str:
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"
-        return f"w/s navigate  ·  r refresh  ·  q quit  ·  status: {self.status_message}  ·  {mode}"
+        return f"w/s navigate  ·  b create  ·  r refresh  ·  q quit  ·  status: {self.status_message}  ·  {mode}"
 
     def _stacks_summary_parts(self) -> tuple[str, str]:
         payload = self.snapshot.get("list")
@@ -935,7 +1124,7 @@ class HomesrvctlTextualApp(App[None]):
             "",
             *render_domain_status_detail(hostname, domain_view),
             "",
-            "· enter menu  · u up  · x down  · t restart  · g doctor  · r refresh",
+            "· enter menu  · b create  · u up  · x down  · t restart  · g doctor  · r refresh",
         ]
         cached = self.last_stack_actions.get(hostname)
         if isinstance(cached, dict):
@@ -994,7 +1183,7 @@ class HomesrvctlTextualApp(App[None]):
             payload = cached.get("payload")
             if isinstance(action, str) and isinstance(payload, dict):
                 lines.extend(["", *render_tool_action_detail("cloudflared", action, payload)])
-        lines.extend(["", "· enter menu  · r refresh  · q quit"])
+        lines.extend(["", "· enter menu  · b create  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _config_detail_text(self) -> str:
@@ -1008,7 +1197,7 @@ class HomesrvctlTextualApp(App[None]):
             action_payload = cached.get("payload")
             if isinstance(action, str) and isinstance(action_payload, dict):
                 lines.extend(["", *render_tool_action_detail("config", action, action_payload)])
-        lines.extend(["", "· enter menu  · r refresh  · q quit"])
+        lines.extend(["", "· enter menu  · b create  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _validate_detail_text(self) -> str:
@@ -1029,5 +1218,5 @@ class HomesrvctlTextualApp(App[None]):
                 lines.append(f"- [red]{check.get('name', '<unknown>')}[/red]: {check.get('detail', '')}")
             if len(failures) > 10:
                 lines.append(f"... {len(failures) - 10} more")
-        lines.extend(["", "· w/s navigate  · r refresh  · q quit"])
+        lines.extend(["", "· w/s navigate  · b create  · r refresh  · q quit"])
         return "\n".join(lines)

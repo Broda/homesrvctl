@@ -1246,7 +1246,7 @@ Tasks:
 
 ## Milestone 9: Full TUI Creation Flows
 
-Status: planned
+Status: in progress
 
 Goal: make `homesrvctl tui` fully functional for common creation and onboarding work, not only inspection and operations on already-known stacks.
 
@@ -1257,7 +1257,7 @@ Why this is separate from Milestone 5:
 
 ### 9.1 Add stack-creation entry flows to the TUI
 
-Status: planned
+Status: completed
 
 Tasks:
 - Make it possible to create a new stack from the TUI without first scaffolding it in the CLI.
@@ -1279,8 +1279,8 @@ Subtasks:
 - Keep the created stack visible in the dashboard immediately after a successful run.
 
 Current baseline:
-- The TUI can already run `site init` and `app init`, but only from a focused stack row or guided action flow that starts from the current dashboard context.
-- The TUI does not yet expose a first-class “create new site/app” flow for hostnames that are not already represented in the current stack list.
+- The TUI now exposes a first-class stack-creation flow for hostnames that are not yet present in the dashboard state.
+- The flow stays layered over the shipped `site init` and `app init` commands, including optional template and routing override inputs plus overwrite confirmation.
 
 ### 9.2 Add domain-onboarding creation flows to the TUI
 

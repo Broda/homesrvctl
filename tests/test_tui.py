@@ -161,6 +161,42 @@ def test_run_stack_action_dispatches_app_init(monkeypatch) -> None:
     assert calls == [["app", "init", "example.com", "--template", "node"]]
 
 
+def test_run_stack_action_dispatches_scaffold_overrides(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action(
+        "app.example.com",
+        "app-init",
+        template="python",
+        force=True,
+        profile="edge",
+        docker_network="edge-net",
+        traefik_url="http://localhost:9000",
+    )
+
+    assert payload["ok"] is True
+    assert calls == [[
+        "app",
+        "init",
+        "app.example.com",
+        "--template",
+        "python",
+        "--force",
+        "--profile",
+        "edge",
+        "--docker-network",
+        "edge-net",
+        "--traefik-url",
+        "http://localhost:9000",
+    ]]
+
+
 def test_run_stack_action_dispatches_domain_repair(monkeypatch) -> None:
     calls: list[list[str]] = []
 
@@ -806,6 +842,25 @@ def test_stack_action_menu_screen_renders_options() -> None:
     assert "> 1. app init" in rendered
     assert "domain add" in rendered
     assert "domain remove" in rendered
+
+
+def test_creation_mode_screen_renders_options() -> None:
+    screen = prompts.CreationModeScreen("app.example.com")
+
+    rendered = screen._options_text()
+
+    assert "> 1. site init" in rendered
+    assert "2. app init" in rendered
+
+
+def test_text_entry_screen_renders_placeholder_and_value() -> None:
+    screen = prompts.TextEntryScreen("Hostname", "Enter a hostname.", placeholder="app.example.com")
+
+    assert "app.example.com" in screen._value_text()
+
+    screen.value = "notes.example.com"
+
+    assert screen._value_text() == "> notes.example.com"
 
 
 def test_tool_action_menu_screen_renders_options() -> None:
@@ -1515,6 +1570,169 @@ def test_textual_app_app_init_prompt_cancel_updates_status(monkeypatch) -> None:
     app._complete_app_init_prompt("app.example.com", None)
 
     assert app.status_message == "app init cancelled for app.example.com"
+
+
+def test_textual_app_create_stack_flow_pushes_hostname_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app.action_create_stack_flow()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.TextEntryScreen)
+
+
+def test_textual_app_create_stack_flow_rejects_invalid_hostname(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._complete_create_hostname("not bare path / bad")
+
+    assert app.status_message.startswith("create flow rejected hostname:")
+
+
+def test_textual_app_create_stack_flow_pushes_mode_after_hostname(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_create_hostname("app.example.com")
+
+    assert app.pending_create_request == {"hostname": "app.example.com"}
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.CreationModeScreen)
+
+
+def test_textual_app_create_stack_flow_app_mode_pushes_template_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.pending_create_request = {"hostname": "app.example.com"}
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_create_mode("app-init")
+
+    assert app.pending_create_request["action"] == "app-init"
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.AppInitTemplateScreen)
+
+
+def test_textual_app_create_stack_flow_site_mode_pushes_profile_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.pending_create_request = {"hostname": "example.com"}
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_create_mode("init-site")
+
+    assert app.pending_create_request["action"] == "init-site"
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.TextEntryScreen)
+
+
+def test_textual_app_create_stack_flow_overwrite_prompts_force(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.pending_create_request = {
+        "hostname": "app.example.com",
+        "action": "app-init",
+        "template": "node",
+        "profile": None,
+        "docker_network": None,
+        "traefik_url": None,
+    }
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action, template=None, **kwargs: {
+            "ok": False,
+            "error": "generated files already exist; use --force to overwrite",
+        },
+    )
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._run_pending_create_request()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.ConfirmActionScreen)
+
+
+def test_textual_app_complete_create_overwrite_runs_force(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    calls: list[bool] = []
+
+    monkeypatch.setattr(
+        textual_app.HomesrvctlTextualApp,
+        "_run_pending_create_request",
+        lambda self, force=False: calls.append(force),
+    )
+
+    app._complete_create_overwrite(True)
+
+    assert calls == [True]
+
+
+def test_textual_app_create_stack_flow_runs_and_reselects_created_stack(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": []},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "app.example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str, str | None, dict[str, object]]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 0
+    app.pending_create_request = {
+        "hostname": "app.example.com",
+        "action": "app-init",
+        "template": "node",
+        "profile": "edge",
+        "docker_network": "edge-net",
+        "traefik_url": "http://localhost:9000",
+    }
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action, template=None, **kwargs: calls.append((hostname, action, template, kwargs))
+        or {"ok": True, "template": template, "files": ["/srv/homesrvctl/sites/app.example.com/docker-compose.yml"]},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._run_pending_create_request()
+
+    assert calls == [(
+        "app.example.com",
+        "app-init",
+        "node",
+        {
+            "force": False,
+            "profile": "edge",
+            "docker_network": "edge-net",
+            "traefik_url": "http://localhost:9000",
+        },
+    )]
+    assert app.status_message == "app init succeeded for app.example.com"
+    assert app.last_stack_actions["app.example.com"]["action"] == "app-init"
+    assert app.selected_control_index == 4
 
 
 def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:

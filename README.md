@@ -329,6 +329,8 @@ homesrvctl up example.com --dry-run
 - The left control pane groups a small `Tools` section above the larger `Stacks` section and uses a unified vertical cursor.
 - TUI navigation uses `tab`, arrow keys, or `w`/`s` to move through the control pane.
 - The TUI also accepts mouse input: clicking a control row, summary card, modal option, or detail action button is equivalent to selecting it with the keyboard, and mouse and keyboard selection share the same highlighted row. Mouse support is additive — every click target is also reachable by keyboard — and is quietly ignored when the host terminal does not report mouse events.
+- The TUI now exposes a global stack-creation flow with `b` or the `Create` detail button, so operators can scaffold a brand-new hostname without first creating a placeholder row in the CLI.
+- The guided create flow stays layered over the existing `site init` and `app init` commands, including hostname entry, create-mode selection, optional app-template selection, optional `profile` / `docker_network` / `traefik_url` inputs, and overwrite confirmation when the scaffold path already exists.
 - When a stack is focused, `a` opens a small Textual template picker for `app init`, and the scaffold result stays visible in the stack detail pane after the prompt completes.
 - The TUI now includes a `Config` tool item that renders the base `config show` output, and focused stack details also surface the effective per-stack config derived from `config show --stack`.
 - The TUI now also includes a `Tunnel` tool item that renders the current `tunnel status` output, including the configured reference, resolved UUID, resolution source, and API tunnel status when available.

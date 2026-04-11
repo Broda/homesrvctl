@@ -9,6 +9,9 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Added
+- Added a global TUI stack-creation flow that can scaffold a new hostname through the existing `site init` and `app init` commands without requiring a pre-existing stack row.
+- Added sequential TUI prompts for new-stack hostname entry, create-mode selection, optional app-template selection, and optional routing overrides (`profile`, `docker_network`, `traefik_url`).
+- Added TUI overwrite confirmation for scaffold creation when the underlying CLI reports that generated files already exist.
 - Added `homesrvctl tunnel status` to report the configured tunnel reference, resolved tunnel UUID, resolution source, and Cloudflare API tunnel status when account-scoped tunnel inspection is available.
 - Added `Tunnel` as a first-class TUI tool item so `homesrvctl tui` can inspect the current `tunnel status` output and rerun tunnel inspection from the guided tool menu.
 - TUI mouse support: the control pane rows, summary cards, modal option lists, confirm prompts, and a new detail-pane action button strip are now real Textual widgets that respond to clicks. Mouse and keyboard selection share the same highlighted row, every click target is also reachable by keyboard, and clicks are quietly ignored on terminals that do not report mouse events.

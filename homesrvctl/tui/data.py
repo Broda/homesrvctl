@@ -71,7 +71,35 @@ def stack_sites(snapshot: dict[str, object]) -> list[dict[str, object]]:
     return [site for site in sites if isinstance(site, dict)]
 
 
-def run_stack_action(hostname: str, action: str, template: str | None = None) -> dict[str, object]:
+def _append_scaffold_flags(
+    args: list[str],
+    *,
+    force: bool = False,
+    profile: str | None = None,
+    docker_network: str | None = None,
+    traefik_url: str | None = None,
+) -> list[str]:
+    if force:
+        args.append("--force")
+    if profile:
+        args.extend(["--profile", profile])
+    if docker_network:
+        args.extend(["--docker-network", docker_network])
+    if traefik_url:
+        args.extend(["--traefik-url", traefik_url])
+    return args
+
+
+def run_stack_action(
+    hostname: str,
+    action: str,
+    template: str | None = None,
+    *,
+    force: bool = False,
+    profile: str | None = None,
+    docker_network: str | None = None,
+    traefik_url: str | None = None,
+) -> dict[str, object]:
     if action == "doctor":
         return run_json_subcommand(["doctor", hostname])
     if action == "domain-add":
@@ -81,11 +109,27 @@ def run_stack_action(hostname: str, action: str, template: str | None = None) ->
     if action == "domain-remove":
         return run_json_subcommand(["domain", "remove", hostname])
     if action == "init-site":
-        return run_json_subcommand(["site", "init", hostname])
+        return run_json_subcommand(
+            _append_scaffold_flags(
+                ["site", "init", hostname],
+                force=force,
+                profile=profile,
+                docker_network=docker_network,
+                traefik_url=traefik_url,
+            )
+        )
     if action == "app-init":
         if not template:
             raise ValueError("template is required for app-init")
-        return run_json_subcommand(["app", "init", hostname, "--template", template])
+        return run_json_subcommand(
+            _append_scaffold_flags(
+                ["app", "init", hostname, "--template", template],
+                force=force,
+                profile=profile,
+                docker_network=docker_network,
+                traefik_url=traefik_url,
+            )
+        )
     if action == "up":
         return run_json_subcommand(["up", hostname])
     if action == "restart":

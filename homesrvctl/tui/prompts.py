@@ -71,6 +71,13 @@ class OptionRowWidget(Widget, can_focus=False):
             screen._select_option_by_index(self._index)
 
 
+def creation_mode_options() -> list[tuple[str, str, str]]:
+    return [
+        ("init-site", "site init", "Scaffold a simple site layout for a new hostname."),
+        ("app-init", "app init", "Scaffold an app stack for a new hostname."),
+    ]
+
+
 def stack_action_options(is_apex_domain: bool) -> list[tuple[str, str, str]]:
     options = [
         ("app-init", "app init", "Choose an app scaffold template."),
@@ -176,6 +183,134 @@ class AppInitTemplateScreen(ModalScreen[str | None]):
         for index, (template, description) in enumerate(APP_INIT_TEMPLATE_OPTIONS):
             marker = ">" if index == self.selected_index else " "
             lines.append(f"{marker} {index + 1}. {template}")
+            lines.append(f"  {description}")
+            lines.append("")
+        return "\n".join(lines).rstrip()
+
+
+class TextEntryScreen(ModalScreen[str | None]):
+    BINDINGS = [
+        Binding("enter", "submit", "Submit", show=False),
+        Binding("escape,q", "cancel", "Cancel", show=False),
+        Binding("backspace", "backspace", "Backspace", show=False),
+        Binding("ctrl+u", "clear", "Clear", show=False),
+    ]
+
+    def __init__(self, title: str, help_text: str, *, placeholder: str = "", initial_value: str = "") -> None:
+        super().__init__()
+        self.title = title
+        self.help_text = help_text
+        self.placeholder = placeholder
+        self.value = initial_value
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="text_entry_prompt"):
+            yield Static(self.title, classes="prompt_title")
+            yield Static(self.help_text, classes="prompt_help")
+            yield Static("", id="text_entry_value", classes="prompt_input")
+
+    def on_mount(self) -> None:
+        self._update_value_view()
+
+    def on_key(self, event: Key) -> None:
+        if event.is_printable and event.character:
+            self.value += event.character
+            self._update_value_view()
+            event.stop()
+
+    def action_submit(self) -> None:
+        self.dismiss(self.value.strip())
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def action_backspace(self) -> None:
+        if self.value:
+            self.value = self.value[:-1]
+            self._update_value_view()
+
+    def action_clear(self) -> None:
+        self.value = ""
+        self._update_value_view()
+
+    def _update_value_view(self) -> None:
+        rendered = self._value_text()
+        self.query_one("#text_entry_value", Static).update(rendered)
+
+    def _value_text(self) -> str:
+        if self.value:
+            return f"> {self.value}"
+        if self.placeholder:
+            return f"[dim]> {self.placeholder}[/dim]"
+        return "> "
+
+
+class CreationModeScreen(ModalScreen[str | None]):
+    BINDINGS = [
+        Binding("up,w", "previous_mode", "Prev", show=False),
+        Binding("down,s,tab", "next_mode", "Next", show=False),
+        Binding("enter", "select_mode", "Select", show=False),
+        Binding("escape,q", "cancel", "Cancel", show=False),
+    ]
+
+    def __init__(self, hostname: str) -> None:
+        super().__init__()
+        self.hostname = hostname
+        self.options = creation_mode_options()
+        self.selected_index = 0
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="stack_action_prompt"):
+            yield Static("Create New Stack", classes="prompt_title")
+            yield Static(
+                f"{self.hostname}  · w/s navigate  · enter select  · esc cancel",
+                classes="prompt_help",
+            )
+            with Vertical(id="creation_mode_options"):
+                for i, (_, label, description) in enumerate(self.options):
+                    row = OptionRowWidget(i, i + 1, label, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
+
+    def on_key(self, event: Key) -> None:
+        if event.character and event.character.isdigit():
+            index = int(event.character) - 1
+            if 0 <= index < len(self.options):
+                self._select_option_by_index(index)
+                self.action_select_mode()
+                event.stop()
+
+    def action_previous_mode(self) -> None:
+        self.selected_index = (self.selected_index - 1) % len(self.options)
+        self._update_selection()
+
+    def action_next_mode(self) -> None:
+        self.selected_index = (self.selected_index + 1) % len(self.options)
+        self._update_selection()
+
+    def action_select_mode(self) -> None:
+        self.dismiss(self.options[self.selected_index][0])
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
+
+    def _options_text(self) -> str:
+        lines: list[str] = []
+        for index, (_, label, description) in enumerate(self.options):
+            marker = ">" if index == self.selected_index else " "
+            lines.append(f"{marker} {index + 1}. {label}")
             lines.append(f"  {description}")
             lines.append("")
         return "\n".join(lines).rstrip()
