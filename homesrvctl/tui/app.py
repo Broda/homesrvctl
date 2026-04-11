@@ -25,6 +25,7 @@ from homesrvctl.tui.data import (
 )
 from homesrvctl.tui.prompts import (
     AppInitTemplateScreen,
+    BooleanChoiceScreen,
     CloudflaredLogsModeScreen,
     ConfirmActionScreen,
     CreationModeScreen,
@@ -380,6 +381,7 @@ class HomesrvctlTextualApp(App[None]):
         Binding("w,up", "previous_control", "Prev", show=False),
         Binding("s,down,tab", "next_control", "Next", show=False),
         Binding("b", "create_stack_flow", "Create", show=False),
+        Binding("d", "domain_onboarding_flow", "Domain", show=False),
         Binding("a", "app_init_prompt", "App Init", show=False),
         Binding("n", "domain_add_prompt", "Add Domain", show=False),
         Binding("p", "domain_repair", "Repair Domain", show=False),
@@ -405,6 +407,9 @@ class HomesrvctlTextualApp(App[None]):
         self.stack_domain_views: dict[str, dict[str, object]] = {}
         self.last_tool_actions: dict[str, dict[str, object]] = {}
         self.pending_create_request: dict[str, object] | None = None
+        self.pending_domain_request: dict[str, object] | None = None
+        self.global_domain_action: dict[str, object] | None = None
+        self.global_domain_status_view: dict[str, object] | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -459,6 +464,17 @@ class HomesrvctlTextualApp(App[None]):
                 placeholder="app.example.com",
             ),
             self._complete_create_hostname,
+        )
+
+    def action_domain_onboarding_flow(self) -> None:
+        self.pending_domain_request = None
+        self.push_screen(
+            TextEntryScreen(
+                "Onboard Apex Domain",
+                "Enter the bare domain to route through the configured tunnel. Press enter to continue or esc to cancel.",
+                placeholder="example.com",
+            ),
+            self._complete_domain_onboarding_domain,
         )
 
     def action_stack_action_menu(self) -> None:
@@ -760,6 +776,86 @@ class HomesrvctlTextualApp(App[None]):
             return
         self._run_pending_create_request(force=True)
 
+    def _complete_domain_onboarding_domain(self, hostname: str | None) -> None:
+        if hostname is None:
+            self.pending_domain_request = None
+            self.status_message = "domain onboarding cancelled"
+            self._render()
+            return
+        try:
+            bare_domain = validate_bare_domain(hostname)
+        except Exception as exc:
+            self.pending_domain_request = None
+            self.status_message = f"domain onboarding rejected domain: {exc}"
+            self._render()
+            return
+        self.pending_domain_request = {"hostname": bare_domain}
+        self.push_screen(
+            BooleanChoiceScreen(
+                "Domain Add Dry Run",
+                f"Run domain add for {bare_domain} in dry-run mode?",
+                true_label="yes",
+                false_label="no",
+            ),
+            self._complete_domain_onboarding_dry_run,
+        )
+
+    def _complete_domain_onboarding_dry_run(self, dry_run: bool | None) -> None:
+        if dry_run is None:
+            self.pending_domain_request = None
+            self.status_message = "domain onboarding cancelled"
+            self._render()
+            return
+        if self.pending_domain_request is None:
+            self.pending_domain_request = {}
+        self.pending_domain_request["dry_run"] = dry_run
+        hostname = str(self.pending_domain_request.get("hostname", ""))
+        self.push_screen(
+            BooleanChoiceScreen(
+                "Restart Cloudflared",
+                f"Restart cloudflared automatically after domain add for {hostname} when ingress changes are written?",
+                true_label="yes",
+                false_label="no",
+            ),
+            self._complete_domain_onboarding_restart,
+        )
+
+    def _complete_domain_onboarding_restart(self, restart_cloudflared: bool | None) -> None:
+        if restart_cloudflared is None:
+            self.pending_domain_request = None
+            self.status_message = "domain onboarding cancelled"
+            self._render()
+            return
+        if self.pending_domain_request is None:
+            self.pending_domain_request = {}
+        self.pending_domain_request["restart_cloudflared"] = restart_cloudflared
+        self._run_pending_domain_request()
+
+    def _run_pending_domain_request(self) -> None:
+        request = dict(self.pending_domain_request or {})
+        hostname = str(request.get("hostname", ""))
+        dry_run = bool(request.get("dry_run", False))
+        restart_cloudflared = bool(request.get("restart_cloudflared", False))
+        payload = run_stack_action(
+            hostname,
+            "domain-add",
+            dry_run=dry_run,
+            restart_cloudflared=restart_cloudflared,
+        )
+        self.pending_domain_request = None
+        self.global_domain_action = {"hostname": hostname, "action": "domain-add", "payload": payload}
+        self.global_domain_status_view = run_stack_domain_status(hostname)
+        self.last_stack_actions[hostname] = {"action": "domain-add", "payload": payload}
+        self.status_message = summarize_stack_action(hostname, "domain-add", payload)
+        self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
+        self.stack_domain_views = {}
+        if self._has_stack(hostname):
+            self._reselect_hostname(hostname)
+        else:
+            self.selected_control_index = 1
+        self._render()
+
     def _run_config_init(self, *, force: bool = False) -> None:
         payload = run_tool_action("config", "init", force=force)
         if (
@@ -874,6 +970,9 @@ class HomesrvctlTextualApp(App[None]):
         else:
             self.selected_control_index = 0
 
+    def _has_stack(self, hostname: str) -> bool:
+        return any(item.get("kind") == "stack" and item.get("hostname") == hostname for item in self._control_items())
+
     #: Maps detail button label → action method name; rebuilt each render.
     _detail_button_actions: dict[str, str]
 
@@ -889,6 +988,7 @@ class HomesrvctlTextualApp(App[None]):
                 ("Doctor", "doctor"),
                 ("Actions", "stack_action_menu"),
                 ("Create", "create_stack_flow"),
+                ("Onboard Domain", "domain_onboarding_flow"),
             ]
         elif item.get("tool") == "cloudflared":
             specs = [
@@ -896,11 +996,13 @@ class HomesrvctlTextualApp(App[None]):
                 ("Reload", "cloudflared_reload"),
                 ("Restart CF", "cloudflared_restart"),
                 ("Create", "create_stack_flow"),
+                ("Onboard Domain", "domain_onboarding_flow"),
             ]
         else:
             specs = [
                 ("Refresh", "refresh"),
                 ("Create", "create_stack_flow"),
+                ("Onboard Domain", "domain_onboarding_flow"),
             ]
         self._detail_button_actions = {}
         for label, action in specs:
@@ -1014,7 +1116,7 @@ class HomesrvctlTextualApp(App[None]):
 
     def _command_bar_text(self) -> str:
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"
-        return f"w/s navigate  ·  b create  ·  r refresh  ·  q quit  ·  status: {self.status_message}  ·  {mode}"
+        return f"w/s navigate  ·  b create  ·  d domain  ·  r refresh  ·  q quit  ·  status: {self.status_message}  ·  {mode}"
 
     def _stacks_summary_parts(self) -> tuple[str, str]:
         payload = self.snapshot.get("list")
@@ -1102,7 +1204,24 @@ class HomesrvctlTextualApp(App[None]):
             action_payload = cached.get("payload")
             if isinstance(action, str) and isinstance(action_payload, dict):
                 lines.extend(["", *render_tool_action_detail("tunnel", action, action_payload)])
-        lines.extend(["", "· enter menu  · r refresh  · q quit"])
+        if isinstance(self.global_domain_action, dict):
+            hostname = str(self.global_domain_action.get("hostname", ""))
+            action = self.global_domain_action.get("action")
+            payload = self.global_domain_action.get("payload")
+            if hostname and isinstance(action, str) and isinstance(payload, dict):
+                lines.extend(
+                    [
+                        "",
+                        "[bold #ffcf5a]Last Domain Onboarding[/bold #ffcf5a]",
+                        "",
+                        f"domain: {hostname}",
+                        "",
+                        *render_stack_action_detail(action, payload),
+                    ]
+                )
+                if isinstance(self.global_domain_status_view, dict):
+                    lines.extend(["", *render_domain_status_detail(hostname, self.global_domain_status_view)])
+        lines.extend(["", "· enter menu  · b create  · d domain  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _stack_detail_text(self, hostname: str, compose: bool) -> str:
@@ -1124,7 +1243,7 @@ class HomesrvctlTextualApp(App[None]):
             "",
             *render_domain_status_detail(hostname, domain_view),
             "",
-            "· enter menu  · b create  · u up  · x down  · t restart  · g doctor  · r refresh",
+            "· enter menu  · b create  · d domain  · u up  · x down  · t restart  · g doctor  · r refresh",
         ]
         cached = self.last_stack_actions.get(hostname)
         if isinstance(cached, dict):
@@ -1183,7 +1302,7 @@ class HomesrvctlTextualApp(App[None]):
             payload = cached.get("payload")
             if isinstance(action, str) and isinstance(payload, dict):
                 lines.extend(["", *render_tool_action_detail("cloudflared", action, payload)])
-        lines.extend(["", "· enter menu  · b create  · r refresh  · q quit"])
+        lines.extend(["", "· enter menu  · b create  · d domain  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _config_detail_text(self) -> str:
@@ -1197,7 +1316,7 @@ class HomesrvctlTextualApp(App[None]):
             action_payload = cached.get("payload")
             if isinstance(action, str) and isinstance(action_payload, dict):
                 lines.extend(["", *render_tool_action_detail("config", action, action_payload)])
-        lines.extend(["", "· enter menu  · b create  · r refresh  · q quit"])
+        lines.extend(["", "· enter menu  · b create  · d domain  · r refresh  · q quit"])
         return "\n".join(lines)
 
     def _validate_detail_text(self) -> str:
@@ -1218,5 +1337,5 @@ class HomesrvctlTextualApp(App[None]):
                 lines.append(f"- [red]{check.get('name', '<unknown>')}[/red]: {check.get('detail', '')}")
             if len(failures) > 10:
                 lines.append(f"... {len(failures) - 10} more")
-        lines.extend(["", "· w/s navigate  · b create  · r refresh  · q quit"])
+        lines.extend(["", "· w/s navigate  · b create  · d domain  · r refresh  · q quit"])
         return "\n".join(lines)

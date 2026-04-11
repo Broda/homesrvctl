@@ -227,6 +227,26 @@ def test_run_stack_action_dispatches_domain_add(monkeypatch) -> None:
     assert calls == [["domain", "add", "example.com"]]
 
 
+def test_run_stack_action_dispatches_domain_add_with_flags(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True, "dry_run": True}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_stack_action(
+        "example.com",
+        "domain-add",
+        dry_run=True,
+        restart_cloudflared=True,
+    )
+
+    assert payload["ok"] is True
+    assert calls == [["domain", "add", "example.com", "--dry-run", "--restart-cloudflared"]]
+
+
 def test_run_stack_action_dispatches_domain_remove(monkeypatch) -> None:
     calls: list[list[str]] = []
 
@@ -882,6 +902,15 @@ def test_cloudflared_logs_mode_screen_renders_options() -> None:
     assert "2. follow" in rendered
 
 
+def test_boolean_choice_screen_renders_options() -> None:
+    screen = prompts.BooleanChoiceScreen("Dry Run", "Choose whether to run in dry-run mode.")
+
+    rendered = screen._options_text()
+
+    assert "> 1. no" in rendered
+    assert "2. yes" in rendered
+
+
 def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
@@ -977,6 +1006,18 @@ def test_textual_app_domain_add_prompt_pushes_modal(monkeypatch) -> None:
 
     assert len(pushed) == 1
     assert isinstance(pushed[0][0], prompts.ConfirmActionScreen)
+
+
+def test_textual_app_domain_onboarding_flow_pushes_domain_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app.action_domain_onboarding_flow()
+
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.TextEntryScreen)
 
 
 def test_textual_app_domain_remove_prompt_pushes_modal(monkeypatch) -> None:
@@ -1187,6 +1228,160 @@ def test_textual_app_domain_add_rejects_subdomain(monkeypatch) -> None:
     app.action_domain_add_prompt()
 
     assert app.status_message == "domain add/remove is only available for apex stacks: notes.example.com"
+
+
+def test_textual_app_domain_onboarding_rejects_invalid_domain(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._complete_domain_onboarding_domain("notes.example.com")
+
+    assert app.status_message.startswith("domain onboarding rejected domain:")
+
+
+def test_textual_app_domain_onboarding_pushes_dry_run_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_domain_onboarding_domain("example.com")
+
+    assert app.pending_domain_request == {"hostname": "example.com"}
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.BooleanChoiceScreen)
+
+
+def test_textual_app_domain_onboarding_pushes_restart_prompt(monkeypatch) -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.pending_domain_request = {"hostname": "example.com"}
+    pushed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+
+    app._complete_domain_onboarding_dry_run(True)
+
+    assert app.pending_domain_request["dry_run"] is True
+    assert len(pushed) == 1
+    assert isinstance(pushed[0][0], prompts.BooleanChoiceScreen)
+
+
+def test_textual_app_domain_onboarding_runs_and_focuses_tunnel_when_no_stack(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": []},
+            "tunnel": {
+                "ok": True,
+                "configured_tunnel": "homesrvctl-tunnel",
+                "resolved_tunnel_id": "11111111-2222-4333-8444-555555555555",
+                "resolution_source": "credentials+api",
+                "account_id": "account-123",
+                "api_available": True,
+                "api_status": {"name": "homesrvctl-tunnel", "status": "healthy"},
+                "api_error": None,
+            },
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": []},
+            "tunnel": {
+                "ok": True,
+                "configured_tunnel": "homesrvctl-tunnel",
+                "resolved_tunnel_id": "11111111-2222-4333-8444-555555555555",
+                "resolution_source": "credentials+api",
+                "account_id": "account-123",
+                "api_available": True,
+                "api_status": {"name": "homesrvctl-tunnel", "status": "healthy"},
+                "api_error": None,
+            },
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 0
+    app.pending_domain_request = {
+        "hostname": "example.com",
+        "dry_run": True,
+        "restart_cloudflared": True,
+    }
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_action",
+        lambda hostname, action, **kwargs: calls.append((hostname, action, kwargs))
+        or {"ok": True, "dry_run": True, "dns": [], "ingress": []},
+    )
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_domain_status",
+        lambda hostname: {"ok": True, "domain": hostname, "overall": "ok", "repairable": False, "manual_fix_required": False, "dns": [], "ingress": []},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._complete_domain_onboarding_restart(True)
+
+    assert calls == [("example.com", "domain-add", {"dry_run": True, "restart_cloudflared": True})]
+    assert app.status_message == "domain add succeeded for example.com"
+    assert app.selected_control_index == 1
+    assert app.global_domain_action is not None
+
+
+def test_textual_app_tunnel_detail_includes_last_domain_onboarding() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": []},
+        "tunnel": {
+            "ok": True,
+            "configured_tunnel": "homesrvctl-tunnel",
+            "resolved_tunnel_id": "11111111-2222-4333-8444-555555555555",
+            "resolution_source": "credentials+api",
+            "account_id": "account-123",
+            "api_available": True,
+            "api_status": {"name": "homesrvctl-tunnel", "status": "healthy"},
+            "api_error": None,
+        },
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 1
+    app.global_domain_action = {
+        "hostname": "example.com",
+        "action": "domain-add",
+        "payload": {"ok": True, "dry_run": True, "dns": [], "ingress": []},
+    }
+    app.global_domain_status_view = {
+        "ok": False,
+        "domain": "example.com",
+        "overall": "partial",
+        "repairable": True,
+        "manual_fix_required": False,
+        "expected_tunnel_target": "1234.cfargotunnel.com",
+        "expected_ingress_service": "http://localhost:8081",
+        "coverage_issues": ["Ingress coverage is apex-only; wildcard ingress is missing"],
+        "ingress_warnings": [],
+        "dns": [],
+        "ingress": [],
+        "suggested_command": "homesrvctl domain repair example.com",
+    }
+
+    detail = app._tunnel_detail_text()
+
+    assert "Last Domain Onboarding" in detail
+    assert "domain: example.com" in detail
+    assert "dry run" in detail
+    assert "Domain status" in detail
 
 
 def test_textual_app_domain_remove_cancel_updates_status(monkeypatch) -> None:

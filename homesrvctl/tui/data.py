@@ -90,24 +90,57 @@ def _append_scaffold_flags(
     return args
 
 
+def _append_domain_flags(
+    args: list[str],
+    *,
+    dry_run: bool = False,
+    restart_cloudflared: bool = False,
+) -> list[str]:
+    if dry_run:
+        args.append("--dry-run")
+    if restart_cloudflared:
+        args.append("--restart-cloudflared")
+    return args
+
+
 def run_stack_action(
     hostname: str,
     action: str,
     template: str | None = None,
     *,
     force: bool = False,
+    dry_run: bool = False,
     profile: str | None = None,
     docker_network: str | None = None,
     traefik_url: str | None = None,
+    restart_cloudflared: bool = False,
 ) -> dict[str, object]:
     if action == "doctor":
         return run_json_subcommand(["doctor", hostname])
     if action == "domain-add":
-        return run_json_subcommand(["domain", "add", hostname])
+        return run_json_subcommand(
+            _append_domain_flags(
+                ["domain", "add", hostname],
+                dry_run=dry_run,
+                restart_cloudflared=restart_cloudflared,
+            )
+        )
     if action == "domain-repair":
-        return run_json_subcommand(["domain", "repair", hostname])
+        return run_json_subcommand(
+            _append_domain_flags(
+                ["domain", "repair", hostname],
+                dry_run=dry_run,
+                restart_cloudflared=restart_cloudflared,
+            )
+        )
     if action == "domain-remove":
-        return run_json_subcommand(["domain", "remove", hostname])
+        return run_json_subcommand(
+            _append_domain_flags(
+                ["domain", "remove", hostname],
+                dry_run=dry_run,
+                restart_cloudflared=restart_cloudflared,
+            )
+        )
     if action == "init-site":
         return run_json_subcommand(
             _append_scaffold_flags(

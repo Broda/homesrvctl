@@ -316,6 +316,86 @@ class CreationModeScreen(ModalScreen[str | None]):
         return "\n".join(lines).rstrip()
 
 
+class BooleanChoiceScreen(ModalScreen[bool | None]):
+    BINDINGS = [
+        Binding("up,w,left,a", "previous_choice", "Prev", show=False),
+        Binding("down,s,right,d,tab", "next_choice", "Next", show=False),
+        Binding("enter", "select_choice", "Select", show=False),
+        Binding("escape,q", "cancel", "Cancel", show=False),
+    ]
+
+    def __init__(
+        self,
+        title: str,
+        help_text: str,
+        *,
+        true_label: str = "yes",
+        false_label: str = "no",
+    ) -> None:
+        super().__init__()
+        self.title = title
+        self.help_text = help_text
+        self.options: list[tuple[bool, str, str]] = [
+            (False, false_label, ""),
+            (True, true_label, ""),
+        ]
+        self.selected_index = 0
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="stack_action_prompt"):
+            yield Static(self.title, classes="prompt_title")
+            yield Static(self.help_text, classes="prompt_help")
+            with Vertical(id="boolean_choice_options"):
+                for i, (_, label, description) in enumerate(self.options):
+                    row = OptionRowWidget(i, i + 1, label, description)
+                    if i == self.selected_index:
+                        row.add_class("--selected")
+                    yield row
+
+    def on_key(self, event: Key) -> None:
+        if event.character and event.character.isdigit():
+            index = int(event.character) - 1
+            if 0 <= index < len(self.options):
+                self._select_option_by_index(index)
+                self.action_select_choice()
+                event.stop()
+
+    def action_previous_choice(self) -> None:
+        self.selected_index = (self.selected_index - 1) % len(self.options)
+        self._update_selection()
+
+    def action_next_choice(self) -> None:
+        self.selected_index = (self.selected_index + 1) % len(self.options)
+        self._update_selection()
+
+    def action_select_choice(self) -> None:
+        self.dismiss(self.options[self.selected_index][0])
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _select_option_by_index(self, index: int) -> None:
+        self.selected_index = index
+        self._update_selection()
+
+    def _update_selection(self) -> None:
+        for row in self.query(OptionRowWidget):
+            if row.option_index == self.selected_index:
+                row.add_class("--selected")
+            else:
+                row.remove_class("--selected")
+
+    def _options_text(self) -> str:
+        lines: list[str] = []
+        for index, (_, label, description) in enumerate(self.options):
+            marker = ">" if index == self.selected_index else " "
+            lines.append(f"{marker} {index + 1}. {label}")
+            if description:
+                lines.append(f"  {description}")
+            lines.append("")
+        return "\n".join(lines).rstrip()
+
+
 class ConfirmActionScreen(ModalScreen[bool]):
     BINDINGS = [
         Binding("enter,y", "confirm", "Confirm", show=False),
