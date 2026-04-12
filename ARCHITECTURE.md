@@ -164,6 +164,17 @@ This repo does not use a heavy domain/application/persistence architecture, and 
 
 Future refactors should preserve clarity, but should not introduce extra layers unless they simplify a real maintenance problem.
 
+## Planned Evolution
+
+The current repo still assumes the host platform already exists. A planned future bootstrap milestone will likely introduce a dedicated orchestration area for:
+
+- fresh-host assessment
+- Debian-family package/runtime provisioning
+- baseline Traefik and `cloudflared` service wiring
+- Cloudflare tunnel creation through the API
+
+That future bootstrap layer should remain an orchestrator. It should call into the existing Cloudflare and `cloudflared` helpers where possible rather than scattering host-provisioning logic across unrelated command modules.
+
 ## Testing Model
 
 Current verification centers on:

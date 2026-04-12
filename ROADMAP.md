@@ -1462,6 +1462,70 @@ Tasks:
 - Generate group-based migration commands and a systemd override that sets `Group=homesrvctl`.
 - Keep unreadable credentials non-fatal for tunnel health when local tunnel resolution still succeeds, while surfacing setup guidance in the CLI and TUI.
 
+## Milestone 12: Fresh Host Bootstrap
+
+Status: planned
+
+Goal: make a fresh Debian-family Raspberry Pi host capable of bootstrapping the full `homesrvctl` platform instead of assuming Docker, Traefik, `cloudflared`, and the first tunnel already exist.
+
+Product decisions:
+- First target platform is Raspberry Pi OS / Debian-family Linux with `apt` and `systemd`.
+- The bootstrap model should keep one shared host tunnel rather than creating a tunnel per domain or per app.
+- Traefik remains the local ingress router.
+- Cloudflare API token is the first-class bootstrap auth path.
+- Browser-login bootstrap may be added later, but is not part of the first implementation target.
+
+Desired first-run outcome:
+- Install `homesrvctl` on a fresh Pi.
+- Run a bootstrap workflow.
+- End with Docker, Compose, Traefik, `cloudflared`, shared local directories, service/group wiring, a Cloudflare tunnel, and a ready `homesrvctl` config.
+- After bootstrap, `domain add`, `site init`, `app init`, and `up` should work without a separate one-time Cloudflare dashboard setup step.
+
+### 12.1 Bootstrap Assessment
+
+Status: planned
+
+Tasks:
+- Add a non-mutating first-run assessment path for fresh hosts.
+- Detect OS support, systemd presence, package/runtime prerequisites, token presence, and current local config state.
+- Report whether the host is ready for bootstrap or already partially provisioned.
+
+### 12.2 Cloudflare Remote Tunnel Provisioning
+
+Status: planned
+
+Tasks:
+- Add Cloudflare API flows to create or reuse a shared host tunnel.
+- Persist the local material needed for the `cloudflared` runtime to connect to that tunnel.
+- Store the resulting tunnel reference in `homesrvctl` config.
+
+### 12.3 Host Runtime Bootstrap
+
+Status: planned
+
+Tasks:
+- Install Docker, Compose, and `cloudflared` on the target Debian-family host.
+- Create the shared directories, Unix group, and Docker network used by the supported platform layout.
+- Install or render the baseline Traefik runtime expected by `homesrvctl`.
+
+### 12.4 Config And Service Wiring
+
+Status: planned
+
+Tasks:
+- Write the main `homesrvctl` config for the provisioned host.
+- Write the supported `cloudflared` config and credentials layout.
+- Install the systemd service wiring needed for the shared-group model.
+
+### 12.5 First-Run Validation
+
+Status: planned
+
+Tasks:
+- Validate the freshly bootstrapped host through existing health and status commands.
+- Ensure the resulting state is ready for first domain onboarding and stack creation.
+- Update docs and operator guidance so the new first-run story is explicit.
+
 ## Cross-Cutting Working Rules
 
 These are not standalone deliverables, but they should constrain all future milestones.

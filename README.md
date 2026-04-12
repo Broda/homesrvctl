@@ -38,6 +38,29 @@ The tool assumes:
 - a shared external Docker network such as `web` already exists
 - the Cloudflare Tunnel is locally managed and already functional
 
+That is the current shipped model. On a fresh Raspberry Pi, installing `homesrvctl` today gives you assessment, domain lifecycle, scaffolding, and operational controls for an already-built platform. It does not yet provision Docker, Traefik, `cloudflared`, or the initial tunnel for you.
+
+## Long-Term Bootstrap Direction
+
+The long-term direction is to make a fresh Pi first run capable of bringing up the whole platform instead of assuming it already exists.
+
+Planned product direction:
+
+- first bootstrap target: Debian-family Raspberry Pi OS with `apt` and `systemd`
+- one shared host tunnel, not one tunnel per app
+- Traefik remains the local ingress router
+- Cloudflare API token is the primary bootstrap auth path
+- browser-login-based setup may come later, but is not the first target
+
+Desired long-term first-run outcome:
+
+- install `homesrvctl`
+- run a bootstrap workflow
+- end with Docker, Compose, Traefik, `cloudflared`, shared directories, service/group wiring, a Cloudflare tunnel, and a ready `homesrvctl` config
+- then use `domain add`, `site init`, `app init`, and `up` without separate manual Cloudflare dashboard setup
+
+This is roadmap work, not shipped behavior yet.
+
 ## Installation
 
 From the project directory:
