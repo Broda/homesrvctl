@@ -1346,6 +1346,63 @@ Decision:
 - Keep bulk creation, remote-host creation, and generalized config editing out of scope for the TUI.
 - Keep `site init` and `app init --template static` as distinct public surfaces for now and document the difference explicitly rather than converging them implicitly.
 
+## Milestone 10: TUI Operator-Facing Polish
+
+Status: planned
+
+Goal: make the Textual TUI read more like an operator dashboard and less like raw internal state by tightening wording, value formatting, and status presentation in the detail panes.
+
+Why this is separate from Milestone 9:
+- Milestone 9 made the TUI creation flows operationally complete.
+- The remaining gap is not capability but presentation quality.
+- The current TUI still exposes several raw boolean-style values and low-level labels that read like implementation details rather than operator-facing UI.
+
+### 10.1 Normalize boolean and status wording in stack and tool detail panes
+
+Status: planned
+
+Tasks:
+- Replace machine-flavored boolean text with clearer operator-facing wording where the current display is too raw.
+- Keep wording changes narrow and avoid changing the underlying command semantics or JSON shapes.
+
+Subtasks:
+- In stack detail:
+  - change `compose file: yes/no` to `compose file: exists/does not exist`
+  - change `has local config: True/False` to `has local config: yes/no`
+- In domain status detail:
+  - change `repairable` so it renders:
+    - `N/A` when repairability is not relevant because no repair is needed
+    - `Yes` when repairable
+    - `No` when not repairable
+  - change `manual fix required: True/False` to `manual fix required: yes/no`
+  - render DNS and ingress record/status sections in bordered table-style layouts instead of loose line lists
+  - tighten DNS and ingress field formatting so the operator can scan hostname, match state, target/service, and detail more easily
+- Review adjacent detail panes for similar raw `True/False` leakage and group any equivalent wording cleanup into the same polish slice when it stays narrowly presentational.
+
+Current baseline:
+- The TUI is functionally complete for common creation/onboarding flows, but several detail-pane fields still render raw booleans or terse yes/no labels that do not read naturally in an operator dashboard.
+
+### 10.2 Define a broader wording pass for user-friendly TUI copy
+
+Status: planned
+
+Tasks:
+- Decide which TUI copy patterns should be normalized systematically rather than fixed one field at a time.
+- Preserve the current compact dashboard style while making labels and values more human-readable.
+
+Subtasks:
+- Review whether these wording patterns should become standard across the TUI:
+  - `yes/no`
+  - `exists/does not exist`
+  - `N/A`
+  - title case versus sentence case for labels
+- Review whether bordered table-style presentation should become the standard for structured multi-row detail blocks such as:
+  - DNS records
+  - ingress routes
+  - other repeated status rows that currently render as flat text lists
+- Identify which fields should remain explicit technical values because operators genuinely need the lower-level wording.
+- Add regression coverage for the most visible detail-pane text formatting so future copy cleanups do not drift silently.
+
 ## Cross-Cutting Working Rules
 
 These are not standalone deliverables, but they should constrain all future milestones.
