@@ -4,6 +4,7 @@ from pathlib import Path
 
 import json
 import pytest
+import typer
 import yaml
 from typer.testing import CliRunner
 
@@ -5169,6 +5170,71 @@ def test_bootstrap_assess_fails_for_unsupported_host(monkeypatch) -> None:
     assert result.exit_code == 1, result.output
     assert "bootstrap state: unsupported" in result.output
     assert "host supported: no" in result.output
+
+
+def test_bootstrap_tunnel_json_output(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import bootstrap_cmd
+
+    config_path = tmp_path / "home" / ".config" / "homesrvctl" / "config.yml"
+    monkeypatch.setattr(
+        bootstrap_cmd,
+        "provision_bootstrap_tunnel",
+        lambda path, account_id=None, tunnel_name=None, force=False: type(
+            "Provisioned",
+            (),
+            {
+                "ok": True,
+                "created": True,
+                "reused": False,
+                "detail": "created Cloudflare tunnel homesrvctl-tunnel (11111111-2222-4333-8444-555555555555)",
+                "config_path": str(config_path),
+                "account_id": "account-123",
+                "requested_tunnel": "homesrvctl-tunnel",
+                "tunnel_id": "11111111-2222-4333-8444-555555555555",
+                "tunnel_name": "homesrvctl-tunnel",
+                "config_src": "local",
+                "status": "inactive",
+                "credentials_path": "/srv/homesrvctl/cloudflared/11111111-2222-4333-8444-555555555555.json",
+                "cloudflared_config_path": "/srv/homesrvctl/cloudflared/config.yml",
+                "config_updated": True,
+                "credentials_written": True,
+                "cloudflared_config_written": True,
+                "next_steps": ["Run `homesrvctl tunnel status --json` to confirm tunnel resolution."],
+            },
+        )(),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bootstrap", "tunnel", "--account-id", "account-123", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "bootstrap_tunnel"
+    assert payload["created"] is True
+    assert payload["tunnel"]["config_src"] == "local"
+    assert payload["account_id"] == "account-123"
+
+
+def test_bootstrap_tunnel_json_failure(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import bootstrap_cmd
+
+    config_path = tmp_path / "home" / ".config" / "homesrvctl" / "config.yml"
+
+    def fail(path, account_id=None, tunnel_name=None, force=False):  # noqa: ANN001,ANN202
+        raise typer.BadParameter("missing Cloudflare account ID for tunnel provisioning")
+
+    monkeypatch.setattr(bootstrap_cmd, "provision_bootstrap_tunnel", fail)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bootstrap", "tunnel", "--json", "--path", str(config_path)])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "bootstrap_tunnel"
+    assert payload["ok"] is False
+    assert "missing Cloudflare account ID" in payload["error"]
 
 
 def test_doctor_json_output(monkeypatch, tmp_path: Path) -> None:

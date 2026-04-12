@@ -185,6 +185,44 @@ def cloudflared_credentials_path(config_path: Path) -> Path:
     return credentials_path
 
 
+def render_bootstrap_cloudflared_config(tunnel_id: str, credentials_path: Path) -> str:
+    return yaml.safe_dump(
+        {
+            "tunnel": tunnel_id,
+            "credentials-file": str(credentials_path),
+            "ingress": [{"service": "http_status:404"}],
+        },
+        sort_keys=False,
+    )
+
+
+def write_bootstrap_cloudflared_config(
+    config_path: Path,
+    *,
+    tunnel_id: str,
+    credentials_path: Path,
+    force: bool = False,
+) -> bool:
+    rendered = render_bootstrap_cloudflared_config(tunnel_id, credentials_path)
+    existing = None
+    if config_path.exists():
+        existing = _load_config(config_path)
+    if existing is not None:
+        desired = yaml.safe_load(rendered)
+        if existing == desired:
+            return False
+        if not force:
+            raise CloudflaredConfigError(
+                f"cloudflared config already exists at {config_path}; use --force to overwrite bootstrap material"
+            )
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        config_path.write_text(rendered, encoding="utf-8")
+    except OSError as exc:
+        raise CloudflaredConfigError(f"unable to write cloudflared config {config_path}: {exc}") from exc
+    return True
+
+
 def inspect_cloudflared_config_warnings(config_path: Path) -> list[CloudflaredConfigWarning]:
     return [
         CloudflaredConfigWarning(code=issue.code, detail=issue.detail, hint=issue.hint)

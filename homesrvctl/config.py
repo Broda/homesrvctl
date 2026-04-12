@@ -249,3 +249,17 @@ def init_config(path: Path | None = None, force: bool = False) -> Path:
         encoding="utf-8",
     )
     return config_path
+
+
+def update_config(path: Path | None = None, **updates: Any) -> Path:
+    config_path = path or default_config_path()
+    data = _read_yaml_file(config_path)
+    if not isinstance(data, dict):
+        raise typer.BadParameter(f"config file must be a YAML mapping: {config_path}")
+    merged = {**data, **updates}
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        yaml.safe_dump(merged, sort_keys=False),
+        encoding="utf-8",
+    )
+    return config_path

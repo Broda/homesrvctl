@@ -112,11 +112,12 @@ These helpers should stay generic and reusable rather than accumulating feature-
 
 Responsibilities:
 - assess fresh-host readiness for the planned Debian-family bootstrap target
+- provision the shared Cloudflare tunnel and local bootstrap material for later host/runtime wiring
 - detect current host/package/runtime/config/token state without mutating the host
 - keep bootstrap orchestration separate from the existing domain, stack, and runtime command modules
 
-The current shipped slice is assessment-only.
-Future bootstrap mutation flows should build on this layer rather than spreading provisioning logic across unrelated modules.
+The current shipped slices cover assessment plus Cloudflare tunnel provisioning and local bootstrap material writing.
+Future bootstrap mutation flows should continue building on this layer rather than spreading provisioning logic across unrelated modules.
 
 ## Current Architectural Boundaries
 

@@ -11,6 +11,7 @@ from homesrvctl.cloudflare import (
     CloudflareApiError,
     account_id_from_cloudflared_config,
     account_id_from_zone,
+    generate_local_tunnel_secret,
     inspect_configured_tunnel,
     tunnel_cname_target,
     tunnel_cname_target_for_account,
@@ -288,6 +289,49 @@ def test_get_tunnel_errors_when_multiple_names_match(monkeypatch) -> None:
 
     with pytest.raises(CloudflareApiError, match="multiple Cloudflare tunnels matched homesrvctl-tunnel"):
         client.get_tunnel("account-123", "homesrvctl-tunnel")
+
+
+def test_create_tunnel_returns_local_credentials(monkeypatch) -> None:
+    client = CloudflareApiClient("test-token")
+
+    def fake_request_json(method: str, path: str, body: dict[str, object] | None = None) -> dict[str, object]:
+        assert method == "POST"
+        assert path == "/accounts/account-123/cfd_tunnel"
+        assert body == {
+            "name": "homesrvctl-tunnel",
+            "config_src": "local",
+            "tunnel_secret": "secret-value",
+        }
+        return {
+            "success": True,
+            "result": {
+                "id": "11111111-2222-4333-8444-555555555555",
+                "account_tag": "account-123",
+                "name": "homesrvctl-tunnel",
+                "config_src": "local",
+                "status": "inactive",
+            },
+        }
+
+    monkeypatch.setattr(client, "_request_json", fake_request_json)
+
+    tunnel = client.create_tunnel(
+        "account-123",
+        "homesrvctl-tunnel",
+        config_src="local",
+        tunnel_secret="secret-value",
+    )
+
+    assert tunnel.id == "11111111-2222-4333-8444-555555555555"
+    assert tunnel.account_tag == "account-123"
+    assert tunnel.credentials_file["TunnelSecret"] == "secret-value"
+
+
+def test_generate_local_tunnel_secret_returns_base64_secret() -> None:
+    secret = generate_local_tunnel_secret()
+
+    assert isinstance(secret, str)
+    assert len(secret) >= 44
 
 
 def test_tunnel_cname_target_for_account_uses_api_lookup(monkeypatch, tmp_path: Path) -> None:

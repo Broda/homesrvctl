@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import json
+import os
 import re
 import urllib.parse
 import urllib.error
@@ -50,6 +52,16 @@ class TunnelStatus:
     id: str
     name: str
     status: str
+
+
+@dataclass(slots=True)
+class TunnelProvision:
+    id: str
+    name: str
+    account_tag: str
+    config_src: str
+    status: str
+    credentials_file: dict[str, object]
 
 
 @dataclass(slots=True)
@@ -148,6 +160,29 @@ class CloudflareApiClient:
         if len(exact_matches) > 1:
             raise CloudflareApiError(f"multiple Cloudflare tunnels matched {candidate}; refine configuration")
         return exact_matches[0]
+
+    def create_tunnel(
+        self,
+        account_id: str,
+        tunnel_name: str,
+        *,
+        config_src: str = "local",
+        tunnel_secret: str | None = None,
+    ) -> TunnelProvision:
+        name = tunnel_name.strip()
+        if not name:
+            raise CloudflareApiError("missing tunnel name")
+        body: dict[str, object] = {"name": name, "config_src": config_src}
+        if tunnel_secret is not None:
+            body["tunnel_secret"] = tunnel_secret
+        payload = self._request_json("POST", f"/accounts/{account_id}/cfd_tunnel", body)
+        result = payload.get("result")
+        return _parse_tunnel_provision(
+            result,
+            requested_name=name,
+            requested_config_src=config_src,
+            tunnel_secret=tunnel_secret,
+        )
 
     def plan_dns_record(self, zone_id: str, record_name: str, content: str) -> ApiPlan:
         existing = self._list_dns_records(zone_id, record_name)
@@ -473,6 +508,10 @@ def account_id_from_cloudflared_config(config_path: Path) -> str:
     if not account_id:
         raise CloudflareApiError(f"cloudflared credentials missing AccountTag: {credentials_path}")
     return account_id
+
+
+def generate_local_tunnel_secret() -> str:
+    return base64.b64encode(os.urandom(32)).decode("ascii")
 def _resolve_tunnel_id_for_account(
     config: HomesrvctlConfig,
     *,
@@ -534,6 +573,44 @@ def _parse_tunnel_status(result: object, tunnel_ref: str) -> TunnelStatus:
         id=tunnel_id,
         name=str(result.get("name", "")).strip(),
         status=str(result.get("status", "")).strip(),
+    )
+
+
+def _parse_tunnel_provision(
+    result: object,
+    *,
+    requested_name: str,
+    requested_config_src: str,
+    tunnel_secret: str | None,
+) -> TunnelProvision:
+    if not isinstance(result, dict):
+        raise CloudflareApiError(f"Cloudflare returned an invalid tunnel response for {requested_name}")
+    tunnel_id = str(result.get("id", "")).strip()
+    if not UUID_RE.match(tunnel_id):
+        raise CloudflareApiError(f"Cloudflare returned an invalid tunnel ID for {requested_name}")
+    account_tag = str(result.get("account_tag", "")).strip()
+    if not account_tag:
+        raise CloudflareApiError(f"Cloudflare returned an invalid account ID for {requested_name}")
+    tunnel_name = str(result.get("name", "")).strip() or requested_name
+    config_src = str(result.get("config_src", "")).strip() or requested_config_src
+    status = str(result.get("status", "")).strip() or "inactive"
+    credentials_file = result.get("credentials_file")
+    if not isinstance(credentials_file, dict):
+        if config_src != "local" or tunnel_secret is None:
+            raise CloudflareApiError(f"Cloudflare did not return local tunnel credentials for {requested_name}")
+        credentials_file = {
+            "AccountTag": account_tag,
+            "TunnelID": tunnel_id,
+            "TunnelName": tunnel_name,
+            "TunnelSecret": tunnel_secret,
+        }
+    return TunnelProvision(
+        id=tunnel_id,
+        name=tunnel_name,
+        account_tag=account_tag,
+        config_src=config_src,
+        status=status,
+        credentials_file=credentials_file,
     )
 
 

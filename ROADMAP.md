@@ -1508,14 +1508,24 @@ Completed in this milestone:
   - `unsupported`
 - Both text and JSON output now include actionable next-step guidance while keeping the slice assessment-only.
 
-### 12.2 Cloudflare Remote Tunnel Provisioning
+### 12.2 Cloudflare Tunnel Provisioning
 
-Status: planned
+Status: completed
 
 Tasks:
 - Add Cloudflare API flows to create or reuse a shared host tunnel.
 - Persist the local material needed for the `cloudflared` runtime to connect to that tunnel.
 - Store the resulting tunnel reference in `homesrvctl` config.
+
+Completed in this milestone:
+- Added `homesrvctl bootstrap tunnel` as the first mutating bootstrap command.
+- The command can now:
+  - create a locally managed Cloudflare tunnel through the API when the requested tunnel does not already exist
+  - safely reuse an existing tunnel when matching local credentials are already available
+  - write bootstrap tunnel credentials JSON plus a minimal local `cloudflared` config
+  - normalize `tunnel_name` in the main config to the resolved tunnel UUID
+- The command now fails cleanly when a tunnel already exists in Cloudflare but the local credentials needed for safe reuse are not available from the current config.
+- The assessment next-step guidance now points at `bootstrap tunnel` once the host has a valid config and reachable Cloudflare token.
 
 ### 12.3 Host Runtime Bootstrap
 

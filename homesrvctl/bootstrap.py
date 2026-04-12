@@ -10,8 +10,19 @@ import urllib.request
 import typer
 
 from homesrvctl import __version__
+from homesrvctl.cloudflare import (
+    CloudflareApiClient,
+    CloudflareApiError,
+    account_id_from_cloudflared_config,
+    generate_local_tunnel_secret,
+)
+from homesrvctl.cloudflared import (
+    CloudflaredConfigError,
+    cloudflared_credentials_path,
+    write_bootstrap_cloudflared_config,
+)
 from homesrvctl.cloudflared_service import detect_cloudflared_runtime
-from homesrvctl.config import default_config_path, load_config_details
+from homesrvctl.config import default_config_path, load_config_details, update_config
 from homesrvctl.models import HomesrvctlConfig
 from homesrvctl.shell import command_exists, run_command
 
@@ -33,6 +44,128 @@ class BootstrapAssessment:
     cloudflare: dict[str, object]
     issues: list[str]
     next_steps: list[str]
+
+
+@dataclass(slots=True)
+class BootstrapTunnelProvisioning:
+    ok: bool
+    created: bool
+    reused: bool
+    detail: str
+    config_path: str
+    account_id: str
+    requested_tunnel: str
+    tunnel_id: str
+    tunnel_name: str
+    config_src: str
+    status: str
+    credentials_path: str
+    cloudflared_config_path: str
+    config_updated: bool
+    credentials_written: bool
+    cloudflared_config_written: bool
+    next_steps: list[str]
+
+
+def provision_bootstrap_tunnel(
+    config_path: Path | None = None,
+    *,
+    account_id: str | None = None,
+    tunnel_name: str | None = None,
+    force: bool = False,
+) -> BootstrapTunnelProvisioning:
+    target_path = config_path or default_config_path()
+    config, _ = load_config_details(target_path)
+    resolved_account_id = _resolve_bootstrap_account_id(config, explicit_account_id=account_id)
+    requested_tunnel = tunnel_name.strip() if tunnel_name and tunnel_name.strip() else config.tunnel_name.strip()
+    if not requested_tunnel:
+        raise typer.BadParameter("missing tunnel reference in config; set `tunnel_name` or pass --name")
+
+    client = CloudflareApiClient(config.cloudflare_api_token)
+    existing_tunnel = None
+    try:
+        existing_tunnel = client.get_tunnel(resolved_account_id, requested_tunnel)
+    except CloudflareApiError as exc:
+        if "not found in account" not in str(exc):
+            raise typer.BadParameter(str(exc)) from exc
+
+    credentials_path = config.cloudflared_config.parent / (
+        f"{existing_tunnel.id if existing_tunnel is not None else 'pending'}.json"
+    )
+    credentials_written = False
+    cloudflared_config_written = False
+    created = existing_tunnel is None
+    reused = existing_tunnel is not None
+
+    if existing_tunnel is not None:
+        tunnel_id = existing_tunnel.id.lower()
+        existing_credentials_path = _existing_tunnel_credentials_path(config, tunnel_id)
+        if existing_credentials_path is None:
+            raise typer.BadParameter(
+                "Cloudflare tunnel already exists in the target account, but local tunnel credentials are not "
+                "available from the current config. Choose a new tunnel name or restore the local credentials "
+                "before reusing this tunnel."
+            )
+        credentials_path = existing_credentials_path
+        cloudflared_config_written = write_bootstrap_cloudflared_config(
+            config.cloudflared_config,
+            tunnel_id=tunnel_id,
+            credentials_path=credentials_path,
+            force=force,
+        )
+        tunnel_id_value = tunnel_id
+        tunnel_name_value = existing_tunnel.name
+        config_src = "local"
+        tunnel_status = existing_tunnel.status or "inactive"
+        detail = f"reused existing Cloudflare tunnel {tunnel_name_value} ({tunnel_id_value})"
+    else:
+        tunnel_secret = generate_local_tunnel_secret()
+        provisioned = client.create_tunnel(
+            resolved_account_id,
+            requested_tunnel,
+            config_src="local",
+            tunnel_secret=tunnel_secret,
+        )
+        tunnel_id_value = provisioned.id.lower()
+        tunnel_name_value = provisioned.name
+        config_src = provisioned.config_src
+        tunnel_status = provisioned.status
+        credentials_path = config.cloudflared_config.parent / f"{tunnel_id_value}.json"
+        _write_tunnel_credentials(credentials_path, provisioned.credentials_file, force=force)
+        credentials_written = True
+        cloudflared_config_written = write_bootstrap_cloudflared_config(
+            config.cloudflared_config,
+            tunnel_id=tunnel_id_value,
+            credentials_path=credentials_path,
+            force=force,
+        )
+        detail = f"created Cloudflare tunnel {tunnel_name_value} ({tunnel_id_value})"
+
+    config_updated = config.tunnel_name != tunnel_id_value
+    update_config(target_path, tunnel_name=tunnel_id_value)
+    next_steps = [
+        f"Run `homesrvctl tunnel status --json` to confirm the configured tunnel resolves to {tunnel_id_value}.",
+        "Host runtime/service bootstrap is still a later slice; install or wire cloudflared before expecting traffic.",
+    ]
+    return BootstrapTunnelProvisioning(
+        ok=True,
+        created=created,
+        reused=reused,
+        detail=detail,
+        config_path=str(target_path),
+        account_id=resolved_account_id,
+        requested_tunnel=requested_tunnel,
+        tunnel_id=tunnel_id_value,
+        tunnel_name=tunnel_name_value,
+        config_src=config_src,
+        status=tunnel_status,
+        credentials_path=str(credentials_path),
+        cloudflared_config_path=str(config.cloudflared_config),
+        config_updated=config_updated,
+        credentials_written=credentials_written,
+        cloudflared_config_written=cloudflared_config_written,
+        next_steps=next_steps,
+    )
 
 
 def assess_bootstrap(config_path: Path | None = None, *, quiet: bool = False) -> BootstrapAssessment:
@@ -368,5 +501,55 @@ def _next_steps(
         steps.append("Configure `cloudflare_api_token` or `CLOUDFLARE_API_TOKEN` for Cloudflare API access.")
     elif cloudflare_info["api_reachable"] is False:
         steps.append("Fix Cloudflare API token reachability before attempting future bootstrap flows.")
+    elif config_info["exists"] and config_info["valid"]:
+        steps.append(
+            "Use `homesrvctl bootstrap tunnel --account-id <cloudflare-account-id>` to create or reuse the shared host tunnel."
+        )
     steps.append("`homesrvctl bootstrap apply` is not shipped yet; use this assessment to prepare the host manually.")
     return steps
+
+
+def _resolve_bootstrap_account_id(config: HomesrvctlConfig, *, explicit_account_id: str | None) -> str:
+    if explicit_account_id and explicit_account_id.strip():
+        return explicit_account_id.strip()
+    try:
+        return account_id_from_cloudflared_config(config.cloudflared_config)
+    except CloudflareApiError as exc:
+        raise typer.BadParameter(
+            "missing Cloudflare account ID for tunnel provisioning. Pass --account-id or configure a readable "
+            f"cloudflared credentials file first: {exc}"
+        ) from exc
+
+
+def _write_tunnel_credentials(credentials_path: Path, payload: dict[str, object], *, force: bool) -> bool:
+    rendered = json.dumps(payload, indent=2) + "\n"
+    existing = credentials_path.read_text(encoding="utf-8") if credentials_path.exists() else None
+    if existing is not None:
+        if existing == rendered:
+            return False
+        if not force:
+            raise typer.BadParameter(
+                f"tunnel credentials already exist at {credentials_path}; use --force to overwrite bootstrap material"
+            )
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        credentials_path.write_text(rendered, encoding="utf-8")
+    except OSError as exc:
+        raise typer.BadParameter(f"unable to write tunnel credentials {credentials_path}: {exc}") from exc
+    return True
+
+
+def _existing_tunnel_credentials_path(config: HomesrvctlConfig, tunnel_id: str) -> Path | None:
+    try:
+        credentials_path = cloudflared_credentials_path(config.cloudflared_config)
+    except (CloudflaredConfigError, typer.BadParameter):
+        return None
+    if not credentials_path.exists():
+        return None
+    try:
+        payload = json.loads(credentials_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if str(payload.get("TunnelID", "")).strip().lower() != tunnel_id.lower():
+        return None
+    return credentials_path

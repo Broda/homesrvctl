@@ -5,10 +5,12 @@ from pathlib import Path
 
 import typer
 
-from homesrvctl.bootstrap import assess_bootstrap
+from homesrvctl.bootstrap import assess_bootstrap, provision_bootstrap_tunnel
+from homesrvctl.cloudflared import CloudflaredConfigError
+from homesrvctl.config import default_config_path
 from homesrvctl.utils import info, success, warn, with_json_schema
 
-bootstrap_cli = typer.Typer(help="Assess fresh-host bootstrap readiness.")
+bootstrap_cli = typer.Typer(help="Assess and stage fresh-host bootstrap work.")
 
 
 @bootstrap_cli.command("assess")
@@ -87,3 +89,88 @@ def bootstrap_assess(
 
     if not assessment.ok:
         raise typer.Exit(code=1)
+
+
+@bootstrap_cli.command("tunnel")
+def bootstrap_tunnel(
+    path: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Read homesrvctl config from a custom path instead of the default user config location.",
+    ),
+    account_id: str | None = typer.Option(
+        None,
+        "--account-id",
+        help="Cloudflare account ID for the shared host tunnel. Required when no readable local cloudflared credentials exist yet.",
+    ),
+    name: str | None = typer.Option(
+        None,
+        "--name",
+        help="Create or reuse a tunnel with this name instead of the current config tunnel reference.",
+    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing local bootstrap tunnel material when needed."),
+    json_output: bool = typer.Option(False, "--json", help="Print the tunnel provisioning result as JSON."),
+) -> None:
+    """Create or reuse the shared Cloudflare tunnel and write local bootstrap material."""
+    target_path = path or default_config_path()
+    try:
+        provisioned = provision_bootstrap_tunnel(
+            target_path,
+            account_id=account_id,
+            tunnel_name=name,
+            force=force,
+        )
+    except (typer.BadParameter, CloudflaredConfigError) as exc:
+        payload = with_json_schema(
+            {
+                "action": "bootstrap_tunnel",
+                "ok": False,
+                "config_path": str(target_path),
+                "error": str(exc),
+            }
+        )
+        if json_output:
+            typer.echo(json.dumps(payload, indent=2))
+            raise typer.Exit(code=1) from exc
+        raise
+
+    payload = with_json_schema(
+        {
+            "action": "bootstrap_tunnel",
+            "ok": provisioned.ok,
+            "created": provisioned.created,
+            "reused": provisioned.reused,
+            "detail": provisioned.detail,
+            "config_path": provisioned.config_path,
+            "account_id": provisioned.account_id,
+            "requested_tunnel": provisioned.requested_tunnel,
+            "tunnel": {
+                "id": provisioned.tunnel_id,
+                "name": provisioned.tunnel_name,
+                "config_src": provisioned.config_src,
+                "status": provisioned.status,
+            },
+            "credentials_path": provisioned.credentials_path,
+            "cloudflared_config_path": provisioned.cloudflared_config_path,
+            "config_updated": provisioned.config_updated,
+            "credentials_written": provisioned.credentials_written,
+            "cloudflared_config_written": provisioned.cloudflared_config_written,
+            "next_steps": provisioned.next_steps,
+        }
+    )
+
+    if json_output:
+        typer.echo(json.dumps(payload, indent=2))
+        return
+
+    success(provisioned.detail)
+    info(f"account id: {provisioned.account_id}")
+    info(f"requested tunnel: {provisioned.requested_tunnel}")
+    info(f"configured tunnel id: {provisioned.tunnel_id}")
+    info(f"credentials path: {provisioned.credentials_path}")
+    info(f"cloudflared config path: {provisioned.cloudflared_config_path}")
+    if provisioned.next_steps:
+        typer.echo("")
+        info("next steps:")
+        for step in provisioned.next_steps:
+            typer.echo(f"- {step}")
