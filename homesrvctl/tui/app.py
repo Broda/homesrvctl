@@ -1351,9 +1351,13 @@ class HomesrvctlTextualApp(App[None]):
         lines = [
             "[bold #ffcf5a]Cloudflared Detail[/bold #ffcf5a]",
             "",
-            f"runtime: {payload.get('mode', 'unknown')}",
-            f"active: {active_markup}",
-            f"detail: {payload.get('detail', 'unknown')}",
+            *format_key_value_lines(
+                [
+                    ("runtime", str(payload.get("mode", "unknown"))),
+                    ("active", active_markup),
+                    ("detail", str(payload.get("detail", "unknown"))),
+                ]
+            ),
         ]
         setup = payload.get("setup")
         if isinstance(setup, dict):
@@ -1365,29 +1369,31 @@ class HomesrvctlTextualApp(App[None]):
             lines.extend(
                 [
                     "",
-                    f"config ok: {config_ok_markup}",
-                    f"config severity: {config_validation.get('max_severity', 'none')}",
-                    f"config detail: {normalize_config_validation_detail(config_validation.get('detail', 'unknown'))}",
+                    *format_key_value_lines(
+                        [
+                            ("config ok", config_ok_markup),
+                            ("config severity", str(config_validation.get("max_severity", "none"))),
+                            ("config detail", normalize_config_validation_detail(config_validation.get("detail", "unknown"))),
+                        ]
+                    ),
                 ]
             )
             warnings = config_validation.get("warnings", [])
-            lines.append("")
             if warnings:
-                lines.append("warnings:")
+                lines.extend(["", *format_key_value_lines([("warnings", str(len(warnings)))])])
                 lines.extend(f"- {warning}" for warning in warnings[:5])
             else:
-                lines.append("warnings: none")
+                lines.extend(["", *format_key_value_lines([("warnings", "none")])])
             issues = config_validation.get("issues", [])
-            lines.append("")
             if issues:
-                lines.append("issues:")
+                lines.extend(["", *format_key_value_lines([("issues", str(len(issues)))])])
                 for issue in issues[:5]:
                     if not isinstance(issue, dict):
                         continue
                     severity = "blocking" if issue.get("blocking") else str(issue.get("severity", "unknown"))
                     lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
             else:
-                lines.append("issues: none")
+                lines.extend(["", *format_key_value_lines([("issues", "none")])])
         cached = self.last_tool_actions.get("cloudflared")
         if isinstance(cached, dict):
             action = cached.get("action")

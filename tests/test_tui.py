@@ -1684,9 +1684,11 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
     command_bar = app._command_bar_text()
 
     assert "Cloudflared Detail" in detail
-    assert "runtime: systemd" in detail
-    assert "config detail: Validating rules" in detail
-    assert "config detail: Validating rules\nOK" not in detail
+    assert "runtime : systemd" in detail
+    assert "config detail : Validating rules" in detail
+    assert "config detail : Validating rules\nOK" not in detail
+    assert "warnings : none" in detail
+    assert "issues : none" in detail
     assert "· enter menu" not in detail
     assert "status:" in command_bar
 
