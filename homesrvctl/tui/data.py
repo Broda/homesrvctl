@@ -363,7 +363,7 @@ def render_check_list_detail(
             marker = "[red]FAIL[/red]"
         name = str(check.get("name", "<unknown>"))
         detail = normalize_check_detail(name, check.get("detail", ""))
-        rows.append((f"{marker} {name}", detail))
+        rows.append((name, f"{marker} {detail}"))
 
     lines = [f"checks: {len(checks)} total, {len(failing_checks)} failing, {len(advisory_checks)} advisory", ""]
     if rows:
