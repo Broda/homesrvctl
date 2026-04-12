@@ -633,7 +633,7 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
 
     coverage_issues = payload.get("coverage_issues")
     if isinstance(coverage_issues, list):
-        lines.extend(["", f"coverage issues: {len(coverage_issues)}"])
+        lines.extend(["", *format_key_value_lines([("coverage issues", str(len(coverage_issues)))])])
         for issue in coverage_issues[:4]:
             lines.append(f"- {issue}")
         if len(coverage_issues) > 4:
@@ -641,7 +641,7 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
 
     ingress_warnings = payload.get("ingress_warnings")
     if isinstance(ingress_warnings, list):
-        lines.extend(["", f"ingress warnings: {len(ingress_warnings)}"])
+        lines.extend(["", *format_key_value_lines([("ingress warnings", str(len(ingress_warnings)))])])
         for warning in ingress_warnings[:3]:
             lines.append(f"- {warning}")
         if len(ingress_warnings) > 3:
@@ -652,7 +652,14 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
         advisory_count = sum(
             1 for issue in ingress_issues if isinstance(issue, dict) and issue.get("severity") == "advisory"
         )
-        lines.extend(["", f"ingress issues: {len(ingress_issues)} total, {blocking_count} blocking, {advisory_count} advisory"])
+        lines.extend(
+            [
+                "",
+                *format_key_value_lines(
+                    [("ingress issues", f"{len(ingress_issues)} total, {blocking_count} blocking, {advisory_count} advisory")]
+                ),
+            ]
+        )
         for issue in ingress_issues[:3]:
             if not isinstance(issue, dict):
                 continue

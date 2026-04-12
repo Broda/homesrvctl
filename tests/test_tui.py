@@ -758,8 +758,8 @@ def test_render_domain_status_detail_formats_apex_status() -> None:
     assert "partial" in rendered
     assert "repairable" in rendered
     assert "Yes" in rendered
-    assert "coverage issues: 1" in rendered
-    assert "ingress issues: 1 total, 1 blocking, 0 advisory" in rendered
+    assert "coverage issues : 1" in rendered
+    assert "ingress issues : 1 total, 1 blocking, 0 advisory" in rendered
     assert "manual fix required" in rendered
     assert "no" in rendered
     assert "DNS Records" in rendered
