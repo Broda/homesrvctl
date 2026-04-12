@@ -10,6 +10,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Header, Label, Static
 
 from homesrvctl.tui.data import (
+    CONTINUATION_PREFIX,
     TOOL_ITEMS,
     normalize_config_validation_detail,
     build_dashboard_snapshot,
@@ -1146,10 +1147,13 @@ class HomesrvctlTextualApp(App[None]):
 
     def _align_detail_key_value_lines(self, text: str) -> str:
         pattern = re.compile(r"^(\s*)([^:\n]+?)\s:\s(.*)$")
-        parsed: list[tuple[str, str] | None] = []
+        parsed: list[tuple[str, str] | tuple[str] | None] = []
         max_width = 0
         original_lines = text.splitlines()
         for line in original_lines:
+            if line.startswith(CONTINUATION_PREFIX):
+                parsed.append((line.removeprefix(CONTINUATION_PREFIX),))
+                continue
             match = pattern.match(line)
             if not match:
                 parsed.append(None)
@@ -1166,6 +1170,9 @@ class HomesrvctlTextualApp(App[None]):
         for original, entry in zip(original_lines, parsed):
             if entry is None:
                 aligned_lines.append(original)
+                continue
+            if len(entry) == 1:
+                aligned_lines.append(f"{' ' * (max_width + 3)}{entry[0]}")
                 continue
             label, value = entry
             aligned_lines.append(f"{label.rjust(max_width)} : {value}")

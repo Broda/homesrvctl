@@ -801,7 +801,8 @@ def test_render_domain_status_detail_splits_ancillary_dns_records() -> None:
     rendered = "\n".join(lines)
 
     assert "detail : CNAME -> 1234.cfargotunnel.com (proxied)" in rendered
-    assert "ancillary records : MX -> route1.mx.cloudflare.net, TXT -> \"v=spf1 include:_spf.mx.cloudflare.net ~all\"" in rendered
+    assert "ancillary records : MX -> route1.mx.cloudflare.net" in rendered
+    assert "TXT -> \"v=spf1 include:_spf.mx.cloudflare.net ~all\"" in rendered
 
 
 def test_render_domain_status_detail_uses_na_when_no_repair_needed() -> None:

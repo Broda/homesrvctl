@@ -15,6 +15,8 @@ TOOL_ITEMS: list[tuple[str, str]] = [
     ("bootstrap", "Bootstrap"),
 ]
 
+CONTINUATION_PREFIX = "<<CONT>>"
+
 
 def build_dashboard_snapshot(run_json_command=None) -> dict[str, object]:  # noqa: ANN001
     if run_json_command is None:
@@ -395,6 +397,18 @@ def split_dns_detail(detail: object) -> tuple[str, str | None]:
     return main_detail.strip() or "unknown", ancillary.strip() or None
 
 
+def split_ancillary_records(detail: str) -> list[str]:
+    return [part.strip() for part in detail.split(", ") if part.strip()]
+
+
+def format_key_value_with_continuations(label: str, values: list[str]) -> list[str]:
+    if not values:
+        return []
+    lines = [f"{label} : {values[0]}"]
+    lines.extend(f"{CONTINUATION_PREFIX}{value}" for value in values[1:])
+    return lines
+
+
 def summarize_tool_action(tool: str, action: str, payload: dict[str, object]) -> str:
     tool_label = str(tool)
     label = str(action)
@@ -691,11 +705,10 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
                 ("target", str(item.get("content") or "<unknown>")),
                 ("detail", detail),
             ]
-            if ancillary:
-                row_items.append(("ancillary records", ancillary))
             dns_lines.extend(
                 [
                     *format_key_value_lines(row_items),
+                    *(format_key_value_with_continuations("ancillary records", split_ancillary_records(ancillary)) if ancillary else []),
                     "",
                 ]
             )
