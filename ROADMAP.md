@@ -1591,6 +1591,107 @@ Completed in this milestone:
   - `unsupported`
 - The shipped bootstrap story now ends in one explicit host-readiness result for first stack creation and domain onboarding.
 
+## Milestone 13: Cloudflare Control-Plane Extensions
+
+This milestone covers Cloudflare-adjacent features that fit the current operator model:
+
+- one shared host tunnel
+- DNS plus local ingress convergence
+- opinionated, convergent operator workflows
+- narrow Cloudflare control surfaces directly relevant to self-hosted apps behind Traefik
+
+This milestone should explicitly avoid turning `homesrvctl` into a broad Cloudflare admin console.
+
+### 13.1 Tunnel API Inspection And Remote Config Visibility
+
+Status: planned
+
+Tasks:
+- Expand tunnel inspection beyond local UUID resolution and current status.
+- Surface Cloudflare-side tunnel metadata that helps operators reconcile local and remote state.
+- Keep the scope read-focused first.
+
+Target outcomes:
+- richer `tunnel status` output for account-backed inspection
+- visibility into Cloudflare-side tunnel name, status, and any remote-config mismatch worth surfacing
+- clearer distinction between:
+  - local `cloudflared` state
+  - Cloudflare account tunnel state
+  - API token/account mismatch failures
+
+### 13.2 Access Protection For Private Services
+
+Status: planned
+
+Tasks:
+- Add an opinionated way to protect selected hostnames behind Cloudflare Access.
+- Keep the first slice focused on common self-hosted admin/staging use cases.
+- Model Access as an explicit operator choice rather than a generic policy editor.
+
+Target outcomes:
+- inspect whether a hostname is currently protected by Cloudflare Access
+- converge a small supported protection model for private hostnames
+- keep initial coverage narrow:
+  - simple app protection
+  - predictable operator output
+  - no broad Zero Trust policy surface in v1
+
+### 13.3 Zone Edge Settings Profiles
+
+Status: planned
+
+Tasks:
+- Add convergent control for a small set of zone-level edge settings that commonly matter for self-hosted sites.
+- Keep settings bundled into opinionated profiles rather than exposing every Cloudflare toggle.
+
+Target outcomes:
+- inspect and optionally converge settings such as:
+  - SSL mode
+  - Always Use HTTPS
+  - Automatic HTTPS Rewrites
+  - HSTS
+- define one or two supported presets for common homesrvctl hosting patterns
+- surface mismatches as operator-readable status instead of raw Cloudflare payloads
+
+### 13.4 Domain Onboarding And Delegation Checks
+
+Status: planned
+
+Tasks:
+- Extend domain onboarding readiness checks beyond record creation alone.
+- Detect common Cloudflare-side blockers before a domain add/repair attempt.
+
+Target outcomes:
+- zone activation and nameserver/delegation readiness checks
+- clearer “zone exists but is not ready” reporting
+- a better first-run path for domains newly added to Cloudflare
+
+### 13.5 Email Routing And Ancillary DNS Visibility
+
+Status: planned
+
+Tasks:
+- Improve visibility for mail-related Cloudflare features that often coexist with apex tunnel routing.
+- Keep the first slice inspect/report-focused before adding mutations.
+
+Target outcomes:
+- report Cloudflare Email Routing / mail-supporting record presence alongside domain status
+- distinguish ancillary mail records from routing conflicts more clearly
+- help operators reason about apex web plus mail setups without overreaching into full mail administration
+
+### 13.6 Redirects And Edge Rule Profiles
+
+Status: planned
+
+Tasks:
+- Add a narrow redirect/profile surface for common self-hosted site needs.
+- Keep the first slice limited to obvious site-level redirects rather than broad rule management.
+
+Target outcomes:
+- converge simple redirect cases such as apex-to-www or www-to-apex when explicitly chosen
+- inspect whether a supported redirect profile is already active
+- avoid exposing the full Cloudflare Rules product surface in v1
+
 ## Cross-Cutting Working Rules
 
 These are not standalone deliverables, but they should constrain all future milestones.
