@@ -2231,7 +2231,7 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2241,7 +2241,7 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2255,7 +2255,7 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2269,7 +2269,7 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2341,7 +2341,7 @@ def test_domain_add_dry_run_uses_api_tunnel_lookup_when_local_uuid_missing(monke
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2351,7 +2351,7 @@ def test_domain_add_dry_run_uses_api_tunnel_lookup_when_local_uuid_missing(monke
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2365,7 +2365,7 @@ def test_domain_add_dry_run_uses_api_tunnel_lookup_when_local_uuid_missing(monke
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2420,7 +2420,7 @@ def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2430,7 +2430,7 @@ def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2482,7 +2482,7 @@ def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2492,7 +2492,7 @@ def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2552,7 +2552,7 @@ def test_domain_add_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2562,7 +2562,7 @@ def test_domain_add_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2638,7 +2638,7 @@ def test_domain_add_uses_effective_service_for_mixed_stacks(monkeypatch, tmp_pat
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2696,7 +2696,7 @@ def test_domain_add_restarts_cloudflared_when_requested(monkeypatch, tmp_path: P
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -2721,7 +2721,7 @@ def test_domain_add_restarts_cloudflared_when_requested(monkeypatch, tmp_path: P
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2795,7 +2795,7 @@ def test_domain_repair_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -2917,7 +2917,7 @@ def test_domain_repair_refuses_partial_write_when_cloudflared_setup_is_not_ready
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -3066,19 +3066,23 @@ def test_domain_repair_reports_cloudflared_write_permission_error(monkeypatch, t
         "tunnel_cname_target",
         lambda config: "11111111-2222-4333-8444-555555555555.cfargotunnel.com",
     )
+    quiet_calls: list[bool] = []
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
-            "Setup",
-            (),
-            {
-                "ingress_mutation_available": True,
-                "systemd_managed": False,
-                "paths_aligned": None,
-                "detail": "configured cloudflared path is ready for homesrvctl mutations",
-            },
-        )(),
+        lambda path, quiet=False: (
+            quiet_calls.append(quiet)
+            or type(
+                "Setup",
+                (),
+                {
+                    "ingress_mutation_available": True,
+                    "systemd_managed": False,
+                    "paths_aligned": None,
+                    "detail": "configured cloudflared path is ready for homesrvctl mutations",
+                },
+            )()
+        ),
     )
     monkeypatch.setattr(Path, "write_text", fake_write_text)
 
@@ -3086,10 +3090,55 @@ def test_domain_repair_reports_cloudflared_write_permission_error(monkeypatch, t
     result = runner.invoke(app, ["domain", "repair", "example.com"])
 
     assert result.exit_code == 1, result.output
+    assert quiet_calls == [False]
     assert "unable to write cloudflared config" in result.output
     assert "Permission denied" in result.output
     assert "point homesrvctl and the cloudflared service at a writable config path" in result.output
     assert "Traceback" not in result.output
+
+
+def test_domain_repair_json_preflight_uses_quiet_setup_inspection(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import domain_cmd
+
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    _write_cloudflared_config(cloudflared_config)
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["cloudflared_config"] = str(cloudflared_config)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    quiet_calls: list[bool] = []
+
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, quiet=False: (
+            quiet_calls.append(quiet)
+            or type(
+                "Setup",
+                (),
+                {
+                    "ingress_mutation_available": False,
+                    "systemd_managed": False,
+                    "paths_aligned": None,
+                    "detail": "configured cloudflared path is not writable by the current user",
+                },
+            )()
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["domain", "repair", "example.com", "--json"])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["action"] == "repair"
+    assert payload["ok"] is False
+    assert quiet_calls == [True]
 
 
 def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
@@ -3138,7 +3187,7 @@ def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -3148,7 +3197,7 @@ def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -3215,7 +3264,7 @@ def test_domain_remove_json_output(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="systemd",
             active=True,
             detail="systemd service is active",
@@ -3225,7 +3274,7 @@ def test_domain_remove_json_output(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {
@@ -3283,7 +3332,7 @@ def test_domain_add_warns_with_docker_restart_hint(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         domain_cmd,
         "detect_cloudflared_runtime",
-        lambda: CloudflaredRuntime(
+        lambda quiet=False: CloudflaredRuntime(
             mode="docker",
             active=True,
             detail="running container(s): cloudflared",
@@ -3354,7 +3403,7 @@ def test_domain_remove_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         domain_cmd,
         "inspect_cloudflared_setup",
-        lambda path: type(
+        lambda path, quiet=False: type(
             "Setup",
             (),
             {

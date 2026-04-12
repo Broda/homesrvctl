@@ -87,7 +87,7 @@ def domain_remove(
     restart_result: dict[str, object] | None = None
     try:
         if not dry_run:
-            _require_cloudflared_ingress_mutation_ready(config)
+            _require_cloudflared_ingress_mutation_ready(config, quiet=json_output)
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
         records = [bare_domain, f"*.{bare_domain}"]
@@ -370,7 +370,7 @@ def _upsert_domain_routing(
     restart_result: dict[str, object] | None = None
     try:
         if not dry_run:
-            _require_cloudflared_ingress_mutation_ready(config)
+            _require_cloudflared_ingress_mutation_ready(config, quiet=json_output)
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
         target = _resolve_domain_tunnel_target(config, zone, client)
@@ -517,7 +517,7 @@ def _restart_cloudflared(json_output: bool = False) -> dict[str, object]:
 
 
 def _plan_cloudflared_restart(json_output: bool = False) -> dict[str, object]:
-    runtime = detect_cloudflared_runtime()
+    runtime = detect_cloudflared_runtime(quiet=json_output)
     if runtime.restart_command:
         if not json_output:
             info(f"[dry-run] {' '.join(runtime.restart_command)}")
@@ -540,7 +540,7 @@ def _plan_cloudflared_restart(json_output: bool = False) -> dict[str, object]:
 
 
 def _warn_cloudflared_restart(json_output: bool = False) -> dict[str, object]:
-    runtime = detect_cloudflared_runtime()
+    runtime = detect_cloudflared_runtime(quiet=json_output)
     if runtime.restart_command:
         if not json_output:
             warn(f"Restart cloudflared to apply ingress changes: {' '.join(runtime.restart_command)}")
@@ -661,8 +661,8 @@ def _format_domain_error(error: Exception) -> str:
     return str(error)
 
 
-def _require_cloudflared_ingress_mutation_ready(config) -> None:  # noqa: ANN001
-    setup = inspect_cloudflared_setup(config.cloudflared_config)
+def _require_cloudflared_ingress_mutation_ready(config, *, quiet: bool = False) -> None:  # noqa: ANN001
+    setup = inspect_cloudflared_setup(config.cloudflared_config, quiet=quiet)
     if setup.ingress_mutation_available:
         return
     detail = setup.detail
