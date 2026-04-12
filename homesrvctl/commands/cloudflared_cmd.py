@@ -8,6 +8,7 @@ from homesrvctl.cloudflared import test_cloudflared_config
 from homesrvctl.cloudflared_service import (
     CloudflaredServiceError,
     detect_cloudflared_runtime,
+    inspect_cloudflared_setup,
     reload_cloudflared_service,
     restart_cloudflared_service,
 )
@@ -24,18 +25,24 @@ def cloudflared_status(
     """Show how cloudflared is currently managed and whether it is active."""
     runtime = detect_cloudflared_runtime(quiet=json_output)
     config_validation = None
+    setup = None
     try:
         config = load_config()
         config_validation = test_cloudflared_config(config.cloudflared_config)
+        setup = inspect_cloudflared_setup(config.cloudflared_config, runtime=runtime, quiet=json_output)
     except typer.BadParameter:
         config_validation = None
+        setup = None
     runtime_ok = runtime.active
     config_ok = config_validation is None or config_validation.ok
-    overall_ok = runtime_ok and config_ok
+    setup_ok = setup is None or setup.ok
+    overall_ok = runtime_ok and config_ok and setup_ok
     if json_output:
         payload = _runtime_payload(runtime, ok=overall_ok)
         if config_validation is not None:
             payload["config_validation"] = _config_validation_payload(config_validation)
+        if setup is not None:
+            payload["setup"] = _setup_payload(setup)
         typer.echo(json.dumps(with_json_schema(payload), indent=2))
     else:
         detail = f"{runtime.mode}: {runtime.detail}"
@@ -61,7 +68,57 @@ def cloudflared_status(
                 for issue in issues:
                     prefix = "config blocking issue" if issue.blocking else "config advisory"
                     warn(f"{prefix}: {issue.render()}")
+        if setup is not None:
+            if setup.ok:
+                info(f"setup: {setup.detail}")
+            else:
+                warn(f"setup: {setup.detail}")
+                for issue in setup.issues:
+                    warn(f"setup issue: {issue}")
+                if setup.next_commands:
+                    info("run `homesrvctl cloudflared setup` for exact repair commands")
     if not overall_ok:
+        raise typer.Exit(code=1)
+
+
+@cloudflared_cli.command("setup")
+def cloudflared_setup(
+    json_output: bool = typer.Option(False, "--json", help="Print the cloudflared setup assessment as JSON."),
+) -> None:
+    """Assess cloudflared config ownership and runtime alignment for homesrvctl."""
+    config = load_config()
+    runtime = detect_cloudflared_runtime(quiet=json_output)
+    setup = inspect_cloudflared_setup(config.cloudflared_config, runtime=runtime, quiet=json_output)
+    payload = with_json_schema(_setup_payload(setup))
+    if json_output:
+        typer.echo(json.dumps(payload, indent=2))
+    else:
+        if setup.ok:
+            success(setup.detail)
+        else:
+            warn(setup.detail)
+        info(f"configured path: {setup.configured_path}")
+        info(f"runtime path: {setup.runtime_path or '<unavailable>'}")
+        info(f"paths aligned: {'yes' if setup.paths_aligned else 'no' if setup.paths_aligned is False else 'unknown'}")
+        info(f"configured exists: {'yes' if setup.configured_exists else 'no'}")
+        info(f"configured writable: {'yes' if setup.configured_writable else 'no'}")
+        info(f"ingress mutations available: {'yes' if setup.ingress_mutation_available else 'no'}")
+        if setup.notes:
+            for note in setup.notes:
+                info(f"note: {note}")
+        if setup.issues:
+            for issue in setup.issues:
+                warn(f"issue: {issue}")
+        if setup.override_content:
+            info(f"systemd override path: {setup.override_path}")
+            typer.echo("")
+            typer.echo(setup.override_content)
+        if setup.next_commands:
+            typer.echo("")
+            info("next commands:")
+            for command in setup.next_commands:
+                typer.echo(command)
+    if not setup.ok:
         raise typer.Exit(code=1)
 
 
@@ -251,6 +308,29 @@ def _config_validation_payload(result) -> dict[str, object]:  # noqa: ANN001
         "has_blocking_issues": has_blocking_issues,
         "max_severity": "blocking" if has_blocking_issues else ("advisory" if advisory_count else None),
         "warning_policy": "non-fatal" if result.ok and warnings else None,
+    }
+
+
+def _setup_payload(setup) -> dict[str, object]:  # noqa: ANN001
+    return {
+        "ok": setup.ok,
+        "mode": setup.mode,
+        "systemd_managed": setup.systemd_managed,
+        "active": setup.active,
+        "configured_path": setup.configured_path,
+        "configured_exists": setup.configured_exists,
+        "configured_writable": setup.configured_writable,
+        "runtime_path": setup.runtime_path,
+        "runtime_exists": setup.runtime_exists,
+        "runtime_readable": setup.runtime_readable,
+        "paths_aligned": setup.paths_aligned,
+        "ingress_mutation_available": setup.ingress_mutation_available,
+        "detail": setup.detail,
+        "issues": setup.issues,
+        "notes": setup.notes or [],
+        "next_commands": setup.next_commands,
+        "override_path": setup.override_path,
+        "override_content": setup.override_content,
     }
 
 

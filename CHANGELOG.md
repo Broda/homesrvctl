@@ -9,6 +9,8 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Added
+- Added `cloudflared setup` to assess whether the configured `cloudflared` config path is writable and aligned with the active runtime, and to print exact systemd override / migration commands when setup repair is needed.
+- Added setup-alignment reporting to `cloudflared status` plus a matching `Fix Setup` action in the TUI `Cloudflared` pane.
 - Added a global TUI stack-creation flow that can scaffold a new hostname through the existing `site init` and `app init` commands without requiring a pre-existing stack row.
 - Added sequential TUI prompts for new-stack hostname entry, create-mode selection, optional app-template selection, and optional routing overrides (`profile`, `docker_network`, `traefik_url`).
 - Added TUI overwrite confirmation for scaffold creation when the underlying CLI reports that generated files already exist.
@@ -22,6 +24,8 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - TUI visual polish: status ok / warning / error values, PASS/FAIL/WARN check markers, domain overall status, DNS/ingress match state, and cloudflared active/inactive are now color-coded via Rich markup; detail section headers use the accent color; the detail pane title updates to reflect the focused stack or tool; and per-pane help prose was replaced with a single compact hint line.
 
 ### Fixed
+- `domain add`, `domain repair`, and `domain remove` now fail before DNS changes when the configured `cloudflared` ingress file cannot actually be mutated from the current setup, avoiding partial DNS-only updates when the active systemd service points at a different config file or the configured path is not writable.
+- `domain add`, `domain repair`, and `domain remove` now surface `cloudflared` config write failures as operator-facing errors with remediation hints instead of raw Python tracebacks when the configured ingress file is not writable.
 - Keep `--json` status and validation output free of probe noise so the terminal dashboard can consume `cloudflared status`, `validate`, and `doctor` reliably.
 - Tightened `domain status` diagnostics so DNS and ingress conflicts now distinguish missing records, wrong types, wrong targets, duplicate ingress entries, shadowing, and manual-cleanup cases more explicitly.
 - Normalized `cloudflared` ingress issue severity so blocking semantic-danger states now fail health checks while broader wildcard-precedence risks remain advisory.
@@ -78,6 +82,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Expanded scaffold regression coverage so generated `node` and `python` artifacts stay consistent across ports, healthchecks, first-run docs, and rendered template manifests.
 
 ### Changed
+- New starter configs now default `cloudflared_config` to `/srv/homesrvctl/cloudflared/config.yml`; existing installs keep honoring their already-configured path without automatic migration.
 
 - Broadened release-packaging verification from Jekyll-only coverage to the full shipped template asset catalog.
 - Added a root `.dockerignore` to the `static-api` scaffold so its stack-root Python image build follows the same build-context convention as the other image-building app templates.

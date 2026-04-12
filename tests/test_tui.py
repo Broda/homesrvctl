@@ -277,6 +277,21 @@ def test_run_tool_action_dispatches_to_existing_commands(monkeypatch) -> None:
     assert calls == [["cloudflared", "config-test"]]
 
 
+def test_run_tool_action_dispatches_cloudflared_setup(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": False, "detail": "setup mismatch"}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_tool_action("cloudflared", "setup")
+
+    assert payload["ok"] is False
+    assert calls == [["cloudflared", "setup"]]
+
+
 def test_run_tool_action_dispatches_tunnel_show(monkeypatch) -> None:
     calls: list[list[str]] = []
 
@@ -509,6 +524,33 @@ def test_render_tool_action_detail_formats_logs_guidance() -> None:
     assert "yes" in rendered
     assert "logs command" in rendered
     assert "journalctl -u cloudflared -f" in rendered
+
+
+def test_render_tool_action_detail_formats_setup_guidance() -> None:
+    lines = data.render_tool_action_detail(
+        "cloudflared",
+        "setup",
+        {
+            "ok": False,
+            "detail": "systemd cloudflared service uses /etc/cloudflared/config.yml, but homesrvctl is configured for /srv/homesrvctl/cloudflared/config.yml",
+            "configured_path": "/srv/homesrvctl/cloudflared/config.yml",
+            "runtime_path": "/etc/cloudflared/config.yml",
+            "paths_aligned": False,
+            "configured_exists": False,
+            "configured_writable": False,
+            "ingress_mutation_available": False,
+            "issues": ["configured cloudflared config is missing: /srv/homesrvctl/cloudflared/config.yml"],
+            "next_commands": ["sudo install -d -o broda -g broda -m 755 /srv/homesrvctl/cloudflared"],
+            "override_path": "/etc/systemd/system/cloudflared.service.d/override.conf",
+        },
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "setup" in rendered
+    assert "next commands: 1" in rendered
+    assert "override path" in rendered
+    assert "sudo install -d -o broda -g broda -m 755 /srv/homesrvctl/cloudflared" in rendered
 
 
 def test_render_config_payload_detail_formats_global_config() -> None:
@@ -858,7 +900,7 @@ def test_tool_action_options_include_config_and_cloudflared_actions() -> None:
     cloudflared_options = prompts.tool_action_options("cloudflared")
 
     assert [label for _, label, _ in config_options] == ["config show", "config init"]
-    assert [label for _, label, _ in cloudflared_options] == ["config-test", "logs", "reload", "restart"]
+    assert [label for _, label, _ in cloudflared_options] == ["setup", "config-test", "logs", "reload", "restart"]
 
 
 def test_stack_action_options_include_domain_actions_for_apex() -> None:
@@ -915,9 +957,10 @@ def test_tool_action_menu_screen_renders_options() -> None:
 
     rendered = screen._options_text()
 
-    assert "> 1. config-test" in rendered
-    assert "2. logs" in rendered
-    assert "4. restart" in rendered
+    assert "> 1. setup" in rendered
+    assert "2. config-test" in rendered
+    assert "3. logs" in rendered
+    assert "5. restart" in rendered
 
 
 def test_cloudflared_logs_mode_screen_renders_options() -> None:
@@ -1438,6 +1481,18 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
             "mode": "systemd",
             "active": True,
             "detail": "systemd service is active",
+            "setup": {
+                "ok": True,
+                "configured_path": "/srv/homesrvctl/cloudflared/config.yml",
+                "runtime_path": "/srv/homesrvctl/cloudflared/config.yml",
+                "paths_aligned": True,
+                "configured_exists": True,
+                "configured_writable": True,
+                "ingress_mutation_available": True,
+                "issues": [],
+                "notes": [],
+                "next_commands": [],
+            },
             "config_validation": {
                 "ok": True,
                 "detail": "Validating rules\nOK",
@@ -2007,6 +2062,45 @@ def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:
     assert app.last_tool_actions["cloudflared"]["action"] == "config-test"
 
 
+def test_textual_app_cloudflared_setup_action_updates_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": False, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:00:01",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": False, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    calls: list[tuple[str, str]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 2
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_tool_action",
+        lambda tool, action, **kwargs: calls.append((tool, action))
+        or {"ok": False, "detail": "setup mismatch", "next_commands": ["sudo systemctl daemon-reload"]},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._run_selected_tool_action("cloudflared", "setup")
+
+    assert calls == [("cloudflared", "setup")]
+    assert app.status_message == "cloudflared setup failed: setup mismatch"
+    assert app.last_tool_actions["cloudflared"]["action"] == "setup"
+
+
 def test_textual_app_cloudflared_tool_menu_routes_logs_prompt(monkeypatch) -> None:
     app = textual_app.HomesrvctlTextualApp()
     pushed: list[tuple[object, object]] = []
@@ -2338,10 +2432,13 @@ def test_detail_button_actions_cloudflared_focus() -> None:
     item = app._selected_control_item()
     assert item.get("tool") == "cloudflared"
     app._detail_button_actions = {label: action for label, action in [
+        ("Fix Setup", "cloudflared_setup"),
         ("Config Test", "cloudflared_config_test"),
         ("Reload", "cloudflared_reload"),
         ("Restart CF", "cloudflared_restart"),
     ]}
+    assert "Fix Setup" in app._detail_button_actions
+    assert app._detail_button_actions["Fix Setup"] == "cloudflared_setup"
     assert "Config Test" in app._detail_button_actions
     assert app._detail_button_actions["Config Test"] == "cloudflared_config_test"
 

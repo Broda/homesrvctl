@@ -66,6 +66,8 @@ Responsibilities:
 - parse and validate `cloudflared` ingress config
 - reconcile ingress entries for domain lifecycle commands
 - detect `cloudflared` runtime mode
+- inspect whether the configured `cloudflared` path is aligned with the active runtime
+- generate systemd-oriented setup guidance when the runtime and configured path diverge
 - select restart/log commands appropriate for the detected runtime
 
 Keep a clear separation between:

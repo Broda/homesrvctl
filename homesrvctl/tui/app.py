@@ -10,6 +10,7 @@ from textual.widgets import Button, Header, Label, Static
 from homesrvctl.tui.data import (
     TOOL_ITEMS,
     build_dashboard_snapshot,
+    render_cloudflared_setup_detail,
     render_config_payload_detail,
     render_domain_status_detail,
     render_tool_action_detail,
@@ -536,6 +537,9 @@ class HomesrvctlTextualApp(App[None]):
     def action_cloudflared_config_test(self) -> None:
         self._run_selected_tool_action("cloudflared", "config-test")
 
+    def action_cloudflared_setup(self) -> None:
+        self._run_selected_tool_action("cloudflared", "setup")
+
     def action_cloudflared_reload(self) -> None:
         self._run_selected_tool_action("cloudflared", "reload")
 
@@ -993,6 +997,7 @@ class HomesrvctlTextualApp(App[None]):
             ]
         elif item.get("tool") == "cloudflared":
             specs = [
+                ("Fix Setup", "cloudflared_setup"),
                 ("Config Test", "cloudflared_config_test"),
                 ("Reload", "cloudflared_reload"),
                 ("Restart CF", "cloudflared_restart"),
@@ -1143,6 +1148,11 @@ class HomesrvctlTextualApp(App[None]):
         else:
             status = "[yellow]⚠ inactive[/yellow]"
         config_validation = payload.get("config_validation")
+        setup = payload.get("setup")
+        if isinstance(setup, dict) and not setup.get("ok", False):
+            issue_count = len(setup.get("issues", [])) if isinstance(setup.get("issues"), list) else 1
+            status = f"[yellow]⚠ {issue_count} setup[/yellow]"
+            return status, str(setup.get("detail", runtime))
         if isinstance(config_validation, dict):
             issues = config_validation.get("issues", [])
             if isinstance(issues, list) and issues:
@@ -1273,6 +1283,9 @@ class HomesrvctlTextualApp(App[None]):
             f"active: {active_markup}",
             f"detail: {payload.get('detail', 'unknown')}",
         ]
+        setup = payload.get("setup")
+        if isinstance(setup, dict):
+            lines.extend(["", *render_cloudflared_setup_detail(setup)])
         config_validation = payload.get("config_validation")
         if isinstance(config_validation, dict):
             config_ok = config_validation.get("ok", False)

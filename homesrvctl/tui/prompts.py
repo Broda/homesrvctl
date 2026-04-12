@@ -110,6 +110,7 @@ def tool_action_options(tool: str) -> list[tuple[str, str, str]]:
         ]
     if tool == "cloudflared":
         return [
+            ("setup", "setup", "Assess config ownership and generate repair commands."),
             ("config-test", "config-test", "Validate the configured ingress file."),
             ("logs", "logs", "Show the suggested runtime log command."),
             ("reload", "reload", "Run the detected cloudflared reload command."),

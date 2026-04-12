@@ -191,6 +191,8 @@ def run_tool_action(
         if action == "show":
             return run_json_subcommand(["tunnel", "status"])
     if tool == "cloudflared":
+        if action == "setup":
+            return run_json_subcommand(["cloudflared", "setup"])
         if action == "config-test":
             return run_json_subcommand(["cloudflared", "config-test"])
         if action == "logs":
@@ -365,6 +367,18 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
     if detail:
         lines.extend(["", *format_key_value_lines([("detail", str(detail))])])
 
+    next_commands = payload.get("next_commands")
+    if isinstance(next_commands, list) and next_commands:
+        lines.extend(["", f"next commands: {len(next_commands)}", ""])
+        for command in next_commands[:6]:
+            lines.append(str(command))
+        if len(next_commands) > 6:
+            lines.append(f"... {len(next_commands) - 6} more")
+
+    override_path = payload.get("override_path")
+    if override_path:
+        lines.extend(["", *format_key_value_lines([("override path", str(override_path))])])
+
     logs_command = payload.get("logs_command")
     if isinstance(logs_command, list) and logs_command:
         rendered_command = " ".join(str(part) for part in logs_command)
@@ -431,6 +445,10 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
                 lines.append(f"- {severity}: {issue.get('message', issue.get('detail', ''))}")
             if len(validation_issues) > 5:
                 lines.append(f"... {len(validation_issues) - 5} more")
+
+    setup = payload.get("setup")
+    if isinstance(setup, dict):
+        lines.extend(["", *render_cloudflared_setup_detail(setup)])
 
     return lines
 
@@ -533,11 +551,19 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
                 ("overall", overall_markup),
                 ("repairable", str(payload.get("repairable", False))),
                 ("manual fix required", str(payload.get("manual_fix_required", False))),
+                (
+                    "ingress mutations",
+                    "yes" if payload.get("ingress_mutation_available", False) else "no",
+                ),
                 ("expected tunnel target", str(payload.get("expected_tunnel_target", "<unknown>"))),
                 ("expected ingress service", str(payload.get("expected_ingress_service", "<unknown>"))),
             ]
         ),
     ]
+
+    ingress_mutation_detail = payload.get("ingress_mutation_detail")
+    if ingress_mutation_detail:
+        lines.extend(["", *format_key_value_lines([("mutation detail", str(ingress_mutation_detail))])])
 
     coverage_issues = payload.get("coverage_issues")
     if isinstance(coverage_issues, list):
@@ -605,3 +631,51 @@ def format_key_value_lines(items: list[tuple[str, str]]) -> list[str]:
         return []
     width = max(len(label) for label, _ in items)
     return [f"{label.rjust(width)} : {value}" for label, value in items]
+
+
+def render_cloudflared_setup_detail(payload: dict[str, object]) -> list[str]:
+    lines = [
+        "[bold #ffcf5a]Setup Alignment[/bold #ffcf5a]",
+        "",
+        *format_key_value_lines(
+            [
+                ("configured path", str(payload.get("configured_path", "<unknown>"))),
+                ("runtime path", str(payload.get("runtime_path") or "<unavailable>")),
+                (
+                    "paths aligned",
+                    "yes" if payload.get("paths_aligned") else "no" if payload.get("paths_aligned") is False else "unknown",
+                ),
+                ("configured exists", "yes" if payload.get("configured_exists") else "no"),
+                ("configured writable", "yes" if payload.get("configured_writable") else "no"),
+                (
+                    "ingress mutations available",
+                    "yes" if payload.get("ingress_mutation_available") else "no",
+                ),
+            ]
+        ),
+    ]
+
+    notes = payload.get("notes")
+    if isinstance(notes, list):
+        lines.extend(["", f"notes: {len(notes)}"])
+        for note in notes[:4]:
+            lines.append(f"- {note}")
+        if len(notes) > 4:
+            lines.append(f"... {len(notes) - 4} more")
+
+    issues = payload.get("issues")
+    if isinstance(issues, list):
+        lines.extend(["", f"setup issues: {len(issues)}"])
+        for issue in issues[:5]:
+            lines.append(f"- {issue}")
+        if len(issues) > 5:
+            lines.append(f"... {len(issues) - 5} more")
+
+    next_commands = payload.get("next_commands")
+    if isinstance(next_commands, list) and next_commands:
+        lines.extend(["", f"next commands: {len(next_commands)}"])
+        for command in next_commands[:6]:
+            lines.append(f"- {command}")
+        if len(next_commands) > 6:
+            lines.append(f"... {len(next_commands) - 6} more")
+    return lines

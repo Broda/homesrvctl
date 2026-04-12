@@ -26,6 +26,7 @@ from homesrvctl.cloudflared import (
 from homesrvctl.cloudflared_service import (
     CloudflaredServiceError,
     detect_cloudflared_runtime,
+    inspect_cloudflared_setup,
     restart_cloudflared_service,
 )
 from homesrvctl.config import load_config, load_config_details, load_stack_settings, stack_routing_context
@@ -85,6 +86,8 @@ def domain_remove(
     ingress_results: list[dict[str, object]] = []
     restart_result: dict[str, object] | None = None
     try:
+        if not dry_run:
+            _require_cloudflared_ingress_mutation_ready(config)
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
         records = [bare_domain, f"*.{bare_domain}"]
@@ -232,6 +235,7 @@ def domain_status(
             stack_settings.traefik_url,
         )
         ingress_issues = inspect_cloudflared_config_issues(config.cloudflared_config)
+        setup = inspect_cloudflared_setup(config.cloudflared_config, quiet=json_output)
     except (CloudflareApiError, typer.BadParameter) as exc:
         raise typer.Exit(code=_exit_with_error(_format_domain_error(exc))) from exc
     except CloudflaredConfigError as exc:
@@ -255,6 +259,11 @@ def domain_status(
             "coverage_issues": coverage_issues,
             "ingress_warnings": [issue.render() for issue in ingress_issues if issue.severity == "advisory"],
             "ingress_issues": [_ingress_issue_to_dict(issue) for issue in ingress_issues],
+            "ingress_mutation_available": setup.ingress_mutation_available,
+            "ingress_mutation_detail": setup.detail,
+            "configured_cloudflared_config": setup.configured_path,
+            "runtime_cloudflared_config": setup.runtime_path,
+            "cloudflared_paths_aligned": setup.paths_aligned,
             "dns": [
                 {
                     "record_name": status.record_name,
@@ -320,6 +329,10 @@ def domain_status(
         for issue in ingress_issues:
             prefix = "Ingress advisory" if issue.severity == "advisory" else "Ingress blocking issue"
             warn(f"{prefix}: {issue.render()}")
+        if setup.ingress_mutation_available:
+            info("Ingress mutations from homesrvctl: yes")
+        else:
+            warn(f"Ingress mutations from homesrvctl: no; {setup.detail}")
 
     if overall == "ok":
         if not json_output:
@@ -356,6 +369,8 @@ def _upsert_domain_routing(
     ingress_results: list[dict[str, object]] = []
     restart_result: dict[str, object] | None = None
     try:
+        if not dry_run:
+            _require_cloudflared_ingress_mutation_ready(config)
         zone = client.get_zone(bare_domain)
         zone_id = str(zone["id"])
         target = _resolve_domain_tunnel_target(config, zone, client)
@@ -644,6 +659,18 @@ def _format_domain_error(error: Exception) -> str:
             )
         return message
     return str(error)
+
+
+def _require_cloudflared_ingress_mutation_ready(config) -> None:  # noqa: ANN001
+    setup = inspect_cloudflared_setup(config.cloudflared_config)
+    if setup.ingress_mutation_available:
+        return
+    detail = setup.detail
+    if setup.systemd_managed and setup.paths_aligned is False:
+        raise typer.BadParameter(
+            f"{detail}. Run `homesrvctl cloudflared setup` to generate the systemd override and migration commands."
+        )
+    raise typer.BadParameter(f"{detail}. Run `homesrvctl cloudflared setup` for repair guidance.")
 
 
 def _domain_status_repairability(overall: str, dns_statuses, ingress_statuses) -> bool:  # noqa: ANN001

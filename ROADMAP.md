@@ -1403,6 +1403,47 @@ Subtasks:
 - Identify which fields should remain explicit technical values because operators genuinely need the lower-level wording.
 - Add regression coverage for the most visible detail-pane text formatting so future copy cleanups do not drift silently.
 
+## Milestone 11: Cloudflared Config Ownership And Runtime Alignment
+
+Status: completed
+
+Goal: make the `cloudflared` config/setup model portable for public use instead of assuming one host-specific `/etc/cloudflared/config.yml` ownership pattern.
+
+Why this matters:
+- Domain lifecycle commands are only safe when `homesrvctl` is updating the same ingress file the active `cloudflared` runtime actually uses.
+- A public repo needs an explicit operator model for config ownership, runtime alignment, and privileged setup steps.
+
+### 11.1 Make config ownership explicit
+
+Status: completed
+
+Tasks:
+- Change the starter config default for `cloudflared_config` to a shared app-managed path under `/srv/homesrvctl/cloudflared/config.yml`.
+- Keep existing installs non-breaking by continuing to honor their explicit configured path.
+
+### 11.2 Add runtime alignment and setup guidance
+
+Status: completed
+
+Tasks:
+- Extend `cloudflared status` with setup-alignment reporting:
+  - configured path
+  - runtime path
+  - aligned / misaligned state
+  - configured exists / writable
+  - whether ingress mutations are safe from the current user
+- Add `cloudflared setup` to print exact next-step commands for systemd override repair and config migration.
+- Keep systemd as the first-class repair path; keep Docker/process runtimes on a validate-and-report basis.
+
+### 11.3 Prevent partial domain mutations
+
+Status: completed
+
+Tasks:
+- Make `domain add`, `domain repair`, and `domain remove` fail before DNS changes when ingress mutation is unsafe.
+- Surface setup readiness through `domain status` and the TUI so operators can see mutation availability before running a repair.
+- Add a `Fix Setup` path in the TUI `Cloudflared` pane that renders the same setup guidance as the CLI.
+
 ## Cross-Cutting Working Rules
 
 These are not standalone deliverables, but they should constrain all future milestones.

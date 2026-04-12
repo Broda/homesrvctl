@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import json
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -41,6 +42,40 @@ def _write_cloudflared_config(path: Path) -> None:
             sort_keys=False,
         ),
         encoding="utf-8",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _default_domain_cloudflared_setup(monkeypatch) -> None:
+    from homesrvctl.commands import domain_cmd
+
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, *args, **kwargs: type(
+            "Setup",
+            (),
+            {
+                "ok": True,
+                "mode": "systemd",
+                "systemd_managed": False,
+                "active": True,
+                "configured_path": str(path),
+                "configured_exists": True,
+                "configured_writable": True,
+                "runtime_path": None,
+                "runtime_exists": None,
+                "runtime_readable": None,
+                "paths_aligned": None,
+                "ingress_mutation_available": True,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+                "issues": [],
+                "next_commands": [],
+                "override_path": None,
+                "override_content": None,
+                "notes": [],
+            },
+        )(),
     )
 
 
@@ -1238,6 +1273,34 @@ def test_cloudflared_status_json_output(monkeypatch) -> None:
             },
         )(),
     )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, runtime=None, quiet=False: type(
+            "Setup",
+            (),
+            {
+                "ok": True,
+                "mode": "docker",
+                "systemd_managed": False,
+                "active": True,
+                "configured_path": str(path),
+                "configured_exists": True,
+                "configured_writable": True,
+                "runtime_path": None,
+                "runtime_exists": None,
+                "runtime_readable": None,
+                "paths_aligned": None,
+                "ingress_mutation_available": True,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+                "issues": [],
+                "next_commands": [],
+                "override_path": None,
+                "override_content": None,
+                "notes": [],
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["cloudflared", "status", "--json"])
@@ -1322,6 +1385,34 @@ def test_cloudflared_status_text_reports_warning_policy(monkeypatch) -> None:
             },
         )(),
     )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, runtime=None, quiet=False: type(
+            "Setup",
+            (),
+            {
+                "ok": True,
+                "mode": "docker",
+                "systemd_managed": False,
+                "active": True,
+                "configured_path": str(path),
+                "configured_exists": True,
+                "configured_writable": True,
+                "runtime_path": None,
+                "runtime_exists": None,
+                "runtime_readable": None,
+                "paths_aligned": None,
+                "ingress_mutation_available": True,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+                "issues": [],
+                "next_commands": [],
+                "override_path": None,
+                "override_content": None,
+                "notes": [],
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["cloudflared", "status"])
@@ -1331,6 +1422,129 @@ def test_cloudflared_status_text_reports_warning_policy(monkeypatch) -> None:
         "config warnings are advisory; cloudflared status remains healthy while the config stays valid"
         in result.output
     )
+
+
+def test_cloudflared_status_json_reports_setup_alignment(monkeypatch) -> None:
+    from homesrvctl.commands import cloudflared_cmd
+
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "detect_cloudflared_runtime",
+        lambda quiet=False: CloudflaredRuntime(
+            mode="systemd",
+            active=True,
+            detail="systemd service is active",
+            restart_command=["systemctl", "restart", "cloudflared"],
+            reload_command=["systemctl", "reload", "cloudflared"],
+        ),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "load_config",
+        lambda: type("Config", (), {"cloudflared_config": Path("/srv/homesrvctl/cloudflared/config.yml")})(),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "test_cloudflared_config",
+        lambda path: type("Validation", (), {"ok": True, "detail": "Everything OK", "command": None, "method": "structural", "issues": [], "warnings": []})(),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, runtime=None, quiet=False: type(
+            "Setup",
+            (),
+            {
+                "ok": False,
+                "mode": "systemd",
+                "systemd_managed": True,
+                "active": True,
+                "configured_path": str(path),
+                "configured_exists": False,
+                "configured_writable": False,
+                "runtime_path": "/etc/cloudflared/config.yml",
+                "runtime_exists": True,
+                "runtime_readable": True,
+                "paths_aligned": False,
+                "ingress_mutation_available": False,
+                "detail": "systemd cloudflared service uses /etc/cloudflared/config.yml, but homesrvctl is configured for /srv/homesrvctl/cloudflared/config.yml",
+                "issues": ["configured cloudflared config is missing: /srv/homesrvctl/cloudflared/config.yml"],
+                "next_commands": ["sudo systemctl daemon-reload"],
+                "override_path": "/etc/systemd/system/cloudflared.service.d/override.conf",
+                "override_content": "[Service]\nExecStart=\nExecStart=/usr/bin/cloudflared --no-autoupdate --config /srv/homesrvctl/cloudflared/config.yml tunnel run",
+                "notes": [],
+            },
+        )(),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["cloudflared", "status", "--json"])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["setup"]["paths_aligned"] is False
+    assert payload["setup"]["ingress_mutation_available"] is False
+    assert payload["setup"]["runtime_path"] == "/etc/cloudflared/config.yml"
+
+
+def test_cloudflared_setup_json_reports_commands(monkeypatch) -> None:
+    from homesrvctl.commands import cloudflared_cmd
+
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "detect_cloudflared_runtime",
+        lambda quiet=False: CloudflaredRuntime(
+            mode="systemd",
+            active=True,
+            detail="systemd service is active",
+            restart_command=["systemctl", "restart", "cloudflared"],
+            reload_command=["systemctl", "reload", "cloudflared"],
+        ),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "load_config",
+        lambda: type("Config", (), {"cloudflared_config": Path("/srv/homesrvctl/cloudflared/config.yml")})(),
+    )
+    monkeypatch.setattr(
+        cloudflared_cmd,
+        "inspect_cloudflared_setup",
+        lambda path, runtime=None, quiet=False: type(
+            "Setup",
+            (),
+            {
+                "ok": False,
+                "mode": "systemd",
+                "systemd_managed": True,
+                "active": True,
+                "configured_path": str(path),
+                "configured_exists": False,
+                "configured_writable": False,
+                "runtime_path": "/etc/cloudflared/config.yml",
+                "runtime_exists": True,
+                "runtime_readable": True,
+                "paths_aligned": False,
+                "ingress_mutation_available": False,
+                "detail": "setup mismatch",
+                "issues": ["configured path missing"],
+                "next_commands": ["sudo install -d -o broda -g broda -m 755 /srv/homesrvctl/cloudflared"],
+                "override_path": "/etc/systemd/system/cloudflared.service.d/override.conf",
+                "override_content": "[Service]\nExecStart=\nExecStart=/usr/bin/cloudflared --no-autoupdate --config /srv/homesrvctl/cloudflared/config.yml tunnel run",
+                "notes": [],
+            },
+        )(),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["cloudflared", "setup", "--json"])
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["ok"] is False
+    assert payload["next_commands"] == ["sudo install -d -o broda -g broda -m 755 /srv/homesrvctl/cloudflared"]
+    assert payload["override_path"] == "/etc/systemd/system/cloudflared.service.d/override.conf"
 
 
 def test_cloudflared_status_json_failure(monkeypatch) -> None:
@@ -1982,6 +2196,48 @@ def test_domain_add_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
     )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "add", "example.com", "--dry-run"])
@@ -2050,6 +2306,34 @@ def test_domain_add_dry_run_uses_api_tunnel_lookup_when_local_uuid_missing(monke
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
     )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "add", "example.com", "--dry-run"])
@@ -2101,6 +2385,20 @@ def test_domain_add_dry_run_prints_restart_command(monkeypatch, tmp_path: Path) 
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
     )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "add", "example.com", "--dry-run", "--restart-cloudflared"])
@@ -2148,6 +2446,20 @@ def test_domain_add_json_output(monkeypatch, tmp_path: Path) -> None:
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -2204,6 +2516,20 @@ def test_domain_add_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) -> 
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -2350,6 +2676,20 @@ def test_domain_add_restarts_cloudflared_when_requested(monkeypatch, tmp_path: P
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
     )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "add", "example.com", "--restart-cloudflared"])
@@ -2409,6 +2749,20 @@ def test_domain_repair_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -2487,6 +2841,58 @@ def test_domain_repair_reports_repaired(monkeypatch, tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "Repaired domain routing for example.com" in result.output
+
+
+def test_domain_repair_refuses_partial_write_when_cloudflared_setup_is_not_ready(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import domain_cmd
+
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    _write_cloudflared_config(cloudflared_config)
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["cloudflared_config"] = str(cloudflared_config)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    calls: list[str] = []
+
+    class FakeClient:
+        def __init__(self, api_token: str) -> None:
+            assert api_token == "test-token"
+
+        def get_zone(self, zone_name: str) -> dict[str, str]:
+            calls.append(f"get_zone:{zone_name}")
+            return {"id": "zone-123"}
+
+        def apply_dns_record(self, zone_id: str, record_name: str, content: str):  # noqa: ANN202
+            calls.append(f"apply_dns:{record_name}")
+            return type("Plan", (), {"action": "update", "record_type": "CNAME", "record_name": record_name, "content": content})()
+
+    monkeypatch.setattr(domain_cmd, "CloudflareApiClient", FakeClient)
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": False,
+                "systemd_managed": True,
+                "paths_aligned": False,
+                "detail": "systemd cloudflared service uses /etc/cloudflared/config.yml, but homesrvctl is configured for /srv/homesrvctl/cloudflared/config.yml",
+            },
+        )(),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["domain", "repair", "example.com"])
+
+    assert result.exit_code == 1, result.output
+    assert "Run `homesrvctl cloudflared setup`" in result.output
+    assert calls == []
 
 
 def test_domain_repair_json_error(monkeypatch, tmp_path: Path) -> None:
@@ -2576,6 +2982,74 @@ def test_domain_repair_json_error(monkeypatch, tmp_path: Path) -> None:
     assert "duplicate ingress hostname entry found: example.com" in payload["error"]
 
 
+def test_domain_repair_reports_cloudflared_write_permission_error(monkeypatch, tmp_path: Path) -> None:
+    from homesrvctl.commands import domain_cmd
+
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    cloudflared_config = tmp_path / "cloudflared.yml"
+    _write_cloudflared_config(cloudflared_config)
+    config_path = home / ".config" / "homesrvctl" / "config.yml"
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["cloudflared_config"] = str(cloudflared_config)
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+
+    class FakeClient:
+        def __init__(self, api_token: str) -> None:
+            assert api_token == "test-token"
+
+        def get_zone(self, zone_name: str) -> dict[str, str]:
+            assert zone_name == "example.com"
+            return {"id": "zone-123"}
+
+        def apply_dns_record(self, zone_id: str, record_name: str, content: str):  # noqa: ANN202
+            return type(
+                "Plan",
+                (),
+                {"action": "update", "record_type": "CNAME", "record_name": record_name, "content": content},
+            )()
+
+    original_write_text = Path.write_text
+
+    def fake_write_text(self: Path, data: str, encoding: str | None = None, errors: str | None = None, newline: str | None = None) -> int:  # noqa: ANN001,E501
+        if self == cloudflared_config:
+            raise PermissionError(13, "Permission denied", str(self))
+        return original_write_text(self, data, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(domain_cmd, "CloudflareApiClient", FakeClient)
+    monkeypatch.setattr(
+        domain_cmd,
+        "tunnel_cname_target",
+        lambda config: "11111111-2222-4333-8444-555555555555.cfargotunnel.com",
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
+    monkeypatch.setattr(Path, "write_text", fake_write_text)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["domain", "repair", "example.com"])
+
+    assert result.exit_code == 1, result.output
+    assert "unable to write cloudflared config" in result.output
+    assert "Permission denied" in result.output
+    assert "point homesrvctl and the cloudflared service at a writable config path" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> None:
     from homesrvctl.commands import domain_cmd
 
@@ -2628,6 +3102,20 @@ def test_domain_remove_dry_run_prints_commands(monkeypatch, tmp_path: Path) -> N
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -2691,6 +3179,20 @@ def test_domain_remove_json_output(monkeypatch, tmp_path: Path) -> None:
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -2807,6 +3309,20 @@ def test_domain_remove_updates_cloudflared_ingress(monkeypatch, tmp_path: Path) 
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
     )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["domain", "remove", "example.com"])
@@ -2871,6 +3387,20 @@ def test_domain_remove_restarts_cloudflared_when_requested(monkeypatch, tmp_path
             detail="systemd service is active",
             restart_command=["systemctl", "restart", "cloudflared"],
         ),
+    )
+    monkeypatch.setattr(
+        domain_cmd,
+        "inspect_cloudflared_setup",
+        lambda path: type(
+            "Setup",
+            (),
+            {
+                "ingress_mutation_available": True,
+                "systemd_managed": False,
+                "paths_aligned": None,
+                "detail": "configured cloudflared path is ready for homesrvctl mutations",
+            },
+        )(),
     )
 
     runner = CliRunner()
@@ -3472,6 +4002,7 @@ def test_domain_status_json_reports_wrong_dns_type(monkeypatch, tmp_path: Path) 
     assert payload["overall"] == "misconfigured"
     assert payload["repairable"] is True
     assert payload["manual_fix_required"] is False
+    assert payload["ingress_mutation_available"] is True
     assert payload["dns"][0]["record_type"] == "A"
     assert (
         payload["dns"][0]["detail"] == "wrong type A -> 192.0.2.10 (proxied); expected CNAME -> "

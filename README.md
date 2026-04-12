@@ -98,9 +98,11 @@ tunnel_name: homesrvctl-tunnel
 sites_root: /srv/homesrvctl/sites
 docker_network: web
 traefik_url: http://localhost:8081
-cloudflared_config: /etc/cloudflared/config.yml
+cloudflared_config: /srv/homesrvctl/cloudflared/config.yml
 cloudflare_api_token: ""
 ```
+
+Existing installs remain non-breaking: `homesrvctl` continues to honor whatever explicit `cloudflared_config` path is already stored in your config file.
 
 The top-level `docker_network` and `traefik_url` values are the implicit default routing profile for stacks that do not opt into anything else.
 
@@ -294,6 +296,7 @@ homesrvctl up example.com --dry-run
 - `homesrvctl list [--json]`
 - `homesrvctl tui [--refresh-seconds FLOAT]`
 - `homesrvctl cloudflared status [--json]`
+- `homesrvctl cloudflared setup [--json]`
 - `homesrvctl cloudflared config-test [--json]`
 - `homesrvctl cloudflared logs [--follow] [--json]`
 - `homesrvctl cloudflared restart [--dry-run] [--json]`
@@ -305,6 +308,7 @@ homesrvctl up example.com --dry-run
 
 - `domain add` uses the Cloudflare DNS API to manage apex and wildcard records for the requested zone.
 - `domain add`, `domain repair`, and `domain remove` support `--json` for machine-readable mutation results.
+- `domain add`, `domain repair`, and `domain remove` now preflight local ingress mutation safety before writing DNS: if the configured `cloudflared` config path is not writable by the current user, or if an active systemd service is pointed at a different config file, the command fails early with setup guidance instead of making a partial DNS-only change.
 - all `--json` commands include a top-level `schema_version` so automation can pin to a known output shape.
 - `config init --json` reports whether the config file was created or overwritten.
 - `config show` reports global config values and can also report the effective `docker_network` and `traefik_url` for a specific stack after stack-local overrides are applied.
@@ -317,7 +321,10 @@ homesrvctl up example.com --dry-run
 - `list`, `domain status`, `validate`, and `doctor` support `--json` for machine-readable output.
 - `up`, `down`, and `restart` support `--json` for machine-readable command results.
 - `site init` and `app init` support `--json` for machine-readable scaffold results, including the selected template and rendered template-to-output mapping.
-- `cloudflared status` reports the detected runtime mode, whether it is active, and the restart command when one is available.
+- `cloudflared status` reports the detected runtime mode, whether it is active, the restart command when one is available, and a setup-alignment report for the configured `cloudflared_config` path.
+- `cloudflared setup` assesses whether `homesrvctl` and the active runtime are pointed at the same config path, whether the configured file is writable by the current user, and prints exact next-step commands when a systemd override or config migration is needed.
+- The first-class setup/repair path is systemd-focused. Docker and bare-process runtimes still get status visibility, but setup repair remains advisory there.
+- `homesrvctl` does not prompt for `sudo` inside the CLI or TUI. When setup changes require elevated privileges, it prints the exact commands to run manually.
 - `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `config show`, `tunnel status`, `cloudflared status`, and `validate`.
 - The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
@@ -337,6 +344,7 @@ homesrvctl up example.com --dry-run
 - The TUI now includes a `Config` tool item that renders the base `config show` output, and focused stack details also surface the effective per-stack config derived from `config show --stack`.
 - The TUI now also includes a `Tunnel` tool item that renders the current `tunnel status` output, including the configured reference, resolved UUID, resolution source, and API tunnel status when available.
 - Focused `Config`, `Tunnel`, and `Cloudflared` tool items can now open guided tool menus with `Enter` or `o`, so low-frequency global actions stay discoverable without replacing the underlying CLI verbs.
+- When the `Cloudflared` tool is focused, the TUI now also exposes a `Fix Setup` action that runs `cloudflared setup` and keeps the generated repair guidance visible in the detail pane.
 - The guided `Config` tool flow can now run the default-path `config init` path from inside the TUI, and it asks for overwrite confirmation only when the existing config file would need `--force`.
 - Focused apex stacks now also surface `domain status` detail in the TUI, including overall state, repairability, coverage issues, and suggested repair command when available.
 - Focused apex stacks can now run `domain repair` from the TUI with `p`, using the same CLI mutation path underneath and surfacing the result back in the stack pane.
@@ -347,6 +355,7 @@ homesrvctl up example.com --dry-run
 - When a stack is focused in the control pane, the TUI supports `site init` with `i`, and can run `doctor`, `up`, `restart`, and `down` for the selected hostname with `g`, `u`, `t`, and `x`.
 - `cloudflared config-test` prefers `cloudflared tunnel ingress validate --config ...` when the binary is available and falls back to structural YAML/ingress validation otherwise.
 - `cloudflared status` now also surfaces non-fatal config warnings when the ingress file is structurally valid but risky, such as an earlier wildcard rule that may shadow a later hostname rule or capture traffic intended for a narrower wildcard.
+- `cloudflared status` now also reports whether the configured `cloudflared` path is aligned with the active systemd unit and whether `homesrvctl` can safely mutate ingress from the current account.
 - `cloudflared logs` prints the right `journalctl` or `docker logs` command for the detected runtime and supports `--follow` plus `--json`.
 - `cloudflared restart` also supports `--json` for automation-friendly dry-run and failure reporting.
 - `cloudflared reload` is available when the detected runtime exposes a safe reload command; today that is primarily a systemd capability check rather than a guaranteed cross-runtime feature.

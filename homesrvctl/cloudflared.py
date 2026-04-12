@@ -90,7 +90,7 @@ def apply_domain_ingress(config_path: Path, domain: str, service_url: str) -> li
     ]
     target_entries = [_build_entry(hostname, service_url) for hostname in _target_hostnames(domain)]
     parsed["ingress"] = non_target_entries + target_entries + [ingress[-1]]
-    config_path.write_text(yaml.safe_dump(parsed, sort_keys=False), encoding="utf-8")
+    _write_config(config_path, parsed)
     return changes
 
 
@@ -110,7 +110,7 @@ def apply_domain_ingress_removal(config_path: Path, domain: str) -> list[Ingress
     parsed["ingress"] = [
         entry for entry in ingress[:-1] if str(entry.get("hostname", "")).strip().lower() not in _target_hostnames(domain)
     ] + [ingress[-1]]
-    config_path.write_text(yaml.safe_dump(parsed, sort_keys=False), encoding="utf-8")
+    _write_config(config_path, parsed)
     return changes
 
 
@@ -350,6 +350,13 @@ def _load_config(config_path: Path) -> dict[str, object]:
     return parsed
 
 
+def _write_config(config_path: Path, parsed: dict[str, object]) -> None:
+    try:
+        config_path.write_text(yaml.safe_dump(parsed, sort_keys=False), encoding="utf-8")
+    except OSError as exc:
+        raise CloudflaredConfigError(f"unable to write cloudflared config {config_path}: {exc}") from exc
+
+
 def _normalize_ingress(parsed: dict[str, object], config_path: Path) -> list[dict[str, object]]:
     ingress = parsed.get("ingress")
     if not isinstance(ingress, list) or not ingress:
@@ -436,6 +443,8 @@ def _cloudflared_config_hint(message: str) -> str | None:
         return "create the configured cloudflared YAML file or point homesrvctl at the correct path"
     if "invalid cloudflared config YAML" in message:
         return "fix the YAML syntax before retrying"
+    if "unable to write cloudflared config" in message and "Permission denied" in message:
+        return "point homesrvctl and the cloudflared service at a writable config path, or rerun with privileges that can update the configured file"
     return None
 
 
