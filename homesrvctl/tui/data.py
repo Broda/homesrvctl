@@ -12,6 +12,7 @@ TOOL_ITEMS: list[tuple[str, str]] = [
     ("tunnel", "Tunnel"),
     ("cloudflared", "Cloudflared"),
     ("validate", "Validate"),
+    ("bootstrap", "Bootstrap"),
 ]
 
 
@@ -23,12 +24,14 @@ def build_dashboard_snapshot(run_json_command=None) -> dict[str, object]:  # noq
     tunnel_payload = run_json_command(["tunnel", "status"])
     cloudflared_payload = run_json_command(["cloudflared", "status"])
     validate_payload = run_json_command(["validate"])
+    bootstrap_payload = run_json_command(["bootstrap", "assess"])
     return {
         "list": list_payload,
         "config": config_payload,
         "tunnel": tunnel_payload,
         "cloudflared": cloudflared_payload,
         "validate": validate_payload,
+        "bootstrap": bootstrap_payload,
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -204,6 +207,9 @@ def run_tool_action(
             return run_json_subcommand(["cloudflared", "reload"])
         if action == "restart":
             return run_json_subcommand(["cloudflared", "restart"])
+    if tool == "bootstrap":
+        if action == "assess":
+            return run_json_subcommand(["bootstrap", "assess"])
     raise ValueError(f"unsupported tool action: {tool} {action}")
 
 
@@ -369,6 +375,8 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
 
     if tool == "cloudflared" and action == "setup":
         lines.extend(["", *render_cloudflared_setup_detail(payload)])
+    if tool == "bootstrap" and action == "assess":
+        lines.extend(["", *render_bootstrap_assessment_detail(payload)])
 
     next_commands = payload.get("next_commands")
     if isinstance(next_commands, list) and next_commands:
@@ -760,4 +768,157 @@ def render_cloudflared_setup_detail(payload: dict[str, object]) -> list[str]:
             lines.append(f"- {command}")
         if len(next_commands) > 6:
             lines.append(f"... {len(next_commands) - 6} more")
+    return lines
+
+
+def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
+    if not payload.get("ok") and "bootstrap_state" not in payload:
+        return [
+            "[bold #ffcf5a]Bootstrap Assessment[/bold #ffcf5a]",
+            "",
+            f"[red]error:[/red] {payload.get('error', payload.get('detail', 'unknown error'))}",
+        ]
+
+    lines = [
+        "[bold #ffcf5a]Bootstrap Assessment[/bold #ffcf5a]",
+        "",
+        *format_key_value_lines(
+            [
+                ("bootstrap state", str(payload.get("bootstrap_state", "unknown"))),
+                ("host supported", "yes" if payload.get("host_supported") else "no"),
+                ("detail", str(payload.get("detail", "unknown"))),
+                ("config path", str(payload.get("config_path", "<unknown>"))),
+            ]
+        ),
+    ]
+
+    os_payload = payload.get("os")
+    if isinstance(os_payload, dict):
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]OS[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("name", str(os_payload.get("pretty_name", "unknown"))),
+                        ("supported", "yes" if os_payload.get("supported") else "no"),
+                        ("detail", str(os_payload.get("detail", "unknown"))),
+                    ]
+                ),
+            ]
+        )
+
+    packages = payload.get("packages")
+    if isinstance(packages, dict):
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]Packages[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("docker", "yes" if packages.get("docker") else "no"),
+                        ("docker compose", "yes" if packages.get("docker_compose") else "no"),
+                        ("cloudflared", "yes" if packages.get("cloudflared") else "no"),
+                    ]
+                ),
+            ]
+        )
+
+    services = payload.get("services")
+    if isinstance(services, dict):
+        cloudflared_active = services.get("cloudflared_active")
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]Services[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("Traefik running", "yes" if services.get("traefik_running") else "no"),
+                        (
+                            "cloudflared active",
+                            "yes" if cloudflared_active else "no" if cloudflared_active is False else "unknown",
+                        ),
+                        ("cloudflared mode", str(services.get("cloudflared_mode", "unknown"))),
+                    ]
+                ),
+            ]
+        )
+
+    config_payload = payload.get("config")
+    if isinstance(config_payload, dict):
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]Config[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("exists", "yes" if config_payload.get("exists") else "no"),
+                        ("valid", "yes" if config_payload.get("valid") else "no"),
+                        ("token present", "yes" if config_payload.get("token_present") else "no"),
+                        ("token source", str(config_payload.get("token_source", "unknown"))),
+                    ]
+                ),
+            ]
+        )
+
+    network_payload = payload.get("network")
+    if isinstance(network_payload, dict):
+        exists = network_payload.get("exists")
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]Network[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("name", str(network_payload.get("name", "<unknown>"))),
+                        ("ready", "yes" if exists else "no" if exists is False else "unknown"),
+                        ("detail", str(network_payload.get("detail", "unknown"))),
+                    ]
+                ),
+            ]
+        )
+
+    cloudflare = payload.get("cloudflare")
+    if isinstance(cloudflare, dict):
+        api_reachable = cloudflare.get("api_reachable")
+        lines.extend(
+            [
+                "",
+                "[bold #ffcf5a]Cloudflare[/bold #ffcf5a]",
+                "",
+                *format_key_value_lines(
+                    [
+                        ("token present", "yes" if cloudflare.get("token_present") else "no"),
+                        ("token source", str(cloudflare.get("token_source", "unknown"))),
+                        (
+                            "API reachable",
+                            "yes" if api_reachable else "no" if api_reachable is False else "unknown",
+                        ),
+                        ("detail", str(cloudflare.get("detail", "unknown"))),
+                    ]
+                ),
+            ]
+        )
+
+    issues = payload.get("issues")
+    if isinstance(issues, list):
+        lines.extend(["", f"issues: {len(issues)}"])
+        for issue in issues[:6]:
+            lines.append(f"- {issue}")
+        if len(issues) > 6:
+            lines.append(f"... {len(issues) - 6} more")
+
+    next_steps = payload.get("next_steps")
+    if isinstance(next_steps, list):
+        lines.extend(["", f"next steps: {len(next_steps)}"])
+        for step in next_steps[:6]:
+            lines.append(f"- {step}")
+        if len(next_steps) > 6:
+            lines.append(f"... {len(next_steps) - 6} more")
+
     return lines

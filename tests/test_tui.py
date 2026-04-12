@@ -103,16 +103,26 @@ def test_build_dashboard_snapshot_uses_existing_json_surfaces() -> None:
             return {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"}
         if args == ["validate"]:
             return {"ok": True, "checks": [{"name": "docker", "ok": True, "detail": "found"}]}
+        if args == ["bootstrap", "assess"]:
+            return {
+                "ok": True,
+                "bootstrap_state": "partial",
+                "host_supported": True,
+                "detail": "host is partially provisioned relative to the current bootstrap target",
+                "issues": ["Traefik is not running"],
+                "next_steps": ["Install or start the baseline Traefik runtime expected by homesrvctl."],
+            }
         raise AssertionError(f"unexpected args: {args}")
 
     snapshot = data.build_dashboard_snapshot(run_json_command=fake_run_json_command)
 
-    assert calls == [("list",), ("config", "show"), ("tunnel", "status"), ("cloudflared", "status"), ("validate",)]
+    assert calls == [("list",), ("config", "show"), ("tunnel", "status"), ("cloudflared", "status"), ("validate",), ("bootstrap", "assess")]
     assert snapshot["list"]["sites"][0]["hostname"] == "example.com"
     assert snapshot["config"]["global"]["docker_network"] == "web"
     assert snapshot["tunnel"]["resolved_tunnel_id"] == "11111111-2222-4333-8444-555555555555"
     assert snapshot["cloudflared"]["mode"] == "systemd"
     assert snapshot["validate"]["checks"][0]["name"] == "docker"
+    assert snapshot["bootstrap"]["bootstrap_state"] == "partial"
 
 
 def test_run_stack_action_dispatches_to_existing_commands(monkeypatch) -> None:
@@ -290,6 +300,21 @@ def test_run_tool_action_dispatches_cloudflared_setup(monkeypatch) -> None:
 
     assert payload["ok"] is False
     assert calls == [["cloudflared", "setup"]]
+
+
+def test_run_tool_action_dispatches_bootstrap_assess(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_json_command(args: list[str]) -> dict[str, object]:
+        calls.append(args)
+        return {"ok": True, "bootstrap_state": "fresh"}
+
+    monkeypatch.setattr(data, "run_json_subcommand", fake_run_json_command)
+
+    payload = data.run_tool_action("bootstrap", "assess")
+
+    assert payload["ok"] is True
+    assert calls == [["bootstrap", "assess"]]
 
 
 def test_run_tool_action_dispatches_tunnel_show(monkeypatch) -> None:
@@ -563,6 +588,36 @@ def test_render_tool_action_detail_formats_setup_guidance() -> None:
     assert "credentials path" in rendered
 
 
+def test_render_tool_action_detail_formats_bootstrap_assessment() -> None:
+    lines = data.render_tool_action_detail(
+        "bootstrap",
+        "assess",
+        {
+            "ok": True,
+            "bootstrap_state": "partial",
+            "host_supported": True,
+            "detail": "host is partially provisioned relative to the current bootstrap target",
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "os": {"pretty_name": "Debian GNU/Linux 12", "supported": True, "detail": "Debian-family host detected"},
+            "packages": {"docker": True, "docker_compose": False, "cloudflared": True},
+            "services": {"traefik_running": False, "cloudflared_active": True, "cloudflared_mode": "systemd"},
+            "config": {"exists": True, "valid": True, "token_present": False, "token_source": "missing"},
+            "network": {"name": "web", "exists": False, "detail": "docker network not found"},
+            "cloudflare": {"token_present": False, "token_source": "missing", "api_reachable": None, "detail": "Cloudflare API token is not configured"},
+            "issues": ["Traefik is not running"],
+            "next_steps": ["Install or start the baseline Traefik runtime expected by homesrvctl."],
+        },
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "bootstrap state" in rendered
+    assert "host supported" in rendered
+    assert "Packages" in rendered
+    assert "Cloudflare" in rendered
+    assert "next steps: 1" in rendered
+
+
 def test_render_config_payload_detail_formats_global_config() -> None:
     lines = data.render_config_payload_detail(
         {
@@ -786,7 +841,7 @@ def test_textual_app_summary_and_stack_list_text() -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 5
+    app.selected_control_index = 6
     app.stack_config_views["notes.example.com"] = {
         "ok": True,
         "stack": {
@@ -876,6 +931,7 @@ def test_textual_app_tunnel_tool_detail_text() -> None:
         },
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
     }
     app.selected_control_index = 1
 
@@ -1030,10 +1086,11 @@ def test_textual_app_app_init_prompt_pushes_modal(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     pushed: list[tuple[object, object]] = []
 
     monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_app_init_prompt()
 
@@ -1050,10 +1107,11 @@ def test_textual_app_stack_action_menu_pushes_modal(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     pushed: list[tuple[object, object]] = []
 
     monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_stack_action_menu()
 
@@ -1107,10 +1165,11 @@ def test_textual_app_domain_add_prompt_pushes_modal(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     pushed: list[tuple[object, object]] = []
 
     monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_domain_add_prompt()
 
@@ -1139,10 +1198,11 @@ def test_textual_app_domain_remove_prompt_pushes_modal(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     pushed: list[tuple[object, object]] = []
 
     monkeypatch.setattr(app, "push_screen", lambda screen, callback=None: pushed.append((screen, callback)))
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_domain_remove_prompt()
 
@@ -1219,7 +1279,7 @@ def test_textual_app_stack_detail_includes_last_action_result() -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     app.stack_config_views["example.com"] = {
         "ok": True,
         "stack": {
@@ -1271,7 +1331,7 @@ def test_textual_app_stack_detail_includes_domain_status() -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     app.stack_config_views["example.com"] = {
         "ok": True,
         "stack": {
@@ -1315,7 +1375,7 @@ def test_textual_app_domain_repair_rejects_subdomain(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_domain_repair()
@@ -1332,7 +1392,7 @@ def test_textual_app_domain_add_rejects_subdomain(monkeypatch) -> None:
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
         "validate": {"ok": True, "checks": []},
     }
-    app.selected_control_index = 4
+    app.selected_control_index = 5
     monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
 
     app.action_domain_add_prompt()
@@ -1552,6 +1612,7 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
             },
         },
         "validate": {"ok": False, "checks": [{"name": "docker", "ok": False, "detail": "missing"}]},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
     app.selected_control_index = 2
 
@@ -1562,6 +1623,39 @@ def test_textual_app_tool_detail_and_command_bar_text() -> None:
     assert "runtime: systemd" in detail
     assert "w/s navigate" in command_bar
     assert "q quit" in command_bar
+
+
+def test_textual_app_bootstrap_detail_text() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": []},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+        "bootstrap": {
+            "ok": True,
+            "bootstrap_state": "partial",
+            "host_supported": True,
+            "detail": "host is partially provisioned relative to the current bootstrap target",
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "os": {"pretty_name": "Debian GNU/Linux 12", "supported": True, "detail": "Debian-family host detected"},
+            "packages": {"docker": True, "docker_compose": False, "cloudflared": True},
+            "services": {"traefik_running": False, "cloudflared_active": True, "cloudflared_mode": "systemd"},
+            "config": {"exists": True, "valid": True, "token_present": False, "token_source": "missing"},
+            "network": {"name": "web", "exists": False, "detail": "docker network not found"},
+            "cloudflare": {"token_present": False, "token_source": "missing", "api_reachable": None, "detail": "Cloudflare API token is not configured"},
+            "issues": ["Traefik is not running"],
+            "next_steps": ["Install or start the baseline Traefik runtime expected by homesrvctl."],
+        },
+    }
+    app.selected_control_index = 4
+
+    detail = app._detail_text()
+
+    assert "Bootstrap Detail" in detail
+    assert "bootstrap state" in detail
+    assert "Traefik is not running" in detail
 
 
 def test_textual_app_tool_detail_includes_last_cloudflared_action() -> None:
@@ -1711,7 +1805,7 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 4
+    app.selected_control_index = 5
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -1750,7 +1844,7 @@ def test_textual_app_domain_repair_refreshes_status(monkeypatch) -> None:
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 4
+    app.selected_control_index = 5
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -1788,7 +1882,7 @@ def test_textual_app_domain_add_refreshes_status(monkeypatch) -> None:
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 4
+    app.selected_control_index = 5
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -1826,7 +1920,7 @@ def test_textual_app_domain_remove_refreshes_status(monkeypatch) -> None:
     calls: list[tuple[str, str]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 4
+    app.selected_control_index = 5
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -1864,7 +1958,7 @@ def test_textual_app_app_init_prompt_runs_selected_template(monkeypatch) -> None
     calls: list[tuple[str, str, str | None]] = []
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = snapshots[0]
-    app.selected_control_index = 4
+    app.selected_control_index = 5
 
     monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
     monkeypatch.setattr(
@@ -2059,7 +2153,7 @@ def test_textual_app_create_stack_flow_runs_and_reselects_created_stack(monkeypa
     )]
     assert app.status_message == "app init succeeded for app.example.com"
     assert app.last_stack_actions["app.example.com"]["action"] == "app-init"
-    assert app.selected_control_index == 4
+    assert app.selected_control_index == 5
 
 
 def test_textual_app_selected_tool_action_refreshes_status(monkeypatch) -> None:
@@ -2266,6 +2360,7 @@ def test_control_row_widget_click_updates_selected_index(monkeypatch) -> None:
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
             "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
         }
 
         def fake_build_snapshot():  # noqa: ANN202
@@ -2275,9 +2370,9 @@ def test_control_row_widget_click_updates_selected_index(monkeypatch) -> None:
 
         app = textual_app.HomesrvctlTextualApp()
         async with app.run_test(size=(120, 40)) as pilot:
-            # Validate row is index 3 — click it
+            # Bootstrap adds one more tool row; Validate stays index 3.
             await pilot.click(textual_app.ControlRowWidget, offset=(1, 0))
-            # All four tool rows appear; the first ControlRowWidget is Config (index 0)
+            # All five tool rows appear; the first ControlRowWidget is Config (index 0)
             # We need the fourth row (Validate, index 3)
             rows = app.query(textual_app.ControlRowWidget)
             validate_row = [r for r in rows if r.row_index == 3][0]
@@ -2299,6 +2394,7 @@ def test_control_items_returns_tools_then_stacks() -> None:
         ]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
         "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     items = app._control_items()
@@ -2307,12 +2403,13 @@ def test_control_items_returns_tools_then_stacks() -> None:
     assert items[1] == {"kind": "tool", "tool": "tunnel", "label": "Tunnel"}
     assert items[2] == {"kind": "tool", "tool": "cloudflared", "label": "Cloudflared"}
     assert items[3] == {"kind": "tool", "tool": "validate", "label": "Validate"}
-    assert items[4]["kind"] == "stack"
-    assert items[4]["hostname"] == "example.com"
-    assert items[4]["compose"] is True
+    assert items[4] == {"kind": "tool", "tool": "bootstrap", "label": "Bootstrap"}
     assert items[5]["kind"] == "stack"
-    assert items[5]["hostname"] == "notes.example.com"
-    assert items[5]["compose"] is False
+    assert items[5]["hostname"] == "example.com"
+    assert items[5]["compose"] is True
+    assert items[6]["kind"] == "stack"
+    assert items[6]["hostname"] == "notes.example.com"
+    assert items[6]["compose"] is False
 
 
 def test_detail_pane_title_reflects_focused_tool() -> None:
@@ -2323,6 +2420,7 @@ def test_detail_pane_title_reflects_focused_tool() -> None:
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
         "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     app.selected_control_index = 0
@@ -2338,6 +2436,9 @@ def test_detail_pane_title_reflects_focused_tool() -> None:
     assert app._detail_pane_title() == "Tool: Validate"
 
     app.selected_control_index = 4
+    assert app._detail_pane_title() == "Tool: Bootstrap"
+
+    app.selected_control_index = 5
     assert app._detail_pane_title() == "Stack: example.com"
 
 
@@ -2451,8 +2552,9 @@ def test_detail_button_actions_stack_focus() -> None:
         "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
         "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
-    app.selected_control_index = 4  # example.com stack
+    app.selected_control_index = 5  # example.com stack
 
     # Simulate _rebuild_detail_buttons without a running app
     # by calling the inner logic directly
@@ -2476,6 +2578,7 @@ def test_detail_button_actions_cloudflared_focus() -> None:
         "list": {"ok": True, "sites": []},
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
         "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
     app.selected_control_index = 2  # Cloudflared
 
@@ -2493,6 +2596,86 @@ def test_detail_button_actions_cloudflared_focus() -> None:
     assert app._detail_button_actions["Config Test"] == "cloudflared_config_test"
 
 
+def test_detail_button_actions_bootstrap_focus() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": []},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+        "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
+    }
+    app.selected_control_index = 4  # Bootstrap
+
+    item = app._selected_control_item()
+    assert item.get("tool") == "bootstrap"
+    app._detail_button_actions = {label: action for label, action in [
+        ("Refresh", "bootstrap_assess"),
+        ("Create", "create_stack_flow"),
+        ("Onboard Domain", "domain_onboarding_flow"),
+    ]}
+    assert app._detail_button_actions["Refresh"] == "bootstrap_assess"
+
+
+def test_bootstrap_summary_parts_partial() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "bootstrap": {
+            "ok": True,
+            "bootstrap_state": "partial",
+            "host_supported": True,
+            "detail": "host is partially provisioned relative to the current bootstrap target",
+            "issues": ["Traefik is not running", "Cloudflare API token is missing"],
+        },
+    }
+
+    status, detail = app._bootstrap_summary_parts()
+
+    assert "partial" in status or "⚠" in status
+    assert "2 issue" in detail
+
+
+def test_textual_app_bootstrap_assess_action_updates_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": []},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "fresh", "host_supported": True, "detail": "fresh"},
+        },
+        {
+            "generated_at": "2026-04-08 12:00:05",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": []},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
+        },
+    ]
+    calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(
+        textual_app,
+        "run_tool_action",
+        lambda tool, action, **kwargs: calls.append((tool, action))
+        or {"ok": True, "bootstrap_state": "partial", "detail": "partial", "issues": [], "next_steps": []},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots.pop(0)
+    app.selected_control_index = 4
+
+    app.action_bootstrap_assess()
+
+    assert calls == [("bootstrap", "assess")]
+    assert app.status_message == "bootstrap assess succeeded"
+
+
 def test_detail_button_press_dispatches_action(monkeypatch) -> None:
     import asyncio
 
@@ -2505,6 +2688,7 @@ def test_detail_button_press_dispatches_action(monkeypatch) -> None:
             "list": {"ok": True, "sites": []},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
             "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
         }
 
         def fake_build_snapshot():  # noqa: ANN202
@@ -2561,6 +2745,7 @@ def test_cloudflared_summary_parts_active() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     status, detail = app._cloudflared_summary_parts()
@@ -2573,6 +2758,7 @@ def test_cloudflared_summary_parts_inactive() -> None:
     app = textual_app.HomesrvctlTextualApp()
     app.snapshot = {
         "cloudflared": {"ok": True, "mode": "docker", "active": False, "detail": "not running"},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     status, detail = app._cloudflared_summary_parts()
@@ -2587,6 +2773,7 @@ def test_validate_summary_parts_passing() -> None:
             {"name": "docker", "ok": True},
             {"name": "config", "ok": True},
         ]},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     status, detail = app._validate_summary_parts()
@@ -2602,6 +2789,7 @@ def test_validate_summary_parts_failing() -> None:
             {"name": "docker", "ok": True},
             {"name": "config", "ok": False},
         ]},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
     }
 
     status, detail = app._validate_summary_parts()
@@ -2619,6 +2807,7 @@ def test_summary_card_click_focuses_control_row(monkeypatch) -> None:
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
             "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
         }
 
         def fake_build_snapshot():  # noqa: ANN202
@@ -2637,7 +2826,7 @@ def test_summary_card_click_focuses_control_row(monkeypatch) -> None:
             return app.selected_control_index
 
     result = asyncio.run(_run())
-    assert result == 3  # Validate is index 3
+    assert result == 3  # Validate remains index 3
 
 
 def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
@@ -2658,6 +2847,7 @@ def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
             ]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
             "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
         }
 
         def fake_build_snapshot():  # noqa: ANN202
@@ -2680,13 +2870,13 @@ def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
 
             # Click a stack row to jump to it
             rows = list(app.query(textual_app.ControlRowWidget))
-            target = [r for r in rows if r.row_index == 5]  # second stack
+            target = [r for r in rows if r.row_index == 6]  # second stack
             if target:
                 await pilot.click(target[0], offset=(1, 0))
                 await pilot.pause()
                 trace.append(app.selected_control_index)
 
-            # Keyboard: move up once → index 4 (first stack)
+            # Keyboard: move up once → index 5 (first stack)
             await pilot.press("w")
             await pilot.pause()
             trace.append(app.selected_control_index)
@@ -2694,7 +2884,7 @@ def test_mixed_keyboard_and_mouse_navigation(monkeypatch) -> None:
         return trace
 
     trace = asyncio.run(_run())
-    assert trace == [0, 3, 5, 4]
+    assert trace == [0, 3, 6, 5]
 
 
 def test_click_selection_applies_selected_class(monkeypatch) -> None:
@@ -2710,6 +2900,7 @@ def test_click_selection_applies_selected_class(monkeypatch) -> None:
             "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
             "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
             "validate": {"ok": True, "checks": []},
+            "bootstrap": {"ok": True, "bootstrap_state": "partial", "host_supported": True, "detail": "partial"},
         }
 
         def fake_build_snapshot():  # noqa: ANN202

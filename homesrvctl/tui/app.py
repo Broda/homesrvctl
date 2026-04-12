@@ -10,6 +10,7 @@ from textual.widgets import Button, Header, Label, Static
 from homesrvctl.tui.data import (
     TOOL_ITEMS,
     build_dashboard_snapshot,
+    render_bootstrap_assessment_detail,
     render_cloudflared_setup_detail,
     render_config_payload_detail,
     render_domain_status_detail,
@@ -419,6 +420,7 @@ class HomesrvctlTextualApp(App[None]):
             yield SummaryCardWidget("summary_stacks", "Stacks", focus_index=len(TOOL_ITEMS))
             yield SummaryCardWidget("summary_cloudflared", "Cloudflared", focus_index=2)
             yield SummaryCardWidget("summary_validate", "Validate", focus_index=3)
+            yield SummaryCardWidget("summary_bootstrap", "Bootstrap", focus_index=4)
         with Horizontal(id="body"):
             with Vertical(id="controls_pane"):
                 yield Static("Controls", classes="pane_title")
@@ -545,6 +547,9 @@ class HomesrvctlTextualApp(App[None]):
 
     def action_cloudflared_restart(self) -> None:
         self._run_selected_tool_action("cloudflared", "restart")
+
+    def action_bootstrap_assess(self) -> None:
+        self._run_selected_tool_action("bootstrap", "assess")
 
     def action_doctor(self) -> None:
         self._run_selected_stack_action("doctor")
@@ -958,6 +963,8 @@ class HomesrvctlTextualApp(App[None]):
         self.query_one("#summary_cloudflared", SummaryCardWidget).update_content(cf_status, cf_detail)
         val_status, val_detail = self._validate_summary_parts()
         self.query_one("#summary_validate", SummaryCardWidget).update_content(val_status, val_detail)
+        bootstrap_status, bootstrap_detail = self._bootstrap_summary_parts()
+        self.query_one("#summary_bootstrap", SummaryCardWidget).update_content(bootstrap_status, bootstrap_detail)
         self._rebuild_controls()
         self.query_one("#detail_pane_title", Static).update(self._detail_pane_title())
         self.query_one("#detail_box", Static).update(self._detail_text())
@@ -1001,6 +1008,12 @@ class HomesrvctlTextualApp(App[None]):
                 ("Config Test", "cloudflared_config_test"),
                 ("Reload", "cloudflared_reload"),
                 ("Restart CF", "cloudflared_restart"),
+                ("Create", "create_stack_flow"),
+                ("Onboard Domain", "domain_onboarding_flow"),
+            ]
+        elif item.get("tool") == "bootstrap":
+            specs = [
+                ("Refresh", "bootstrap_assess"),
                 ("Create", "create_stack_flow"),
                 ("Onboard Domain", "domain_onboarding_flow"),
             ]
@@ -1106,6 +1119,8 @@ class HomesrvctlTextualApp(App[None]):
             return "Tool: Tunnel"
         if tool == "cloudflared":
             return "Tool: Cloudflared"
+        if tool == "bootstrap":
+            return "Tool: Bootstrap"
         return "Tool: Validate"
 
     def _detail_text(self) -> str:
@@ -1117,6 +1132,8 @@ class HomesrvctlTextualApp(App[None]):
                 return self._tunnel_detail_text()
             if item.get("tool") == "cloudflared":
                 return self._cloudflared_detail_text()
+            if item.get("tool") == "bootstrap":
+                return self._bootstrap_detail_text()
             return self._validate_detail_text()
         return self._stack_detail_text(str(item.get("hostname", "")), bool(item.get("compose")))
 
@@ -1180,6 +1197,23 @@ class HomesrvctlTextualApp(App[None]):
         if failures:
             return f"[red]✗ {len(failures)} failing[/red]", f"{len(checks)} checks"
         return "[green]✓ all passing[/green]", f"{len(checks)} checks"
+
+    def _bootstrap_summary_parts(self) -> tuple[str, str]:
+        payload = self.snapshot.get("bootstrap")
+        if not isinstance(payload, dict):
+            return "○ unavailable", ""
+        state = str(payload.get("bootstrap_state", "unknown"))
+        issues = payload.get("issues", [])
+        issue_count = len(issues) if isinstance(issues, list) else 0
+        if state == "ready":
+            return "[green]✓ ready[/green]", "Debian target"
+        if state == "fresh":
+            return "○ fresh", "Debian target"
+        if state == "partial":
+            return "[yellow]⚠ partial[/yellow]", f"{issue_count} issue(s)"
+        if state == "unsupported":
+            return "[red]✗ unsupported[/red]", str(payload.get("detail", "unsupported host"))
+        return "○ unknown", str(payload.get("detail", "no detail"))
 
     def _tunnel_detail_text(self) -> str:
         payload = self.snapshot.get("tunnel")
@@ -1322,6 +1356,20 @@ class HomesrvctlTextualApp(App[None]):
             payload = cached.get("payload")
             if isinstance(action, str) and isinstance(payload, dict):
                 lines.extend(["", *render_tool_action_detail("cloudflared", action, payload)])
+        lines.extend(["", "· enter menu  · b create  · d domain  · r refresh  · q quit"])
+        return "\n".join(lines)
+
+    def _bootstrap_detail_text(self) -> str:
+        payload = self.snapshot.get("bootstrap")
+        if not isinstance(payload, dict):
+            return "Bootstrap detail unavailable"
+        lines = ["[bold #ffcf5a]Bootstrap Detail[/bold #ffcf5a]", "", *render_bootstrap_assessment_detail(payload)]
+        cached = self.last_tool_actions.get("bootstrap")
+        if isinstance(cached, dict):
+            action = cached.get("action")
+            action_payload = cached.get("payload")
+            if isinstance(action, str) and isinstance(action_payload, dict):
+                lines.extend(["", *render_tool_action_detail("bootstrap", action, action_payload)])
         lines.extend(["", "· enter menu  · b create  · d domain  · r refresh  · q quit"])
         return "\n".join(lines)
 

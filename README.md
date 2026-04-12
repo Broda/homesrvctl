@@ -368,7 +368,7 @@ homesrvctl up example.com --dry-run
 - The first-class setup/repair path is systemd-focused. Docker and bare-process runtimes still get status visibility, but setup repair remains advisory there.
 - `homesrvctl` does not prompt for `sudo` inside the CLI or TUI. When setup changes require elevated privileges, it prints the exact commands to run manually.
 - The first-class setup model uses a dedicated `homesrvctl` Unix group so `cloudflared` and unprivileged operators can share read access to the tunnel credentials JSON without making it public.
-- `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `config show`, `tunnel status`, `cloudflared status`, and `validate`.
+- `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `config show`, `tunnel status`, `cloudflared status`, `validate`, and `bootstrap assess`.
 - The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
 - `tui` requires an interactive terminal on both stdin and stdout, and it assumes the local machine has the same runtime access as the CLI commands it launches: Docker where stack actions are used, local config-file access, and local `cloudflared` runtime access where `cloudflared` tools are used.
@@ -386,6 +386,7 @@ homesrvctl up example.com --dry-run
 - When a stack is focused, `a` opens a small Textual template picker for `app init`, and the scaffold result stays visible in the stack detail pane after the prompt completes.
 - The TUI now includes a `Config` tool item that renders the base `config show` output, and focused stack details also surface the effective per-stack config derived from `config show --stack`.
 - The TUI now also includes a `Tunnel` tool item that renders the current `tunnel status` output, including the configured reference, resolved UUID, resolution source, API tunnel status when available, and a non-alarming note when account inspection is unavailable only because the current user cannot read the local credentials JSON.
+- The TUI now also includes a `Bootstrap` tool item and summary card that surface the current `bootstrap assess` result, including host support, bootstrap state, issues, and next-step guidance for the planned fresh-host bootstrap target.
 - Focused `Config`, `Tunnel`, and `Cloudflared` tool items can now open guided tool menus with `Enter` or `o`, so low-frequency global actions stay discoverable without replacing the underlying CLI verbs.
 - When the `Cloudflared` tool is focused, the TUI now also exposes a `Fix Setup` action that runs `cloudflared setup` and keeps the generated repair guidance visible in the detail pane.
 - The guided `Config` tool flow can now run the default-path `config init` path from inside the TUI, and it asks for overwrite confirmation only when the existing config file would need `--force`.
