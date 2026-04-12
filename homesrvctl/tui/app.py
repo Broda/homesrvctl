@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -1130,15 +1132,44 @@ class HomesrvctlTextualApp(App[None]):
         item = self._selected_control_item()
         if item.get("kind") == "tool":
             if item.get("tool") == "config":
-                return self._config_detail_text()
+                return self._align_detail_key_value_lines(self._config_detail_text())
             if item.get("tool") == "tunnel":
-                return self._tunnel_detail_text()
+                return self._align_detail_key_value_lines(self._tunnel_detail_text())
             if item.get("tool") == "cloudflared":
-                return self._cloudflared_detail_text()
+                return self._align_detail_key_value_lines(self._cloudflared_detail_text())
             if item.get("tool") == "bootstrap":
-                return self._bootstrap_detail_text()
-            return self._validate_detail_text()
-        return self._stack_detail_text(str(item.get("hostname", "")), bool(item.get("compose")))
+                return self._align_detail_key_value_lines(self._bootstrap_detail_text())
+            return self._align_detail_key_value_lines(self._validate_detail_text())
+        return self._align_detail_key_value_lines(
+            self._stack_detail_text(str(item.get("hostname", "")), bool(item.get("compose")))
+        )
+
+    def _align_detail_key_value_lines(self, text: str) -> str:
+        pattern = re.compile(r"^(\s*)([^:\n]+?)\s:\s(.*)$")
+        parsed: list[tuple[str, str] | None] = []
+        max_width = 0
+        original_lines = text.splitlines()
+        for line in original_lines:
+            match = pattern.match(line)
+            if not match:
+                parsed.append(None)
+                continue
+            _indent, label, value = match.groups()
+            stripped_label = label.strip()
+            max_width = max(max_width, len(stripped_label))
+            parsed.append((stripped_label, value))
+
+        if max_width == 0:
+            return text
+
+        aligned_lines: list[str] = []
+        for original, entry in zip(original_lines, parsed):
+            if entry is None:
+                aligned_lines.append(original)
+                continue
+            label, value = entry
+            aligned_lines.append(f"{label.rjust(max_width)} : {value}")
+        return "\n".join(aligned_lines)
 
     def _command_bar_text(self) -> str:
         mode = f"auto refresh {self.refresh_seconds:g}s" if self.refresh_seconds > 0 else "manual refresh"

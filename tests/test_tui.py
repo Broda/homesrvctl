@@ -999,6 +999,11 @@ def test_textual_app_tunnel_tool_detail_text() -> None:
     assert "api tunnel status" in detail
     assert "healthy" in detail
 
+    tunnel_line = next(line for line in detail.splitlines() if "configured tunnel" in line)
+    account_line = next(line for line in detail.splitlines() if "account id" in line)
+    api_status_line = next(line for line in detail.splitlines() if "api tunnel status" in line)
+    assert tunnel_line.index(":") == account_line.index(":") == api_status_line.index(":")
+
 
 def test_textual_app_tunnel_detail_downgrades_credentials_permission_denied() -> None:
     app = textual_app.HomesrvctlTextualApp()
