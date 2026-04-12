@@ -16,7 +16,8 @@ from homesrvctl.commands.validate_cmd import validate_with_format
 app = typer.Typer(
     name="homesrvctl",
     help="Manage home-server domains, site scaffolds, Compose stacks, and environment validation.",
-    no_args_is_help=True,
+    no_args_is_help=False,
+    invoke_without_command=True,
     add_completion=False,
 )
 
@@ -35,6 +36,12 @@ app.command("list")(list_sites_with_format)
 app.command("validate")(validate_with_format)
 app.command("doctor")(doctor)
 app.command("tui")(tui)
+
+
+@app.callback()
+def main_callback(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        tui()
 
 
 def run() -> None:

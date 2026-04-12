@@ -796,6 +796,19 @@ def test_tui_requires_interactive_terminal(monkeypatch) -> None:
     assert "tui requires an interactive terminal" in result.output
 
 
+def test_no_args_invokes_tui(monkeypatch) -> None:
+    from homesrvctl import main as main_mod
+
+    calls: list[str] = []
+    monkeypatch.setattr(main_mod, "tui", lambda: calls.append("tui"))
+
+    runner = CliRunner()
+    result = runner.invoke(app, [])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["tui"]
+
+
 def test_tui_invokes_textual_app(monkeypatch) -> None:
     monkeypatch.setattr(tui_cmd.sys.stdout, "isatty", lambda: True)
     monkeypatch.setattr(tui_cmd.sys.stdin, "isatty", lambda: True)

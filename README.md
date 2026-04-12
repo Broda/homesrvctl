@@ -285,6 +285,7 @@ sudo homesrvctl bootstrap runtime
 homesrvctl bootstrap tunnel --account-id <cloudflare-account-id>
 sudo homesrvctl bootstrap wiring
 homesrvctl bootstrap validate
+homesrvctl
 homesrvctl tui
 homesrvctl tunnel status
 homesrvctl cloudflared status
@@ -379,6 +380,7 @@ homesrvctl up example.com --dry-run
 - `bootstrap wiring` expects tunnel credentials to already exist locally. If they do not, run `bootstrap tunnel` first or point the config at an existing local cloudflared setup before wiring the service.
 - `bootstrap validate` is the final shipped bootstrap check. It composes `bootstrap assess`, the existing host `validate` checks, `tunnel status`, and the shared-group `cloudflared` setup state into one explicit `ready` / `not_ready` / `unsupported` result for the current host.
 - `bootstrap validate` is intentionally stricter than `cloudflared status`: a setup state of `partial` still means the host is not fully bootstrapped yet because account-scoped tunnel inspection is not available from the current user.
+- Running `homesrvctl` with no arguments now launches the same Textual dashboard as `homesrvctl tui`.
 - all `--json` commands include a top-level `schema_version` so automation can pin to a known output shape.
 - `config init --json` reports whether the config file was created or overwritten.
 - `config show` reports global config values and can also report the effective `docker_network` and `traefik_url` for a specific stack after stack-local overrides are applied.
@@ -397,6 +399,7 @@ homesrvctl up example.com --dry-run
 - `homesrvctl` does not prompt for `sudo` inside the CLI or TUI. When setup changes require elevated privileges, it prints the exact commands to run manually.
 - The first-class setup model uses a dedicated `homesrvctl` Unix group so `cloudflared` and unprivileged operators can share read access to the tunnel credentials JSON without making it public.
 - `tui` launches a terminal dashboard backed by the existing JSON commands for `list`, `config show`, `tunnel status`, `cloudflared status`, `validate`, and `bootstrap assess`.
+- A bare `homesrvctl` invocation now enters that same TUI path by default; keep using explicit subcommands for non-TUI automation.
 - The Textual app title is `Home Server Controller`, which is the human-readable product name for the terminal UI.
 - `tui` now launches a Textual app; reinstall the package or refresh the local dev venv after upgrading so the new dependency is present.
 - `tui` requires an interactive terminal on both stdin and stdout, and it assumes the local machine has the same runtime access as the CLI commands it launches: Docker where stack actions are used, local config-file access, and local `cloudflared` runtime access where `cloudflared` tools are used.
