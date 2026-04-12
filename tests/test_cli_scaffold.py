@@ -5206,7 +5206,7 @@ def test_bootstrap_validate_json_output(monkeypatch, tmp_path: Path) -> None:
                         "network": {"name": "web", "exists": True},
                         "cloudflare": {"token_present": True, "api_reachable": True},
                         "issues": [],
-                        "next_steps": ["Host baseline is ready for first stack creation and domain onboarding."],
+                        "next_steps": ["Host baseline is ready for stack operations and domain onboarding."],
                     },
                 )(),
                 "validate_ok": True,
@@ -5218,7 +5218,7 @@ def test_bootstrap_validate_json_output(monkeypatch, tmp_path: Path) -> None:
                 "tunnel": {"ok": True, "resolved_tunnel_id": "11111111-2222-4333-8444-555555555555"},
                 "cloudflared_setup": {"ok": True, "setup_state": "ready", "detail": "shared-group cloudflared setup is ready"},
                 "issues": [],
-                "next_steps": ["Host baseline is ready for first stack creation and domain onboarding."],
+                "next_steps": ["Host baseline is ready for stack operations and domain onboarding."],
             },
         )(),
     )

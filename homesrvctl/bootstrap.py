@@ -877,7 +877,7 @@ def _next_steps(
     docker_network: str,
 ) -> list[str]:
     if bootstrap_state == "ready":
-        return ["Host baseline is ready for first stack creation and domain onboarding."]
+        return ["Host baseline is ready for stack operations and domain onboarding."]
 
     steps: list[str] = []
     if not host_supported:
@@ -1012,7 +1012,7 @@ def _bootstrap_validation_next_steps(
         and bool(tunnel["ok"])
         and str(setup["setup_state"]) == "ready"
     ):
-        return ["Host baseline is ready for first stack creation and domain onboarding."]
+        return ["Host baseline is ready for stack operations and domain onboarding."]
 
     steps = list(assessment.next_steps)
     if not validate_ok and validate_blocking_failures:

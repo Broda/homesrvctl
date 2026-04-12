@@ -197,7 +197,7 @@ def test_validate_bootstrap_reports_ready_baseline(monkeypatch, tmp_path: Path) 
         network={"name": "web", "exists": True, "detail": '"web"'},
         cloudflare={"token_present": True, "api_reachable": True, "detail": "Cloudflare token verified (active)"},
         issues=[],
-        next_steps=["Host baseline is ready for first stack creation and domain onboarding."],
+        next_steps=["Host baseline is ready for stack operations and domain onboarding."],
     )
     monkeypatch.setattr(bootstrap, "assess_bootstrap", lambda path=None, quiet=False: assessment)
     monkeypatch.setattr(

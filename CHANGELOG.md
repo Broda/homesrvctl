@@ -102,7 +102,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 
 ### Changed
 - New starter configs now default `cloudflared_config` to `/srv/homesrvctl/cloudflared/config.yml`; existing installs keep honoring their already-configured path without automatic migration.
-
+- Bootstrap ready-state copy now says the host is ready for `stack operations and domain onboarding`, instead of implying only first-time stack creation.
 - Broadened release-packaging verification from Jekyll-only coverage to the full shipped template asset catalog.
 - Added a root `.dockerignore` to the `static-api` scaffold so its stack-root Python image build follows the same build-context convention as the other image-building app templates.
 - Tightened the generated Jekyll scaffold guidance so adoption instructions now spell out which root-level stack files to keep, which `site/` contents to replace, how the adopted source tree should sit under `site/`, and when native gem dependencies require Dockerfile edits.
