@@ -572,7 +572,7 @@ Completed in this milestone:
 
 ## Milestone 4: API Reliability and Cloudflare Coverage
 
-Status: in progress
+Status: completed
 
 Goal: decide whether more Cloudflare interactions should move from CLI-assisted flows to API-managed flows.
 
@@ -598,7 +598,7 @@ Completed in this milestone:
 
 ### 4.2 Evaluate broader tunnel inspection or management coverage
 
-Status: in progress
+Status: completed
 
 Tasks:
 - Review whether tunnel inspection should move further to the Cloudflare API.
@@ -628,7 +628,7 @@ Completed in this milestone:
   - `cloudflared logs`
   - `cloudflared config-test`
   - `validate` checks that inspect local ingress config or local runtime state
-- Closed the milestone without adding tunnel-management verbs; broader Cloudflare Tunnel management remains out of scope unless a real operator gap appears.
+- Closed the milestone without adding tunnel-management verbs; any future richer Cloudflare-side tunnel metadata or remote-config visibility now belongs under Milestone 13.1 instead of reopening this milestone.
 
 ## Milestone 5: Terminal UI (Textual Migration)
 
