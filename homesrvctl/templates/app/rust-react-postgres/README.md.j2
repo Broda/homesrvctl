@@ -1,0 +1,40 @@
+# {{ hostname }} Rust + React + Postgres App
+
+This scaffold is a production-oriented baseline for `homesrvctl app init <hostname> --template rust-react-postgres`.
+
+It keeps the existing homesrvctl operating model:
+
+- Cloudflare Tunnel terminates ingress for the domain
+- Traefik routes the hostname to the `frontend` container
+- nginx serves the built React app
+- nginx proxies `/api` to the Rust backend
+- Postgres stays internal to the stack on a private Compose network
+
+## Files
+
+- `docker-compose.yml`: frontend, API, and Postgres services
+- `.env.example`: starter runtime settings for the API and database
+- `.dockerignore`: keeps build cache and local env noise out of image builds
+- `frontend/`: React + Vite app, nginx config, and frontend image build
+- `api/`: Rust service, Dockerfile, and starter SQL migration
+
+## First run
+
+1. Copy `.env.example` to `.env` only if you need to override the defaults.
+2. Start the stack with `docker compose up --build`.
+3. Verify all three containers become healthy.
+4. Confirm `https://{{ hostname }}/` serves the frontend.
+5. Confirm the frontend loads data from `/api/hello`.
+6. Replace the placeholder UI, API routes, and migration with your real app code.
+
+## Runtime behavior
+
+- Only `frontend` is exposed to Traefik.
+- nginx proxies `/api` to the internal Rust service so browser requests stay one-origin.
+- The Rust service exposes `GET /healthz` for internal healthchecks.
+- The Rust service runs SQL migrations from `api/migrations/` on startup.
+- Postgres is reachable only on the private `internal` network.
+
+## ARM notes
+
+The generated stack uses official multi-architecture images (`node`, `nginx`, `rust`, `debian`, and `postgres`) so it stays friendly to Raspberry Pi hosts without extra template changes.

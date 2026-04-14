@@ -1,0 +1,10 @@
+[package]
+name = "{{ safe_name }}-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "migrate"] }
+tokio = { version = "1.42", features = ["macros", "rt-multi-thread", "net"] }

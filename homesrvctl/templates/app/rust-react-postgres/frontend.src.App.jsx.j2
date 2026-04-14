@@ -1,0 +1,89 @@
+import { useEffect, useState } from "react";
+
+const initialState = {
+  loading: true,
+  error: "",
+  payload: null,
+};
+
+export default function App() {
+  const [state, setState] = useState(initialState);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await fetch("/api/hello", {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed with ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (!cancelled) {
+          setState({ loading: false, error: "", payload });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setState({
+            loading: false,
+            error: String(error),
+            payload: null,
+          });
+        }
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <main className="page-shell">
+      <section className="hero-panel">
+        <p className="eyebrow">{{ hostname }}</p>
+        <h1>Rust API, React frontend, internal Postgres.</h1>
+        <p className="lede">
+          The frontend is served by nginx, browser requests stay on one origin, and
+          <code>/api</code> is proxied to the internal Rust service.
+        </p>
+      </section>
+
+      <section className="status-grid">
+        <article className="card">
+          <h2>Frontend</h2>
+          <p>React + Vite build served by nginx behind Traefik.</p>
+        </article>
+        <article className="card">
+          <h2>Backend</h2>
+          <p>Axum service with startup migrations and an internal <code>/healthz</code>.</p>
+        </article>
+        <article className="card">
+          <h2>Database</h2>
+          <p>Postgres is attached only to the stack-private network.</p>
+        </article>
+      </section>
+
+      <section className="card api-card">
+        <div className="api-card-header">
+          <h2>API probe</h2>
+          <span className={state.error ? "badge badge-error" : "badge"}>
+            {state.loading ? "loading" : state.error ? "error" : "ok"}
+          </span>
+        </div>
+        <pre>
+          {state.loading
+            ? "Loading /api/hello ..."
+            : state.error
+              ? JSON.stringify({ error: state.error }, null, 2)
+              : JSON.stringify(state.payload, null, 2)}
+        </pre>
+      </section>
+    </main>
+  );
+}

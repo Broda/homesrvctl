@@ -638,6 +638,105 @@ def test_app_init_jekyll_template_artifacts_stay_coherent(monkeypatch, tmp_path:
     assert "layout: home" in index_md
 
 
+def test_app_init_rust_react_postgres_template_creates_scaffold(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "app.example.com", "--template", "rust-react-postgres"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "app.example.com"
+    assert (app_dir / "docker-compose.yml").exists()
+    assert (app_dir / ".env.example").exists()
+    assert (app_dir / ".dockerignore").exists()
+    assert (app_dir / "README.md").exists()
+    assert (app_dir / "frontend" / "Dockerfile").exists()
+    assert (app_dir / "frontend" / "nginx.conf").exists()
+    assert (app_dir / "frontend" / "package.json").exists()
+    assert (app_dir / "frontend" / "vite.config.js").exists()
+    assert (app_dir / "frontend" / "index.html").exists()
+    assert (app_dir / "frontend" / "src" / "main.jsx").exists()
+    assert (app_dir / "frontend" / "src" / "App.jsx").exists()
+    assert (app_dir / "frontend" / "src" / "styles.css").exists()
+    assert (app_dir / "api" / "Dockerfile").exists()
+    assert (app_dir / "api" / "Cargo.toml").exists()
+    assert (app_dir / "api" / "src" / "main.rs").exists()
+    assert (app_dir / "api" / "migrations" / "0001_initial.sql").exists()
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    env_example = (app_dir / ".env.example").read_text(encoding="utf-8")
+    readme = (app_dir / "README.md").read_text(encoding="utf-8")
+    frontend_nginx = (app_dir / "frontend" / "nginx.conf").read_text(encoding="utf-8")
+    frontend_app = (app_dir / "frontend" / "src" / "App.jsx").read_text(encoding="utf-8")
+    api_main = (app_dir / "api" / "src" / "main.rs").read_text(encoding="utf-8")
+    assert "frontend:" in compose
+    assert "api:" in compose
+    assert "postgres:" in compose
+    assert "loadbalancer.server.port=80" in compose
+    assert "PathPrefix(`/api`)" not in compose
+    assert "traefik.enable=true" in compose
+    assert "internal: true" in compose
+    assert "pg_isready" in compose
+    assert "APP_PORT=8080" in env_example
+    assert "POSTGRES_PASSWORD=change-me" in env_example
+    assert "nginx proxies `/api` to the Rust backend" in readme
+    assert "location /api/" in frontend_nginx
+    assert 'proxy_pass http://api:8080;' in frontend_nginx
+    assert 'fetch("/api/hello"' in frontend_app
+    assert 'credentials: "include"' in frontend_app
+    assert '.route("/healthz", get(healthz))' in api_main
+    assert '.route("/api/hello", get(api_hello))' in api_main
+    assert 'sqlx::migrate!("./migrations")' in api_main
+
+
+def test_app_init_rust_react_postgres_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["app", "init", "app.example.com", "--template", "rust-react-postgres"])
+
+    assert result.exit_code == 0, result.output
+    app_dir = sites_root / "app.example.com"
+    compose = (app_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerignore = (app_dir / ".dockerignore").read_text(encoding="utf-8")
+    frontend_dockerfile = (app_dir / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    frontend_package = (app_dir / "frontend" / "package.json").read_text(encoding="utf-8")
+    frontend_styles = (app_dir / "frontend" / "src" / "styles.css").read_text(encoding="utf-8")
+    api_dockerfile = (app_dir / "api" / "Dockerfile").read_text(encoding="utf-8")
+    api_cargo = (app_dir / "api" / "Cargo.toml").read_text(encoding="utf-8")
+    api_main = (app_dir / "api" / "src" / "main.rs").read_text(encoding="utf-8")
+    migration = (app_dir / "api" / "migrations" / "0001_initial.sql").read_text(encoding="utf-8")
+
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null || exit 1"]' in compose
+    assert 'test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:${APP_PORT:-8080}/healthz >/dev/null || exit 1"]' in compose
+    assert "traefik.http.routers.app-example-com.rule=Host(`app.example.com`)" in compose
+    assert "traefik.docker.network=web" in compose
+    assert "depends_on:" in compose
+    assert "condition: service_healthy" in compose
+    assert "DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-app}" in compose
+    assert "frontend/dist" in dockerignore
+    assert "api/target" in dockerignore
+    assert "FROM node:20-alpine AS build" in frontend_dockerfile
+    assert "npm run build" in frontend_dockerfile
+    assert "FROM nginx:alpine" in frontend_dockerfile
+    assert '"react": "^18.3.1"' in frontend_package
+    assert '"vite": "^5.4.10"' in frontend_package
+    assert "grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));" in frontend_styles
+    assert "FROM rust:1.86-bookworm AS build" in api_dockerfile
+    assert "apt-get install -y --no-install-recommends ca-certificates wget" in api_dockerfile
+    assert 'name = "app-example-com-api"' in api_cargo
+    assert 'sqlx = { version = "0.8"' in api_cargo
+    assert 'unwrap_or_else(|_| "postgresql://app:change-me@postgres:5432/app".to_string())' in api_main
+    assert 'SELECT current_database()' in api_main
+    assert 'Replace api/src/main.rs with your real Rust API.' in api_main
+    assert "CREATE TABLE IF NOT EXISTS app_sessions" in migration
+
+
 def test_app_init_jekyll_with_profile_writes_profile_stack_config(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -1216,6 +1315,48 @@ def test_app_init_python_json_output_lists_expected_templates(monkeypatch, tmp_p
         "app/python/README.md.j2",
         "app/python/requirements.txt.j2",
         "app/python/app/main.py.j2",
+    }
+
+
+def test_app_init_rust_react_postgres_json_output(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["app", "init", "app.example.com", "--template", "rust-react-postgres", "--dry-run", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "app_init"
+    assert payload["hostname"] == "app.example.com"
+    assert payload["template"] == "rust-react-postgres"
+    assert payload["dry_run"] is True
+    assert payload["ok"] is True
+    assert payload["files"][-1].endswith("/app.example.com/api/migrations/0001_initial.sql")
+    templates = {entry["template"] for entry in payload["rendered_templates"]}
+    assert templates == {
+        "app/rust-react-postgres/docker-compose.yml.j2",
+        "app/rust-react-postgres/env.example.j2",
+        "app/rust-react-postgres/dockerignore.j2",
+        "app/rust-react-postgres/README.md.j2",
+        "app/rust-react-postgres/frontend.Dockerfile.j2",
+        "app/rust-react-postgres/frontend.nginx.conf.j2",
+        "app/rust-react-postgres/frontend.package.json.j2",
+        "app/rust-react-postgres/frontend.vite.config.js.j2",
+        "app/rust-react-postgres/frontend.index.html.j2",
+        "app/rust-react-postgres/frontend.src.main.jsx.j2",
+        "app/rust-react-postgres/frontend.src.App.jsx.j2",
+        "app/rust-react-postgres/frontend.src.styles.css.j2",
+        "app/rust-react-postgres/api.Dockerfile.j2",
+        "app/rust-react-postgres/api.Cargo.toml.j2",
+        "app/rust-react-postgres/api.src.main.rs.j2",
+        "app/rust-react-postgres/api.migrations.0001_initial.sql.j2",
     }
 
 

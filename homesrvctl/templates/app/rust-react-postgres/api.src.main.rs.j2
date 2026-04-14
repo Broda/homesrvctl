@@ -1,0 +1,91 @@
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
+use serde::Serialize;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use std::{env, net::SocketAddr};
+
+#[derive(Clone)]
+struct AppState {
+    pool: PgPool,
+    hostname: String,
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    ok: bool,
+}
+
+#[derive(Serialize)]
+struct HelloResponse {
+    hostname: String,
+    database: String,
+    database_time_utc: String,
+    message: &'static str,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let hostname = env::var("APP_HOSTNAME").unwrap_or_else(|_| "{{ hostname }}".to_string());
+    let port = env::var("APP_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(8080);
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://app:change-me@postgres:5432/app".to_string());
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await?;
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
+    let app = Router::new()
+        .route("/healthz", get(healthz))
+        .route("/api/hello", get(api_hello))
+        .with_state(AppState { pool, hostname });
+
+    let address = SocketAddr::from(([0, 0, 0, 0], port));
+    println!("Rust scaffold listening on {}", address);
+
+    let listener = tokio::net::TcpListener::bind(address).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn healthz(State(state): State<AppState>) -> Result<Json<HealthResponse>, StatusCode> {
+    sqlx::query_scalar::<_, i64>("SELECT 1")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+
+    Ok(Json(HealthResponse { ok: true }))
+}
+
+async fn api_hello(
+    State(state): State<AppState>,
+) -> Result<Json<HelloResponse>, (StatusCode, String)> {
+    let database = sqlx::query_scalar::<_, String>("SELECT current_database()")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(internal_error)?;
+    let database_time_utc = sqlx::query_scalar::<_, String>("SELECT (NOW() AT TIME ZONE 'UTC')::text")
+        .fetch_one(&state.pool)
+        .await
+        .map_err(internal_error)?;
+
+    Ok(Json(HelloResponse {
+        hostname: state.hostname,
+        database,
+        database_time_utc,
+        message: "Replace api/src/main.rs with your real Rust API.",
+    }))
+}
+
+fn internal_error(error: sqlx::Error) -> (StatusCode, String) {
+    (StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
+}

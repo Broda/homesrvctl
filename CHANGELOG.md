@@ -9,6 +9,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Added
+- Added a `rust-react-postgres` app template that scaffolds a Raspberry Pi-friendly three-service stack with a React/Vite frontend served by nginx, an internal Rust API with `/healthz`, and stack-private Postgres behind the existing Cloudflare Tunnel plus Traefik model.
 - Running `homesrvctl` with no arguments now launches the Textual dashboard by default, matching `homesrvctl tui`.
 - Added `homesrvctl bootstrap assess` as the first fresh-host bootstrap slice. It is assessment-only and reports whether the current host looks `fresh`, `partial`, `ready`, or `unsupported` relative to the first Debian-family Raspberry Pi bootstrap target.
 - Added `homesrvctl bootstrap runtime` as the host-baseline bootstrap slice. It supports `--dry-run` and `--json`, installs Docker Engine plus the Docker Compose plugin and `cloudflared`, creates the shared `homesrvctl` group and `/srv/homesrvctl` directory layout, creates the external Docker network, and writes plus starts the baseline Traefik runtime.

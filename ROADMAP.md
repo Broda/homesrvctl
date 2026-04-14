@@ -17,6 +17,10 @@ This milestone is already done and serves as the current project baseline.
   - `app init --template placeholder`
   - `app init --template node`
   - `app init --template python`
+  - `app init --template static`
+  - `app init --template static-api`
+  - `app init --template jekyll`
+  - `app init --template rust-react-postgres`
 - Deploy lifecycle exists for:
   - `up`
   - `down`
@@ -423,6 +427,8 @@ Decision:
   - migrations
   - production app architecture choices
   - opinionated deployment stacks beyond the local hosting baseline
+- A deliberate exception can exist when it is shipped as one explicit template decision rather than as a new general scaffold direction.
+  Current baseline: `rust-react-postgres` is now such an exception. It ships one fixed Rust + React/Vite + Postgres stack shape for the current Raspberry Pi-oriented hosting model, but does not broaden the project into a generic framework generator.
 
 Implications:
 - Templates should stay easy to understand after generation.
@@ -433,6 +439,7 @@ Applied examples:
 - `static` stays a plain nginx-backed website with basic assets.
 - `static-api` stays a small two-service pattern rather than a frontend framework plus backend stack.
 - `node` and `python` stay minimal runtime baselines rather than framework starters.
+- `rust-react-postgres` is allowed as an explicit exception because it still maps cleanly to the existing one-hostname, one-stack, one-Traefik-route model without introducing broader scaffold abstractions.
 
 ### 3.4 Keep template layout scalable
 
@@ -478,7 +485,7 @@ Current baseline:
 - App template names, descriptions, and rendered file manifests now live in `homesrvctl/template_catalog.py`.
 - The TUI template picker now reads its shipped app-template choices from the shared scaffold catalog.
 - `site init` uses a separate top-level template family from `app init --template static`.
-- Artifact-coherence coverage now exists for `site init`, `static`, `static-api`, `placeholder`, `node`, `python`, and `jekyll`.
+- Artifact-coherence coverage now exists for `site init`, `static`, `static-api`, `placeholder`, `node`, `python`, `jekyll`, and `rust-react-postgres`.
 - Release-packaging verification now checks the full shipped template catalog instead of only Jekyll assets.
 
 Completed in this milestone:

@@ -272,6 +272,12 @@ Scaffold a Jekyll site baseline:
 homesrvctl app init blog.example.com --template jekyll
 ```
 
+Scaffold a Rust + React + Postgres app:
+
+```bash
+homesrvctl app init app.example.com --template rust-react-postgres
+```
+
 Scaffold a stack with local overrides:
 
 ```bash
@@ -350,7 +356,7 @@ homesrvctl up example.com --dry-run
 - `homesrvctl domain repair <domain> [--dry-run] [--json] [--restart-cloudflared]`
 - `homesrvctl domain remove <domain> [--dry-run] [--json] [--restart-cloudflared]`
 - `homesrvctl site init <hostname> [--force] [--dry-run] [--json] [--profile NAME] [--docker-network NETWORK] [--traefik-url URL]`
-- `homesrvctl app init <hostname> [--template static|static-api|placeholder|node|python|jekyll] [--force] [--dry-run] [--json] [--profile NAME] [--docker-network NETWORK] [--traefik-url URL]`
+- `homesrvctl app init <hostname> [--template static|static-api|placeholder|node|python|jekyll|rust-react-postgres] [--force] [--dry-run] [--json] [--profile NAME] [--docker-network NETWORK] [--traefik-url URL]`
 - `homesrvctl up <hostname> [--dry-run] [--json]`
 - `homesrvctl down <hostname> [--dry-run] [--json]`
 - `homesrvctl restart <hostname> [--dry-run] [--json]`
@@ -473,13 +479,15 @@ homesrvctl up example.com --dry-run
 - The `node` app template now generates a runnable multi-file scaffold with `docker-compose.yml`, `Dockerfile`, `package.json`, `.env.example`, and `src/server.js`.
 - The `python` app template now generates a runnable multi-file scaffold with `docker-compose.yml`, `Dockerfile`, `requirements.txt`, `.env.example`, and `app/main.py`.
 - The `jekyll` app template now generates a stack-local `site/` source tree plus a Dockerized Jekyll-to-nginx build baseline intended for manual adoption of an existing Jekyll site.
+- The `rust-react-postgres` app template now generates a three-service Raspberry Pi-friendly stack with a React/Vite frontend served by nginx, an internal Rust API that exposes `/healthz`, and a stack-private Postgres database.
+- In that `rust-react-postgres` scaffold, Traefik only routes to the frontend container and nginx proxies `/api` to the internal Rust backend so one-origin cookie auth stays straightforward.
 - To adopt an existing Jekyll repo, scaffold `--template jekyll`, copy the repo contents into `site/`, keep the generated `docker-compose.yml` and `Dockerfile`, then run `docker compose up --build`.
 - The shipped app-template catalog now drives CLI validation, TUI template selection, rendered-template manifests, and release packaging checks from one module so those surfaces do not drift independently.
 - The `node` and `python` app templates now include a basic container healthcheck that probes the generated root endpoint on the app’s internal port.
 - The `node` and `python` app templates now expose a dedicated `/healthz` endpoint, and the generated healthchecks probe that endpoint instead of the user-facing root response.
 - The generated `node` and `python` app READMEs now include explicit first-run steps for `docker compose up --build`, health verification, and when you actually need a `.env` file.
-- Scaffold regression tests now assert that the rendered `node` and `python` artifacts stay internally consistent across ports, healthchecks, and rendered template manifests.
-- Scaffold artifact-coherence coverage now also locks down the shipped `site init`, `static`, `static-api`, `placeholder`, and `jekyll` scaffolds so template manifests, healthcheck expectations, and guidance do not drift silently.
+- Scaffold regression tests now assert that the rendered `node`, `python`, and `rust-react-postgres` artifacts stay internally consistent across ports, healthchecks, and rendered template manifests.
+- Scaffold artifact-coherence coverage now also locks down the shipped `site init`, `static`, `static-api`, `placeholder`, `jekyll`, and `rust-react-postgres` scaffolds so template manifests, healthcheck expectations, and guidance do not drift silently.
 - The generated Dockerfiles now use slightly more realistic defaults: the Node scaffold installs runtime dependencies, and the Python scaffold sets the standard runtime environment flags before installing requirements.
 - The generated `node` and `python` sources now document and implement a clearer runtime baseline: `GET /`, `GET /healthz`, explicit environment-variable inputs, and `405` responses for unsupported methods.
 - The generated `node` and `python` `.env.example` files now include only real runtime overrides used by the scaffolded apps, instead of extra metadata-style keys.

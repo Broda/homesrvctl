@@ -1,0 +1,119 @@
+:root {
+  font-family: "Trebuchet MS", "Avenir Next", sans-serif;
+  color: #14213d;
+  background:
+    radial-gradient(circle at top, rgba(252, 163, 17, 0.18), transparent 38%),
+    linear-gradient(180deg, #f6f1e7 0%, #e7dcc5 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+code,
+pre {
+  font-family: "SFMono-Regular", "Consolas", monospace;
+}
+
+.page-shell {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+}
+
+.hero-panel,
+.card {
+  background: rgba(255, 252, 247, 0.78);
+  border: 1px solid rgba(20, 33, 61, 0.1);
+  box-shadow: 0 24px 60px rgba(20, 33, 61, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.hero-panel {
+  padding: 2rem;
+  border-radius: 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9a6a00;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  font-size: clamp(2.8rem, 7vw, 5rem);
+  line-height: 0.95;
+}
+
+.lede {
+  max-width: 42rem;
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.card {
+  padding: 1.25rem;
+  border-radius: 1.25rem;
+}
+
+.api-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #16324f;
+  color: #f8f8f8;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.badge-error {
+  background: #8f250c;
+}
+
+pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: #14213d;
+  color: #f5f7fb;
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 1.25rem 1rem 2rem;
+  }
+
+  .hero-panel {
+    padding: 1.5rem;
+  }
+}

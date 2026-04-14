@@ -47,6 +47,19 @@ They should not include by default:
 
 If a new template would require substantial framework-specific machinery, that should be treated as a separate product decision rather than the automatic next scaffold.
 
+The current deliberate exception is `app init --template rust-react-postgres`.
+That template is allowed to include:
+- a frontend build pipeline
+- an internal Postgres service
+- a starter SQL migration
+
+It fits the project because it is still a narrow stack-local hosting baseline rather than a generalized app generator:
+- one shipped stack shape
+- one frontend build path
+- one backend runtime
+- one internal database
+- no extra platform abstraction, auth system, or deployment orchestration
+
 Build-based static frameworks may still fit when they stay narrow and explicit. For example, a Jekyll-style workflow can fit as a deliberate `app` template decision if it remains:
 - a stack-local source tree under the hostname directory
 - a containerized build plus static serving baseline

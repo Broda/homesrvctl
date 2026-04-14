@@ -134,6 +134,31 @@ APP_TEMPLATE_SPECS: tuple[AppTemplateSpec, ...] = (
         has_healthcheck=True,
         has_dockerignore=True,
     ),
+    AppTemplateSpec(
+        name="rust-react-postgres",
+        description="Rust API plus React/Vite frontend and internal Postgres.",
+        outputs=(
+            TemplateOutputSpec("docker-compose.yml", "app/rust-react-postgres/docker-compose.yml.j2"),
+            TemplateOutputSpec(".env.example", "app/rust-react-postgres/env.example.j2"),
+            TemplateOutputSpec(".dockerignore", "app/rust-react-postgres/dockerignore.j2"),
+            TemplateOutputSpec("README.md", "app/rust-react-postgres/README.md.j2"),
+            TemplateOutputSpec("frontend/Dockerfile", "app/rust-react-postgres/frontend.Dockerfile.j2"),
+            TemplateOutputSpec("frontend/nginx.conf", "app/rust-react-postgres/frontend.nginx.conf.j2"),
+            TemplateOutputSpec("frontend/package.json", "app/rust-react-postgres/frontend.package.json.j2"),
+            TemplateOutputSpec("frontend/vite.config.js", "app/rust-react-postgres/frontend.vite.config.js.j2"),
+            TemplateOutputSpec("frontend/index.html", "app/rust-react-postgres/frontend.index.html.j2"),
+            TemplateOutputSpec("frontend/src/main.jsx", "app/rust-react-postgres/frontend.src.main.jsx.j2"),
+            TemplateOutputSpec("frontend/src/App.jsx", "app/rust-react-postgres/frontend.src.App.jsx.j2"),
+            TemplateOutputSpec("frontend/src/styles.css", "app/rust-react-postgres/frontend.src.styles.css.j2"),
+            TemplateOutputSpec("api/Dockerfile", "app/rust-react-postgres/api.Dockerfile.j2"),
+            TemplateOutputSpec("api/Cargo.toml", "app/rust-react-postgres/api.Cargo.toml.j2"),
+            TemplateOutputSpec("api/src/main.rs", "app/rust-react-postgres/api.src.main.rs.j2"),
+            TemplateOutputSpec("api/migrations/0001_initial.sql", "app/rust-react-postgres/api.migrations.0001_initial.sql.j2"),
+        ),
+        has_readme=True,
+        has_healthcheck=True,
+        has_dockerignore=True,
+    ),
 )
 
 SITE_TEMPLATE_SPEC = SiteTemplateSpec(
