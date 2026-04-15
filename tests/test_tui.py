@@ -1693,7 +1693,7 @@ def test_textual_app_create_stops_when_auto_domain_add_fails(monkeypatch) -> Non
     app._run_pending_create_request()
 
     assert calls == ["domain-add"]
-    assert app.status_message == "create failed for example.com: domain add failed"
+    assert app.status_message == "create failed for example.com: zone not found"
     assert app.pending_create_request is None
 
 

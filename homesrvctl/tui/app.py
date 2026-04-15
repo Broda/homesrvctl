@@ -904,7 +904,12 @@ class HomesrvctlTextualApp(App[None]):
                 return summarize_stack_action(hostname, action, scaffold_payload)
             return f"create failed for {hostname}: {scaffold_label} not run"
         if not domain_add_payload.get("ok"):
-            return f"create failed for {hostname}: domain add failed"
+            domain_error = str(
+                domain_add_payload.get("error")
+                or domain_add_payload.get("detail")
+                or "domain add failed"
+            )
+            return f"create failed for {hostname}: {domain_error}"
         if isinstance(scaffold_payload, dict) and scaffold_payload.get("ok"):
             return f"create completed for {hostname}: domain add + {scaffold_label}"
         if isinstance(scaffold_payload, dict):

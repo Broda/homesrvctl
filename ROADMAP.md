@@ -1843,7 +1843,136 @@ Success criteria:
 - the mutation surface stays narrow, convergent, and domain-focused
 - the TUI can expose provider readiness using the existing JSON-backed tool pattern without introducing a second, TUI-only contract
 
-## Milestone 15: Existing App Adoption And Hosting Wrappers
+## Milestone 15: Cloudflare Email Routing Administration
+
+Status: proposed
+
+Goal: add a separate inbound-mail administration surface for Cloudflare Email Routing so operators can enable routing after web onboarding, inspect current routes, and manage forwarding rules without folding that behavior into the SES milestone or the existing domain command family.
+
+Why this is separate from Milestone 14:
+- SES and Cloudflare Email Routing solve different operator problems:
+  - SES milestone: outbound/provider readiness for sending mail
+  - Email Routing milestone: inbound forwarding and zone-level route administration
+- the shared frontend command family may still be `mail`, but the provider behavior, output, and operator workflow are materially different
+- Email Routing should not be hidden inside `domain add`; web onboarding and inbound mail onboarding need to remain explicit because Cloudflare may require the apex web records to exist before Email Routing is enabled safely
+
+Scope fit:
+- treat Cloudflare Email Routing as a domain-adjacent control plane, similar to DNS and tunnel readiness
+- keep the first implementation Cloudflare-specific rather than inventing a provider-neutral mailbox abstraction
+- support the narrow high-value route lifecycle first:
+  - enable
+  - disable
+  - list/status
+  - add
+  - edit
+  - delete
+- keep mailbox hosting, receipt storage, spam policy, and broader mail-provider migration work out of scope
+
+Explicit non-goals for the first Email Routing slice:
+- mailbox hosting or IMAP/POP administration
+- sending outbound email through Cloudflare
+- catch-all workflow automation beyond explicit route administration
+- full parity with every Cloudflare Email Routing setting on day one
+- automatic coupling to `domain add` or `domain repair`
+- per-app runtime mail configuration
+
+Candidate commands:
+- `homesrvctl mail routing status <domain> [--json]`
+- `homesrvctl mail routing enable <domain> [--json] [--dry-run]`
+- `homesrvctl mail routing disable <domain> [--delete-dns|--keep-dns] [--json] [--dry-run]`
+- `homesrvctl mail routing lock <domain> [--json] [--dry-run]`
+- `homesrvctl mail routing unlock <domain> [--json] [--dry-run]`
+- `homesrvctl mail routing list <domain> [--json]`
+- `homesrvctl mail routing add <domain> --source SOURCE --destination DESTINATION [--enabled|--disabled] [--json] [--dry-run]`
+- `homesrvctl mail routing edit <domain> <route-id> [--source SOURCE] [--destination DESTINATION] [--enabled|--disabled] [--json] [--dry-run]`
+- `homesrvctl mail routing delete <domain> <route-id> [--json] [--dry-run]`
+
+Operator model:
+- `mail routing status` reports whether Email Routing is enabled for the zone and whether the required DNS records are present and protected by Cloudflare
+- `mail routing enable` is explicit and should be run after apex web onboarding has succeeded
+- `mail routing disable` is also explicit and should support two clear operator choices:
+  - `--keep-dns`: disable Email Routing and unlock the managed mail DNS records so they remain editable
+  - `--delete-dns`: disable Email Routing and remove the managed mail DNS records
+- `mail routing lock` re-locks the Cloudflare-managed Email Routing DNS records after the required records are back in the expected state
+- `mail routing unlock` unlocks the Cloudflare-managed Email Routing DNS records so they can be edited deliberately, and should warn that later edits may break inbound mail delivery
+- `mail routing list` reports the current forwarding rules in operator-readable form
+- `mail routing add` creates a new explicit forwarding rule for a source address or pattern
+- `mail routing edit` updates an existing forwarding rule without forcing delete-and-recreate behavior unless the provider API requires it
+- `mail routing delete` removes one forwarding rule by ID
+
+Onboarding policy and sequencing:
+- the documented order for apex-hosted domains should be:
+  - `homesrvctl domain add <domain>`
+  - scaffold and deploy the web stack
+  - `homesrvctl mail routing enable <domain>`
+  - `homesrvctl mail routing add <domain> ...`
+- `mail routing enable` should preflight the apex web-routing state and warn when the zone does not yet have the expected tunnel/web records, because enabling Email Routing first may block later apex DNS mutation
+- `mail routing unlock` should explain when it is the right escape hatch:
+  - temporarily editing mail records during migration
+  - resolving apex web-onboarding conflicts
+  - recovering from a locked-but-misconfigured state
+- `domain add` should remain focused on web/tunnel onboarding, but should gain a clearer post-success hint when Email Routing appears absent and the operator may want inbound forwarding next
+
+JSON output proposal:
+- All commands keep the shared top-level `schema_version`.
+- `mail routing status <domain> --json` candidate shape:
+  - `action`
+  - `provider`
+  - `domain`
+  - `enabled`
+  - `dns_records`
+  - `routes`
+  - `provider_detail`
+  - `issues`
+  - `next_steps`
+- `mail routing list <domain> --json` candidate shape:
+  - `action`
+  - `provider`
+  - `domain`
+  - `routes`
+- Candidate per-route fields:
+  - `id`
+  - `name`
+  - `source`
+  - `destination`
+  - `enabled`
+  - `catch_all`
+  - `provider_detail`
+
+Design constraints:
+- keep Email Routing provider logic separate from SES logic even though both sit under `mail`
+- do not overload `homesrvctl/cloudflare.py` with a grab bag of unrelated mail behavior; provider-specific route/status normalization should live under a future mail-provider module
+- avoid exposing raw Cloudflare payloads directly in text or JSON output
+- prefer stable operator-facing route identifiers and normalized status over mirroring every API field
+- keep mutations convergent and explicit; avoid auto-creating or auto-deleting routes as a side effect of `enable`
+- do not make `disable`, `lock`, or `unlock` ambiguous:
+  - the operator should always know whether DNS records will be kept, removed, locked, or left editable after the command finishes
+
+Candidate implementation slices:
+- Phase 1:
+  - add `mail routing status`
+  - add `mail routing list`
+  - add preflight logic that explains apex onboarding order and Email Routing lock risks
+- Phase 2:
+  - add `mail routing enable`
+  - add `mail routing disable`
+  - add `mail routing lock`
+  - add `mail routing unlock`
+  - keep mutations CLI-only until JSON output and edge cases stabilize
+- Phase 3:
+  - add `mail routing add`
+  - add `mail routing edit`
+  - add `mail routing delete`
+  - consider a read-only TUI mail-routing pane only after the CLI contract is stable
+
+Success criteria:
+- operators can onboard web routing first and inbound mail second without Cloudflare-side surprise failures
+- `homesrvctl` can explain when Email Routing is the reason an apex DNS mutation is blocked
+- operators can intentionally move between locked and editable Email Routing DNS states without leaving `homesrvctl`
+- route administration stays explicit and readable instead of pushing operators back to the Cloudflare dashboard for routine forwarding changes
+- the Email Routing surface remains clearly separate from SES outbound readiness work
+
+## Milestone 16: Existing App Adoption And Hosting Wrappers
 
 Status: proposed
 
@@ -1871,7 +2000,7 @@ Explicit non-goals:
 - large framework-specific importers
 - rewriting an app’s internal architecture to fit a template
 
-### 14.1 Source Detection And Family Validation
+### 16.1 Source Detection And Family Validation
 
 Status: proposed
 
@@ -1919,7 +2048,7 @@ Success criteria:
 - detection remains understandable and evidence-based
 - command output stays useful even when the answer is `unknown`
 
-### 14.2 Generate Hosting Wrapper Around Existing Source
+### 16.2 Generate Hosting Wrapper Around Existing Source
 
 Status: proposed
 
@@ -1963,7 +2092,7 @@ Success criteria:
 - generated wrappers stay small and readable
 - wrapper generation is idempotent and explicit about overwrite behavior
 
-### 14.3 Full Adoption Flow
+### 16.3 Full Adoption Flow
 
 Status: proposed
 
@@ -1989,7 +2118,7 @@ Success criteria:
 - the resulting stack remains understandable without hidden linkages to arbitrary external directories
 - failure modes stay concrete and repairable
 
-### 14.4 Template-Family Validation Against Existing Source
+### 16.4 Template-Family Validation Against Existing Source
 
 Status: proposed
 
@@ -2015,7 +2144,7 @@ Success criteria:
 - family validation reduces accidental mis-wrapping
 - generic Dockerfile fallback remains available when stronger family validation does not fit
 
-### 14.5 TUI Coverage For Detection And Wrapper Flows
+### 16.5 TUI Coverage For Detection And Wrapper Flows
 
 Status: proposed
 
