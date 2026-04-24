@@ -727,7 +727,7 @@ def test_app_init_rust_react_postgres_template_artifacts_stay_coherent(monkeypat
     assert '"react": "^18.3.1"' in frontend_package
     assert '"vite": "^5.4.10"' in frontend_package
     assert "grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));" in frontend_styles
-    assert "FROM rust:1.86-bookworm AS build" in api_dockerfile
+    assert "FROM rust:1.88-bookworm AS build" in api_dockerfile
     assert "apt-get install -y --no-install-recommends ca-certificates wget" in api_dockerfile
     assert 'name = "app-example-com-api"' in api_cargo
     assert 'sqlx = { version = "0.8"' in api_cargo

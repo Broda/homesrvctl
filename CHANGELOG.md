@@ -39,6 +39,8 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - TUI stack list polish: subdomain stacks now render directly under an existing apex-domain stack with an indented dash label so related stacks are easier to scan.
 
 ### Fixed
+- Updated the `rust-react-postgres` API builder image to Rust 1.88 so fresh scaffolds build with current transitive crate requirements.
+- Fixed the `rust-react-postgres` API health query so Postgres returns the expected integer type and the API container can become healthy.
 - Changed the default tunnel ingress target to `http://localhost:80` so new bootstrap configs route Cloudflare Tunnel traffic to Traefik's public web entrypoint instead of the Traefik dashboard/API port on `8081`.
 - Added diagnostics for cloudflared ingress routes that point at the bootstrap Traefik dashboard/API port, so `domain status`, `doctor`, validation output, and the TUI can surface the misrouting.
 - Fixed `bootstrap runtime` on Ubuntu-family hosts such as Ubuntu 24.04 `noble` so Docker apt sources use Docker's Ubuntu repository instead of incorrectly writing a Debian repository entry.
