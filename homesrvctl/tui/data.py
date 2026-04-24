@@ -20,10 +20,17 @@ TOOL_ITEMS: list[tuple[str, str]] = [
 
 CONTINUATION_PREFIX = "<<CONT>>"
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+RICH_MARKUP_TAG_PATTERN = re.compile(r"(?<!\\)\[/?[^\]]+\]")
 
 
 def plain_markup(value: object) -> str:
     return escape(ANSI_ESCAPE_PATTERN.sub("", str(value)))
+
+
+def visible_width(value: object) -> int:
+    rendered = ANSI_ESCAPE_PATTERN.sub("", str(value))
+    rendered = RICH_MARKUP_TAG_PATTERN.sub("", rendered)
+    return len(rendered)
 
 
 def render_yes_no(value: object) -> str:
@@ -887,13 +894,16 @@ def render_bordered_table(headers: list[str], rows: list[list[str]]) -> list[str
         return []
     if not rows:
         return []
-    widths = [len(header) for header in headers]
+    widths = [visible_width(header) for header in headers]
     for row in rows:
         for index, cell in enumerate(row[: len(headers)]):
-            widths[index] = max(widths[index], len(str(cell)))
+            widths[index] = max(widths[index], visible_width(cell))
 
     def _render_row(cells: list[str]) -> str:
-        padded = [str(cell).ljust(widths[index]) for index, cell in enumerate(cells[: len(headers)])]
+        padded = [
+            f"{cell}{' ' * (widths[index] - visible_width(cell))}"
+            for index, cell in enumerate(cells[: len(headers)])
+        ]
         return f"│ {' │ '.join(padded)} │"
 
     top_border = "╭─" + "─┬─".join("─" * width for width in widths) + "─╮"

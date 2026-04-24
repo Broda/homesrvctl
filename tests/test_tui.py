@@ -607,6 +607,23 @@ def test_render_bordered_table_uses_unicode_box_drawing() -> None:
     assert "+" not in rendered
 
 
+def test_render_bordered_table_aligns_cells_with_markup() -> None:
+    lines = data.render_bordered_table(
+        ["status", "check"],
+        [
+            ["[green]PASS[/green]", "docker"],
+            ["[red]FAIL[/red]", "Traefik URL"],
+        ],
+    )
+
+    visible_lines = [data.RICH_MARKUP_TAG_PATTERN.sub("", line) for line in lines]
+
+    assert all(len(line) == len(visible_lines[0]) for line in visible_lines)
+    assert visible_lines[1] == "│ status │ check       │"
+    assert visible_lines[3] == "│ PASS   │ docker      │"
+    assert visible_lines[4] == "│ FAIL   │ Traefik URL │"
+
+
 def test_render_check_list_detail_trims_cloudflared_ingress_command_output() -> None:
     lines = data.render_check_list_detail(
         [

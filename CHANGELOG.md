@@ -14,6 +14,9 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ### Changed
 - Tightened TUI detail-pane wording so booleans, missing values, and existence states render consistently as `yes/no`, `N/A`, and `exists/does not exist`, with repeated checks, command results, DNS records, and ingress routes using rounded Unicode table borders for faster scanning.
 
+### Fixed
+- Fixed TUI table column alignment when cells contain Rich color markup such as `PASS`, `FAIL`, or `WARN` status markers.
+
 ## 0.3.0 - 2026-04-24
 
 ### Added
