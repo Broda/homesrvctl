@@ -4,6 +4,7 @@ import json
 import sys
 import types
 
+from textual.content import Content
 from typer.testing import CliRunner
 
 from homesrvctl.commands import tui_cmd
@@ -520,6 +521,44 @@ def test_render_external_http_detail_formats_advisory_404() -> None:
     assert "External HTTP" in rendered
     assert "status : [yellow]warning[/yellow]" in rendered
     assert "app/router returned not found" in rendered
+
+
+def test_stack_detail_escapes_ansi_and_markup_from_failed_detail_commands() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+        "validate": {"ok": True, "checks": []},
+    }
+    app.selected_control_index = 5
+    app.stack_config_views["example.com"] = {
+        "ok": False,
+        "error": "config failed: \x1b[31m[red]boom[/red]\x1b[0m",
+    }
+    app.stack_domain_views["example.com"] = {
+        "ok": False,
+        "error": "domain failed: [not-a-tag]",
+    }
+    app.stack_doctor_views["example.com"] = {
+        "ok": False,
+        "checks": [
+            {
+                "name": "external HTTPS request",
+                "ok": False,
+                "severity": "advisory",
+                "detail": "HTTPS returned [404]",
+            }
+        ],
+    }
+
+    detail = app._detail_text()
+
+    Content.from_markup(detail)
+    assert "[red]boom[/red]" not in detail
+    assert "\\[red]boom\\[/red]" in detail
+    assert "HTTPS returned [404]" in detail
 
 
 def test_render_check_list_detail_formats_pass_and_fail_checks() -> None:

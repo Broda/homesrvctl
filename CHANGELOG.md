@@ -39,6 +39,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - TUI stack list polish: subdomain stacks now render directly under an existing apex-domain stack with an indented dash label so related stacks are easier to scan.
 
 ### Fixed
+- Escaped untrusted subprocess output in TUI detail panes so ANSI/Rich traceback text from failed JSON commands cannot break Textual markup rendering in CI or at runtime.
 - The TUI now explicitly refreshes and reloads the selected stack detail/status probes after stack actions such as `up`, then schedules a short follow-up refresh so external HTTPS status can catch up after the stack starts.
 - Updated the `rust-react-postgres` API builder image to Rust 1.88 so fresh scaffolds build with current transitive crate requirements.
 - Fixed the `rust-react-postgres` API health query so Postgres returns the expected integer type and the API container can become healthy.

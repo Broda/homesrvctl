@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
+
+from rich.markup import escape
 
 from homesrvctl.shell import run_command
 from homesrvctl.utils import validate_bare_domain
@@ -16,6 +19,11 @@ TOOL_ITEMS: list[tuple[str, str]] = [
 ]
 
 CONTINUATION_PREFIX = "<<CONT>>"
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def plain_markup(value: object) -> str:
+    return escape(ANSI_ESCAPE_PATTERN.sub("", str(value)))
 
 
 def build_dashboard_snapshot(run_json_command=None) -> dict[str, object]:  # noqa: ANN001
@@ -319,7 +327,9 @@ def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[
                 marker = "[green]PASS[/green]"
             else:
                 marker = "[red]FAIL[/red]"
-            lines.append(f"{marker} {check.get('name', '<unknown>')}: {check.get('detail', '')}")
+            name = plain_markup(check.get("name", "<unknown>"))
+            detail = plain_markup(check.get("detail", ""))
+            lines.append(f"{marker} {name}: {detail}")
         if len(checks) > 8:
             lines.append(f"... {len(checks) - 8} more")
         return lines
@@ -337,9 +347,9 @@ def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[
             stdout = str(command_result.get("stdout", "")).strip()
             stderr = str(command_result.get("stderr", "")).strip()
             if stdout:
-                lines.append(f"stdout: {stdout.splitlines()[0]}")
+                lines.append(f"stdout: {plain_markup(stdout.splitlines()[0])}")
             if stderr:
-                lines.append(f"stderr: {stderr.splitlines()[0]}")
+                lines.append(f"stderr: {plain_markup(stderr.splitlines()[0])}")
         if len(commands) > 4:
             lines.append(f"... {len(commands) - 4} more")
         return lines
@@ -348,18 +358,18 @@ def render_stack_action_detail(action: str, payload: dict[str, object]) -> list[
     if isinstance(files, list) and files:
         lines.extend(["", f"files: {len(files)}", ""])
         for output_path in files[:6]:
-            lines.append(f"- {output_path}")
+            lines.append(f"- {plain_markup(output_path)}")
         if len(files) > 6:
             lines.append(f"... {len(files) - 6} more")
         target_dir = payload.get("target_dir")
         if target_dir:
-            lines.extend(["", f"target dir: {target_dir}"])
+            lines.extend(["", f"target dir: {plain_markup(target_dir)}"])
         return lines
 
     error = payload.get("error")
     detail = payload.get("detail")
     if error or detail:
-        lines.extend(["", f"detail: {error or detail}"])
+        lines.extend(["", f"detail: {plain_markup(error or detail)}"])
     return lines
 
 
@@ -575,7 +585,7 @@ def normalize_config_validation_detail(detail: object) -> str:
 
 def render_config_payload_detail(payload: dict[str, object]) -> list[str]:
     if not payload.get("ok"):
-        return [f"error: {payload.get('error', 'unknown error')}"]
+        return [f"error: {plain_markup(payload.get('error', 'unknown error'))}"]
 
     global_config = payload.get("global")
     if not isinstance(global_config, dict):
@@ -608,7 +618,7 @@ def render_config_payload_detail(payload: dict[str, object]) -> list[str]:
 
 def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
     if not payload.get("ok"):
-        return [f"config view error: {payload.get('error', 'unknown error')}"]
+        return [f"config view error: {plain_markup(payload.get('error', 'unknown error'))}"]
 
     stack = payload.get("stack")
     if not isinstance(stack, dict):
@@ -643,7 +653,7 @@ def render_external_http_detail(payload: dict[str, object]) -> list[str]:
             "[bold #ffcf5a]External HTTP[/bold #ffcf5a]",
             "",
             f"status: [red]unavailable[/red]",
-            f"detail: {payload.get('error', 'doctor view unavailable')}",
+            f"detail: {plain_markup(payload.get('error', 'doctor view unavailable'))}",
         ]
     checks = payload.get("checks")
     if not isinstance(checks, list):
@@ -677,7 +687,7 @@ def render_external_http_detail(payload: dict[str, object]) -> list[str]:
         *format_key_value_lines(
             [
                 ("status", status),
-                ("detail", str(external.get("detail", "<unknown>"))),
+                ("detail", plain_markup(external.get("detail", "<unknown>"))),
             ]
         ),
     ]
@@ -698,7 +708,7 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
         return [
             "[bold #ffcf5a]Domain status[/bold #ffcf5a]",
             "",
-            f"[red]error:[/red] {payload.get('error', 'unknown error')}",
+            f"[red]error:[/red] {plain_markup(payload.get('error', 'unknown error'))}",
         ]
 
     overall = str(payload.get("overall", "unknown"))
