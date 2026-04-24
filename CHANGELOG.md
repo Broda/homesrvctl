@@ -8,6 +8,8 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 
 ## Unreleased
 
+## 0.4.0 - 2026-04-24
+
 ### Added
 - Added `homesrvctl version` and `homesrvctl install status` so operators can identify the active package version, Python executable, command path, and common pipx path conflicts after installing from PyPI.
 
