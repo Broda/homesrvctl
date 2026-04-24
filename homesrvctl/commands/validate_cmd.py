@@ -140,6 +140,7 @@ def build_hostname_doctor_report(
     checks.extend(_check_cloudflared_ingress_warnings(config))
     checks.append(_check_ingress_target_entrypoint(stack_settings.traefik_url))
     checks.append(_check_host_header(stack_settings.traefik_url, valid_hostname))
+    checks.append(_check_external_https(valid_hostname))
     return checks
 
 
@@ -189,6 +190,32 @@ def _check_host_header(traefik_url: str, hostname: str) -> CheckResult:
         return CheckResult("host-header request", True, f"{hostname} returned HTTP {exc.code}")
     except urllib.error.URLError as exc:
         return CheckResult("host-header request", False, f"request failed: {exc}")
+
+
+def _check_external_https(hostname: str) -> CheckResult:
+    url = f"https://{hostname}"
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": f"homesrvctl/{__version__}"},
+        method="HEAD",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            status = response.status
+            return CheckResult("external HTTPS request", status < 500, f"{url} returned HTTP {status}")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return CheckResult(
+                "external HTTPS request",
+                False,
+                f"{url} returned HTTP 404; tunnel reached the stack, but the app/router returned not found",
+                "advisory",
+            )
+        if exc.code >= 500:
+            return CheckResult("external HTTPS request", False, f"{url} returned HTTP {exc.code}")
+        return CheckResult("external HTTPS request", True, f"{url} returned HTTP {exc.code}")
+    except urllib.error.URLError as exc:
+        return CheckResult("external HTTPS request", False, f"request failed: {exc}")
 
 
 def _check_ingress_target_entrypoint(traefik_url: str) -> CheckResult:

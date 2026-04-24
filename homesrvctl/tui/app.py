@@ -19,11 +19,13 @@ from homesrvctl.tui.data import (
     render_cloudflared_setup_detail,
     render_config_payload_detail,
     render_domain_status_detail,
+    render_external_http_detail,
     format_key_value_lines,
     render_tool_action_detail,
     render_stack_config_detail,
     render_stack_action_detail,
     run_stack_domain_status,
+    run_stack_doctor_view,
     run_stack_action,
     run_stack_config_view,
     run_tool_action,
@@ -427,6 +429,7 @@ class HomesrvctlTextualApp(App[None]):
         self.last_stack_actions: dict[str, dict[str, object]] = {}
         self.stack_config_views: dict[str, dict[str, object]] = {}
         self.stack_domain_views: dict[str, dict[str, object]] = {}
+        self.stack_doctor_views: dict[str, dict[str, object]] = {}
         self.last_tool_actions: dict[str, dict[str, object]] = {}
         self.pending_create_request: dict[str, object] | None = None
         self.global_domain_action: dict[str, object] | None = None
@@ -577,6 +580,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
+        self.stack_doctor_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = max(0, min(self.selected_control_index, len(items) - 1))
@@ -786,6 +790,7 @@ class HomesrvctlTextualApp(App[None]):
                 self.snapshot = build_dashboard_snapshot()
                 self.stack_config_views = {}
                 self.stack_domain_views = {}
+                self.stack_doctor_views = {}
                 if self._has_stack(hostname):
                     self._reselect_hostname(hostname)
                 self._render()
@@ -823,6 +828,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
+        self.stack_doctor_views = {}
         self._reselect_hostname(hostname)
         self._render()
 
@@ -859,6 +865,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
+        self.stack_doctor_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = min(self.selected_control_index, len(items) - 1)
@@ -918,6 +925,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
+        self.stack_doctor_views = {}
         self._reselect_hostname(hostname)
         self._render()
 
@@ -959,6 +967,7 @@ class HomesrvctlTextualApp(App[None]):
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
+        self.stack_doctor_views = {}
         items = self._control_items()
         if items:
             self.selected_control_index = min(self.selected_control_index, len(items) - 1)
@@ -1350,6 +1359,10 @@ class HomesrvctlTextualApp(App[None]):
         if domain_view is None:
             domain_view = run_stack_domain_status(hostname)
             self.stack_domain_views[hostname] = domain_view
+        doctor_view = self.stack_doctor_views.get(hostname)
+        if doctor_view is None:
+            doctor_view = run_stack_doctor_view(hostname)
+            self.stack_doctor_views[hostname] = doctor_view
         lines = [
             "[bold #ffcf5a]Stack Detail[/bold #ffcf5a]",
             "",
@@ -1359,6 +1372,8 @@ class HomesrvctlTextualApp(App[None]):
             *render_stack_config_detail(config_view),
             "",
             *render_domain_status_detail(hostname, domain_view),
+            "",
+            *render_external_http_detail(doctor_view),
         ]
         cached = self.last_stack_actions.get(hostname)
         if isinstance(cached, dict):

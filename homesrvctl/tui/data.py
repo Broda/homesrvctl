@@ -225,6 +225,10 @@ def run_stack_domain_status(hostname: str) -> dict[str, object]:
     return run_json_subcommand(["domain", "status", hostname])
 
 
+def run_stack_doctor_view(hostname: str) -> dict[str, object]:
+    return run_json_subcommand(["doctor", hostname])
+
+
 def summarize_stack_action(hostname: str, action: str, payload: dict[str, object]) -> str:
     label = action_label(action)
     if payload.get("ok"):
@@ -628,6 +632,52 @@ def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
                     f"{effective.get('traefik_url', '<unknown>')} ({effective_sources.get('traefik_url', 'unknown')})",
                 ),
                 ("stack config path", str(stack.get("stack_config_path", "<unknown>"))),
+            ]
+        ),
+    ]
+
+
+def render_external_http_detail(payload: dict[str, object]) -> list[str]:
+    if not payload.get("ok") and "checks" not in payload:
+        return [
+            "[bold #ffcf5a]External HTTP[/bold #ffcf5a]",
+            "",
+            f"status: [red]unavailable[/red]",
+            f"detail: {payload.get('error', 'doctor view unavailable')}",
+        ]
+    checks = payload.get("checks")
+    if not isinstance(checks, list):
+        return [
+            "[bold #ffcf5a]External HTTP[/bold #ffcf5a]",
+            "",
+            "status: [red]unavailable[/red]",
+            "detail: doctor check data unavailable",
+        ]
+    external = next(
+        (check for check in checks if isinstance(check, dict) and check.get("name") == "external HTTPS request"),
+        None,
+    )
+    if not isinstance(external, dict):
+        return [
+            "[bold #ffcf5a]External HTTP[/bold #ffcf5a]",
+            "",
+            "status: [red]unavailable[/red]",
+            "detail: external HTTPS check not reported",
+        ]
+    severity = str(external.get("severity", "pass"))
+    if severity == "advisory":
+        status = "[yellow]warning[/yellow]"
+    elif external.get("ok"):
+        status = "[green]ok[/green]"
+    else:
+        status = "[red]failed[/red]"
+    return [
+        "[bold #ffcf5a]External HTTP[/bold #ffcf5a]",
+        "",
+        *format_key_value_lines(
+            [
+                ("status", status),
+                ("detail", str(external.get("detail", "<unknown>"))),
             ]
         ),
     ]

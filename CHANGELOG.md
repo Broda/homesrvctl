@@ -10,6 +10,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 
 ### Added
 - Added `homesrvctl cleanup HOST` to stop a stack with Docker Compose and delete its local stack directory after `--force`, with dry-run, JSON, and TUI confirmation support.
+- Added an external HTTPS check to `doctor` and the TUI stack detail so operators can distinguish tunnel reachability from app-level 404 responses.
 - Added a non-root full-pipeline operator model after one-time bootstrap: shared cloudflared directories are now operator-group writable, `bootstrap wiring` installs a scoped cloudflared restart/reload sudoers policy, and setup reports now surface group/session and service-control readiness.
 - Added `homesrvctl ports list` to report the ports discovered from rendered stack files, including compose environment defaults, Traefik service ports, healthchecks, Dockerfile `EXPOSE`, and fixed Postgres command wiring.
 - Added template-aware `app init --port NAME=PORT` overrides for configurable scaffold ports so generated compose files, runtime defaults, healthchecks, Dockerfiles, and README guidance no longer have to stay pinned to the same repeated internal port values.

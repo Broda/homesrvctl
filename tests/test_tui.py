@@ -500,6 +500,28 @@ def test_render_stack_action_detail_formats_doctor_checks() -> None:
     assert "[red]FAIL[/red] host-header request: request failed: connection refused" in rendered
 
 
+def test_render_external_http_detail_formats_advisory_404() -> None:
+    lines = data.render_external_http_detail(
+        {
+            "ok": True,
+            "checks": [
+                {
+                    "name": "external HTTPS request",
+                    "ok": False,
+                    "detail": "https://example.com returned HTTP 404; tunnel reached the stack, but the app/router returned not found",
+                    "severity": "advisory",
+                },
+            ],
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "External HTTP" in rendered
+    assert "status : [yellow]warning[/yellow]" in rendered
+    assert "app/router returned not found" in rendered
+
+
 def test_render_check_list_detail_formats_pass_and_fail_checks() -> None:
     lines = data.render_check_list_detail(
         [

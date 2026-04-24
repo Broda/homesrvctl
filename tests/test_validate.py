@@ -197,6 +197,8 @@ def test_build_hostname_doctor_report(monkeypatch, tmp_path: Path) -> None:
     assert indexed["docker compose ps"].ok
     assert indexed["cloudflared ingress hostname"].ok
     assert indexed["host-header request"].ok
+    assert indexed["external HTTPS request"].severity == "advisory"
+    assert "returned HTTP 404" in indexed["external HTTPS request"].detail
 
 
 def test_build_hostname_doctor_report_uses_stack_override_traefik_url(monkeypatch, tmp_path: Path) -> None:
@@ -223,6 +225,14 @@ def test_build_hostname_doctor_report_uses_stack_override_traefik_url(monkeypatc
         raise AssertionError(f"unexpected command: {command}")
 
     def fake_urlopen(request, timeout: int = 3):  # noqa: ANN001
+        if request.full_url == "https://example.com":
+            raise urllib.error.HTTPError(
+                url=request.full_url,
+                code=200,
+                msg="OK",
+                hdrs=None,
+                fp=None,
+            )
         assert request.full_url == "http://localhost:9000"
         raise urllib.error.HTTPError(
             url=request.full_url,
@@ -240,6 +250,7 @@ def test_build_hostname_doctor_report_uses_stack_override_traefik_url(monkeypatc
 
     assert indexed["effective ingress target"].detail == "http://localhost:9000 (stack-local)"
     assert indexed["host-header request"].ok
+    assert indexed["external HTTPS request"].ok
 
 
 def test_build_hostname_doctor_report_uses_profile_backed_traefik_url(monkeypatch, tmp_path: Path) -> None:
@@ -267,6 +278,14 @@ def test_build_hostname_doctor_report_uses_profile_backed_traefik_url(monkeypatc
         raise AssertionError(f"unexpected command: {command}")
 
     def fake_urlopen(request, timeout: int = 3):  # noqa: ANN001
+        if request.full_url == "https://example.com":
+            raise urllib.error.HTTPError(
+                url=request.full_url,
+                code=200,
+                msg="OK",
+                hdrs=None,
+                fp=None,
+            )
         assert request.full_url == "http://localhost:9000"
         raise urllib.error.HTTPError(
             url=request.full_url,
@@ -285,6 +304,7 @@ def test_build_hostname_doctor_report_uses_profile_backed_traefik_url(monkeypatc
     assert indexed["routing profile"].detail == "edge"
     assert indexed["effective ingress target"].detail == "http://localhost:9000 (profile:edge)"
     assert indexed["host-header request"].ok
+    assert indexed["external HTTPS request"].ok
 
 
 def test_build_hostname_doctor_report_includes_ingress_issues(monkeypatch, tmp_path: Path) -> None:
