@@ -281,6 +281,110 @@ def test_app_detect_reports_unknown_source_as_issue(tmp_path: Path) -> None:
     assert payload["issues"] == ["no supported source markers were found"]
 
 
+def test_app_wrap_static_source_writes_hosting_wrapper(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    source = tmp_path / "existing-static"
+    source.mkdir()
+    (source / "index.html").write_text("<h1>Existing</h1>\n", encoding="utf-8")
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["app", "wrap", "static.example.com", "--source", str(source), "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    _assert_schema_version(payload)
+    assert payload["action"] == "app_wrap"
+    assert payload["ok"] is True
+    assert payload["detected_family"] == "static"
+    assert payload["family"] == "static"
+    assert payload["service_port"] == 80
+    stack_dir = sites_root / "static.example.com"
+    compose = (stack_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    readme = (stack_dir / "README.md").read_text(encoding="utf-8")
+    assert f"source: {source}" in compose
+    assert "target: /usr/share/nginx/html" in compose
+    assert "traefik.http.routers.static-example-com.rule=Host(`static.example.com`)" in compose
+    assert f"source path: `{source}`" in readme
+    assert not (stack_dir / "homesrvctl.yml").exists()
+
+
+def test_app_wrap_dockerfile_source_uses_requested_port_and_overrides(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    source = tmp_path / "existing-node"
+    source.mkdir()
+    (source / "package.json").write_text('{"scripts":{"start":"node server.js"}}\n', encoding="utf-8")
+    (source / "Dockerfile").write_text("FROM node:22-alpine\n", encoding="utf-8")
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "app",
+            "wrap",
+            "api.example.com",
+            "--source",
+            str(source),
+            "--service-port",
+            "3100",
+            "--docker-network",
+            "edge",
+            "--traefik-url",
+            "http://localhost:9000",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["detected_family"] == "node"
+    assert payload["family"] == "dockerfile"
+    assert payload["service_port"] == 3100
+    stack_dir = sites_root / "api.example.com"
+    compose = (stack_dir / "docker-compose.yml").read_text(encoding="utf-8")
+    overrides = yaml.safe_load((stack_dir / "homesrvctl.yml").read_text(encoding="utf-8"))
+    assert f"context: {source}" in compose
+    assert "PORT: ${PORT:-3100}" in compose
+    assert "traefik.http.services.api-example-com.loadbalancer.server.port=3100" in compose
+    assert "edge" in compose
+    assert overrides == {
+        "docker_network": "edge",
+        "traefik_url": "http://localhost:9000",
+    }
+
+
+def test_app_wrap_node_source_without_dockerfile_reports_issue(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    source = tmp_path / "existing-node"
+    source.mkdir()
+    (source / "package.json").write_text('{"scripts":{"start":"node server.js"}}\n', encoding="utf-8")
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["app", "wrap", "api.example.com", "--source", str(source), "--json"],
+    )
+
+    assert result.exit_code == 1, result.output
+    payload = json.loads(result.output)
+    assert payload["ok"] is False
+    assert payload["detected_family"] == "node"
+    assert payload["family"] == "dockerfile"
+    assert payload["issues"] == ["dockerfile wrapper requires an existing Dockerfile in the source directory"]
+    assert not (sites_root / "api.example.com").exists()
+
+
 def test_site_init_with_traefik_override_only_writes_traefik_override(monkeypatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"

@@ -1,0 +1,18 @@
+# {{ hostname }} hosting wrapper
+
+This directory contains homesrvctl-owned hosting files for an existing source tree.
+
+- source path: `{{ source_path }}`
+- wrapper family: `{{ family }}`
+- detected family: `{{ detected_family }}`
+- internal service port: `{{ service_port }}`
+- docker network: `{{ docker_network }}`
+
+The source directory remains app-owned. Keep application code changes there, and keep hosting wrapper changes in this directory.
+
+## Run
+
+```bash
+homesrvctl up {{ hostname }}
+homesrvctl doctor {{ hostname }}
+```

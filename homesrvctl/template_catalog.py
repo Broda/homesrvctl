@@ -188,6 +188,12 @@ SITE_TEMPLATE_SPEC = SiteTemplateSpec(
     has_healthcheck=False,
 )
 
+WRAP_TEMPLATE_FILES: tuple[str, ...] = (
+    "app/wrap/static.compose.yml.j2",
+    "app/wrap/dockerfile.compose.yml.j2",
+    "app/wrap/README.md.j2",
+)
+
 
 def app_template_names() -> list[str]:
     return [template.name for template in APP_TEMPLATE_SPECS]
@@ -209,4 +215,5 @@ def expected_packaged_template_files() -> set[str]:
     expected = {spec.template for spec in SITE_TEMPLATE_SPEC.outputs}
     for template in APP_TEMPLATE_SPECS:
         expected.update(spec.template for spec in template.outputs)
+    expected.update(WRAP_TEMPLATE_FILES)
     return {f"homesrvctl/templates/{template_path}" for template_path in expected}

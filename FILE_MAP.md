@@ -42,7 +42,7 @@ This document is a quick orientation guide to the repository. It is intentionall
 - [`homesrvctl/templates.py`](homesrvctl/templates.py)
   Template rendering utilities.
 - [`homesrvctl/template_catalog.py`](homesrvctl/template_catalog.py)
-  Shipped scaffold catalog and rendered-template manifest definitions used by CLI scaffolds, the TUI template picker, and packaging checks.
+  Shipped scaffold catalog and rendered-template manifest definitions used by CLI scaffolds, wrapper templates, the TUI template picker, and packaging checks.
 - [`homesrvctl/shell.py`](homesrvctl/shell.py)
   Shared subprocess execution helpers.
 - [`homesrvctl/tui`](homesrvctl/tui)
@@ -74,7 +74,7 @@ This document is a quick orientation guide to the repository. It is intentionall
 - [`homesrvctl/commands/site_cmd.py`](homesrvctl/commands/site_cmd.py)
   `site init` scaffold generation.
 - [`homesrvctl/commands/app_cmd.py`](homesrvctl/commands/app_cmd.py)
-  `app detect` source inspection and `app init` scaffold generation for app templates.
+  `app detect` source inspection, `app wrap` hosting wrapper generation, and `app init` scaffold generation for app templates.
 - [`homesrvctl/commands/deploy_cmd.py`](homesrvctl/commands/deploy_cmd.py)
   Stack lifecycle commands such as `up`, `down`, `restart`, `list`, and `doctor`.
 - [`homesrvctl/commands/domain_cmd.py`](homesrvctl/commands/domain_cmd.py)
@@ -106,6 +106,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   Jekyll build-and-serve app scaffold.
 - [`homesrvctl/templates/app/rust-react-postgres`](homesrvctl/templates/app/rust-react-postgres)
   Rust API plus React/Vite frontend and internal Postgres scaffold.
+- [`homesrvctl/templates/app/wrap`](homesrvctl/templates/app/wrap)
+  Hosting wrapper templates for existing static directories and Dockerfile-based source trees.
 - [`homesrvctl/templates/static`](homesrvctl/templates/static)
   Minimal `site init` scaffold assets.
 

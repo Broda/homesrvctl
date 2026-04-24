@@ -17,6 +17,20 @@ class SourceDetection:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class WrapperPlan:
+    family: str
+    service_port: int
+    source_path: Path
+    template_name: str
+    issues: tuple[str, ...]
+    next_steps: tuple[str, ...]
+
+    @property
+    def ok(self) -> bool:
+        return not self.issues
+
+
 def detect_source(source_path: Path) -> SourceDetection:
     path = source_path.expanduser()
     issues: list[str] = []
@@ -49,6 +63,52 @@ def detect_source(source_path: Path) -> SourceDetection:
         evidence=tuple(evidence),
         issues=tuple(issues),
         next_steps=tuple(next_steps),
+    )
+
+
+def plan_wrapper(source_path: Path, requested_family: str | None, service_port: int | None) -> tuple[SourceDetection, WrapperPlan]:
+    path = source_path.expanduser()
+    detection = detect_source(path)
+    resolved_family = _resolve_wrapper_family(detection.family, requested_family)
+    resolved_source = path.resolve(strict=False)
+    issues = list(detection.issues)
+    next_steps: list[str] = []
+
+    if requested_family and requested_family not in {"static", "dockerfile"}:
+        issues.append("wrapper family must be one of: static, dockerfile")
+    if detection.issues:
+        next_steps.extend(detection.next_steps)
+    elif resolved_family == "static":
+        template_name = "app/wrap/static.compose.yml.j2"
+        if not _has_static_index(path):
+            issues.append("static wrapper requires an index.html at the source root or under public/, html/, or _site/")
+            next_steps.append("Choose `--family dockerfile` when the app should be served by its own container image.")
+    elif resolved_family == "dockerfile":
+        template_name = "app/wrap/dockerfile.compose.yml.j2"
+        if not (path / "Dockerfile").exists():
+            issues.append("dockerfile wrapper requires an existing Dockerfile in the source directory")
+            next_steps.append("Add a Dockerfile to the source or use a scaffold template that owns the runtime files.")
+    else:
+        template_name = "app/wrap/dockerfile.compose.yml.j2"
+        issues.append("could not choose a wrapper family automatically")
+        next_steps.append("Pass `--family static` or `--family dockerfile` explicitly.")
+
+    if service_port is not None and (service_port < 1 or service_port > 65535):
+        issues.append("service port must be between 1 and 65535")
+    port = service_port or _default_service_port(resolved_family, detection.family)
+    if not next_steps:
+        next_steps.extend(_wrapper_next_steps(resolved_family))
+
+    return (
+        detection,
+        WrapperPlan(
+            family=resolved_family,
+            service_port=port,
+            source_path=resolved_source,
+            template_name=template_name,
+            issues=tuple(issues),
+            next_steps=tuple(next_steps),
+        ),
     )
 
 
@@ -117,6 +177,38 @@ def _next_steps(family: str) -> list[str]:
     if family == "compose":
         return ["Existing Compose adoption is not mutating yet; inspect the file and add homesrvctl routing labels manually for now."]
     return ["Choose a wrapper family explicitly once you know how the app should be served."]
+
+
+def _resolve_wrapper_family(detected_family: str, requested_family: str | None) -> str:
+    if requested_family:
+        return requested_family
+    if detected_family == "static":
+        return "static"
+    if detected_family in {"node", "python", "dockerfile"}:
+        return "dockerfile"
+    return "unknown"
+
+
+def _default_service_port(wrapper_family: str, detected_family: str) -> int:
+    if wrapper_family == "static":
+        return 80
+    if detected_family == "node":
+        return 3000
+    if detected_family == "python":
+        return 8000
+    return 8000
+
+
+def _has_static_index(path: Path) -> bool:
+    return any((path / candidate).exists() for candidate in ("index.html", "public/index.html", "html/index.html", "_site/index.html"))
+
+
+def _wrapper_next_steps(family: str) -> list[str]:
+    if family == "static":
+        return ["Run `homesrvctl up HOST` after reviewing the generated wrapper files."]
+    if family == "dockerfile":
+        return ["Run `homesrvctl up HOST` after confirming the service listens on the configured internal port."]
+    return ["Choose a supported wrapper family and rerun the command."]
 
 
 def _read_json(path: Path) -> dict[str, object]:

@@ -1,0 +1,21 @@
+services:
+  {{ service_name }}:
+    build:
+      context: {{ source_path }}
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: ${PORT:-{{ service_port }}}
+      APP_HOSTNAME: ${APP_HOSTNAME:-{{ hostname }}}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network={{ docker_network }}
+      - traefik.http.routers.{{ safe_name }}.rule={{ traefik_host_rule }}
+      - traefik.http.routers.{{ safe_name }}.entrypoints=web
+      - traefik.http.services.{{ safe_name }}.loadbalancer.server.port={{ service_port }}
+    networks:
+      - {{ docker_network }}
+
+networks:
+  {{ docker_network }}:
+    external: true
