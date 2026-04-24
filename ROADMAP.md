@@ -32,14 +32,10 @@ Goal: make the Textual dashboard read like an operator tool rather than raw comm
 Current baseline:
 - The TUI is functionally complete for common local onboarding.
 - It can create stacks, onboard apex domains, inspect routing/domain state, run stack actions, and expose global tools.
-- Recent polish replaced several raw boolean values and rendered domain DNS/ingress detail as structured tables.
+- Recent polish replaced several raw boolean values, normalized `yes/no`, `N/A`, and `exists/does not exist` wording across visible detail panes, and rendered domain DNS/ingress detail as structured tables.
 
 Near-term work:
-- Normalize TUI wording patterns across detail panes:
-  - `yes/no`
-  - `exists/does not exist`
-  - `N/A`
-  - consistent label casing
+- Continue normalizing TUI label casing and detail copy where new panes or commands expose raw command output.
 - Decide where bordered table-style layouts should become the standard for repeated status rows.
 - Keep explicit technical values where operators need them.
 - Add focused regression coverage for the most visible detail text.

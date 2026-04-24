@@ -869,7 +869,8 @@ def test_render_domain_status_detail_formats_apex_status() -> None:
     assert "overall" in rendered
     assert "partial" in rendered
     assert "repairable" in rendered
-    assert "Yes" in rendered
+    assert "repairable" in rendered
+    assert "yes" in rendered
     assert "coverage issues : 1" in rendered
     assert "dns warnings : 1" in rendered
     assert "ingress issues : 1 total, 1 blocking, 0 advisory" in rendered
@@ -970,6 +971,93 @@ def test_render_domain_status_detail_uses_na_when_no_repair_needed() -> None:
 
     assert "repairable" in rendered
     assert "N/A" in rendered
+
+
+def test_render_config_payload_detail_normalizes_boolean_wording() -> None:
+    lines = data.render_config_payload_detail(
+        {
+            "ok": True,
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "global": {
+                "sites_root": "/srv/homesrvctl/sites",
+                "docker_network": "web",
+                "traefik_url": "http://localhost:8081",
+                "cloudflared_config": "/srv/homesrvctl/cloudflared/config.yml",
+                "cloudflare_api_token_present": False,
+                "profiles": {},
+            },
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "api token present : no" in rendered
+    assert "False" not in rendered
+
+
+def test_render_cloudflared_setup_detail_normalizes_availability_wording() -> None:
+    lines = data.render_cloudflared_setup_detail(
+        {
+            "setup_state": "repair needed",
+            "configured_path": "/srv/homesrvctl/cloudflared/config.yml",
+            "configured_credentials_path": None,
+            "runtime_path": None,
+            "paths_aligned": None,
+            "configured_exists": False,
+            "configured_writable": True,
+            "configured_credentials_readable": None,
+            "account_inspection_available": False,
+            "ingress_mutation_available": True,
+            "current_user": "broda",
+            "current_user_in_shared_group": True,
+            "current_user_in_docker_group": False,
+            "service_control_available": False,
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "credentials path" in rendered and "N/A" in rendered
+    assert "runtime path" in rendered and "N/A" in rendered
+    assert "paths aligned" in rendered and "N/A" in rendered
+    assert "configured exists" in rendered and "does not exist" in rendered
+    assert "configured writable" in rendered and "yes" in rendered
+    assert "credentials readable" in rendered and "N/A" in rendered
+    assert "account inspection available" in rendered and "no" in rendered
+    assert "ingress mutations available" in rendered and "yes" in rendered
+
+
+def test_render_bootstrap_assessment_detail_normalizes_existence_wording() -> None:
+    lines = data.render_bootstrap_assessment_detail(
+        {
+            "ok": True,
+            "bootstrap_state": "partial",
+            "host_supported": True,
+            "detail": "partial",
+            "config_path": "/home/test/.config/homesrvctl/config.yml",
+            "os": {"pretty_name": "Debian GNU/Linux 12", "supported": True, "detail": "Debian-family host detected"},
+            "packages": {"docker": True, "docker_compose": False, "cloudflared": True},
+            "services": {"traefik_running": False, "cloudflared_active": None, "cloudflared_mode": "systemd"},
+            "config": {"exists": False, "valid": False, "token_present": False, "token_source": "missing"},
+            "network": {"name": "web", "exists": None, "detail": "docker network not checked"},
+            "cloudflare": {
+                "token_present": False,
+                "token_source": "missing",
+                "api_reachable": None,
+                "detail": "Cloudflare API token is not configured",
+            },
+        }
+    )
+
+    rendered = "\n".join(lines)
+
+    assert "host supported" in rendered
+    assert "host supported : yes" in rendered
+    assert "docker compose : no" in rendered
+    assert "cloudflared active : N/A" in rendered
+    assert "exists" in rendered and "does not exist" in rendered
+    assert "ready" in rendered and "N/A" in rendered
+    assert "API reachable : N/A" in rendered
 
 
 def test_render_domain_status_detail_skips_subdomain_stacks() -> None:

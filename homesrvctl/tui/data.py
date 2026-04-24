@@ -26,6 +26,36 @@ def plain_markup(value: object) -> str:
     return escape(ANSI_ESCAPE_PATTERN.sub("", str(value)))
 
 
+def render_yes_no(value: object) -> str:
+    return "yes" if bool(value) else "no"
+
+
+def render_tristate_yes_no(value: object) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "N/A"
+
+
+def render_exists(value: object) -> str:
+    return "exists" if bool(value) else "does not exist"
+
+
+def render_tristate_exists(value: object) -> str:
+    if value is True:
+        return "exists"
+    if value is False:
+        return "does not exist"
+    return "N/A"
+
+
+def render_optional_value(value: object) -> str:
+    if value in {None, ""}:
+        return "N/A"
+    return str(value)
+
+
 def build_dashboard_snapshot(run_json_command=None) -> dict[str, object]:  # noqa: ANN001
     if run_json_command is None:
         run_json_command = run_json_subcommand
@@ -537,7 +567,7 @@ def render_tool_action_detail(tool: str, action: str, payload: dict[str, object]
                 "",
                 *format_key_value_lines(
                     [
-                        ("config ok", str(config_validation.get("ok", False))),
+                        ("config ok", render_yes_no(config_validation.get("ok", False))),
                         ("config severity", max_severity),
                         ("config detail", normalize_config_validation_detail(config_validation.get("detail", "unknown"))),
                     ]
@@ -600,7 +630,7 @@ def render_config_payload_detail(payload: dict[str, object]) -> list[str]:
                 ("docker network", str(global_config.get("docker_network", "<unknown>"))),
                 ("traefik url", str(global_config.get("traefik_url", "<unknown>"))),
                 ("cloudflared config", str(global_config.get("cloudflared_config", "<unknown>"))),
-                ("api token present", str(global_config.get("cloudflare_api_token_present", False))),
+                ("api token present", render_yes_no(global_config.get("cloudflare_api_token_present", False))),
             ]
         ),
     ]
@@ -726,10 +756,10 @@ def render_domain_status_detail(hostname: str, payload: dict[str, object]) -> li
             [
                 ("overall", overall_markup),
                 ("repairable", _render_repairable(payload)),
-                ("manual fix required", "yes" if payload.get("manual_fix_required", False) else "no"),
+                ("manual fix required", render_yes_no(payload.get("manual_fix_required", False))),
                 (
                     "ingress mutations",
-                    "yes" if payload.get("ingress_mutation_available", False) else "no",
+                    render_yes_no(payload.get("ingress_mutation_available", False)),
                 ),
                 ("expected tunnel target", str(payload.get("expected_tunnel_target", "<unknown>"))),
                 ("expected ingress service", str(payload.get("expected_ingress_service", "<unknown>"))),
@@ -879,7 +909,7 @@ def _render_repairable(payload: dict[str, object]) -> str:
     overall = str(payload.get("overall", "unknown"))
     if overall == "ok":
         return "N/A"
-    return "Yes" if payload.get("repairable", False) else "No"
+    return render_yes_no(payload.get("repairable", False))
 
 
 def render_cloudflared_setup_detail(payload: dict[str, object]) -> list[str]:
@@ -890,39 +920,29 @@ def render_cloudflared_setup_detail(payload: dict[str, object]) -> list[str]:
             [
                 ("setup state", str(payload.get("setup_state", "unknown"))),
                 ("configured path", str(payload.get("configured_path", "<unknown>"))),
-                ("credentials path", str(payload.get("configured_credentials_path") or "<unavailable>")),
-                ("runtime path", str(payload.get("runtime_path") or "<unavailable>")),
-                (
-                    "paths aligned",
-                    "yes" if payload.get("paths_aligned") else "no" if payload.get("paths_aligned") is False else "unknown",
-                ),
-                ("configured exists", "yes" if payload.get("configured_exists") else "no"),
-                ("configured writable", "yes" if payload.get("configured_writable") else "no"),
-                (
-                    "credentials readable",
-                    "yes"
-                    if payload.get("configured_credentials_readable")
-                    else "no"
-                    if payload.get("configured_credentials_readable") is False
-                    else "unknown",
-                ),
+                ("credentials path", render_optional_value(payload.get("configured_credentials_path"))),
+                ("runtime path", render_optional_value(payload.get("runtime_path"))),
+                ("paths aligned", render_tristate_yes_no(payload.get("paths_aligned"))),
+                ("configured exists", render_tristate_exists(payload.get("configured_exists"))),
+                ("configured writable", render_tristate_yes_no(payload.get("configured_writable"))),
+                ("credentials readable", render_tristate_yes_no(payload.get("configured_credentials_readable"))),
                 (
                     "account inspection available",
-                    "yes" if payload.get("account_inspection_available") else "no",
+                    render_yes_no(payload.get("account_inspection_available")),
                 ),
                 (
                     "ingress mutations available",
-                    "yes" if payload.get("ingress_mutation_available") else "no",
+                    render_yes_no(payload.get("ingress_mutation_available")),
                 ),
                 ("current user", str(payload.get("current_user") or "<unknown>")),
                 (
                     "in homesrvctl group",
-                    "yes" if payload.get("current_user_in_shared_group") else "no",
+                    render_yes_no(payload.get("current_user_in_shared_group")),
                 ),
-                ("in docker group", "yes" if payload.get("current_user_in_docker_group") else "no"),
+                ("in docker group", render_yes_no(payload.get("current_user_in_docker_group"))),
                 (
                     "service control available",
-                    "yes" if payload.get("service_control_available") else "no",
+                    render_yes_no(payload.get("service_control_available")),
                 ),
             ]
         ),
@@ -988,7 +1008,7 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
         *format_key_value_lines(
             [
                 ("bootstrap state", str(payload.get("bootstrap_state", "unknown"))),
-                ("host supported", "yes" if payload.get("host_supported") else "no"),
+                ("host supported", render_yes_no(payload.get("host_supported"))),
                 ("detail", str(payload.get("detail", "unknown"))),
                 ("config path", str(payload.get("config_path", "<unknown>"))),
             ]
@@ -1005,7 +1025,7 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 *format_key_value_lines(
                     [
                         ("name", str(os_payload.get("pretty_name", "unknown"))),
-                        ("supported", "yes" if os_payload.get("supported") else "no"),
+                        ("supported", render_yes_no(os_payload.get("supported"))),
                         ("detail", str(os_payload.get("detail", "unknown"))),
                     ]
                 ),
@@ -1021,9 +1041,9 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 "",
                 *format_key_value_lines(
                     [
-                        ("docker", "yes" if packages.get("docker") else "no"),
-                        ("docker compose", "yes" if packages.get("docker_compose") else "no"),
-                        ("cloudflared", "yes" if packages.get("cloudflared") else "no"),
+                        ("docker", render_yes_no(packages.get("docker"))),
+                        ("docker compose", render_yes_no(packages.get("docker_compose"))),
+                        ("cloudflared", render_yes_no(packages.get("cloudflared"))),
                     ]
                 ),
             ]
@@ -1039,11 +1059,8 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 "",
                 *format_key_value_lines(
                     [
-                        ("Traefik running", "yes" if services.get("traefik_running") else "no"),
-                        (
-                            "cloudflared active",
-                            "yes" if cloudflared_active else "no" if cloudflared_active is False else "unknown",
-                        ),
+                        ("Traefik running", render_yes_no(services.get("traefik_running"))),
+                        ("cloudflared active", render_tristate_yes_no(cloudflared_active)),
                         ("cloudflared mode", str(services.get("cloudflared_mode", "unknown"))),
                     ]
                 ),
@@ -1059,9 +1076,9 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 "",
                 *format_key_value_lines(
                     [
-                        ("exists", "yes" if config_payload.get("exists") else "no"),
-                        ("valid", "yes" if config_payload.get("valid") else "no"),
-                        ("token present", "yes" if config_payload.get("token_present") else "no"),
+                        ("exists", render_tristate_exists(config_payload.get("exists"))),
+                        ("valid", render_yes_no(config_payload.get("valid"))),
+                        ("token present", render_yes_no(config_payload.get("token_present"))),
                         ("token source", str(config_payload.get("token_source", "unknown"))),
                     ]
                 ),
@@ -1079,7 +1096,7 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 *format_key_value_lines(
                     [
                         ("name", str(network_payload.get("name", "<unknown>"))),
-                        ("ready", "yes" if exists else "no" if exists is False else "unknown"),
+                        ("ready", render_tristate_yes_no(exists)),
                         ("detail", str(network_payload.get("detail", "unknown"))),
                     ]
                 ),
@@ -1096,11 +1113,11 @@ def render_bootstrap_assessment_detail(payload: dict[str, object]) -> list[str]:
                 "",
                 *format_key_value_lines(
                     [
-                        ("token present", "yes" if cloudflare.get("token_present") else "no"),
+                        ("token present", render_yes_no(cloudflare.get("token_present"))),
                         ("token source", str(cloudflare.get("token_source", "unknown"))),
                         (
                             "API reachable",
-                            "yes" if api_reachable else "no" if api_reachable is False else "unknown",
+                            render_tristate_yes_no(api_reachable),
                         ),
                         ("detail", str(cloudflare.get("detail", "unknown"))),
                     ]

@@ -19,7 +19,9 @@ from homesrvctl.tui.data import (
     render_cloudflared_setup_detail,
     render_config_payload_detail,
     render_domain_status_detail,
+    render_exists,
     render_external_http_detail,
+    render_yes_no,
     format_key_value_lines,
     render_tool_action_detail,
     render_stack_config_detail,
@@ -1409,7 +1411,7 @@ class HomesrvctlTextualApp(App[None]):
             "[bold #ffcf5a]Stack Detail[/bold #ffcf5a]",
             "",
             f"hostname: {hostname or '<unknown>'}",
-            f"compose file: {'exists' if compose else 'does not exist'}",
+            f"compose file: {render_exists(compose)}",
             "",
             *render_stack_config_detail(config_view),
             "",
@@ -1448,7 +1450,7 @@ class HomesrvctlTextualApp(App[None]):
         config_validation = payload.get("config_validation")
         if isinstance(config_validation, dict):
             config_ok = config_validation.get("ok", False)
-            config_ok_markup = "[green]True[/green]" if config_ok else "[red]False[/red]"
+            config_ok_markup = f"[green]{render_yes_no(config_ok)}[/green]" if config_ok else f"[red]{render_yes_no(config_ok)}[/red]"
             lines.extend(
                 [
                     "",

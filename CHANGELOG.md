@@ -11,6 +11,9 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ### Added
 - Added `homesrvctl version` and `homesrvctl install status` so operators can identify the active package version, Python executable, command path, and common pipx path conflicts after installing from PyPI.
 
+### Changed
+- Tightened TUI detail-pane wording so booleans, missing values, and existence states render consistently as `yes/no`, `N/A`, and `exists/does not exist`.
+
 ## 0.3.0 - 2026-04-24
 
 ### Added
