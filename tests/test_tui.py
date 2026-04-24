@@ -2174,6 +2174,75 @@ def test_textual_app_stack_action_primes_refreshed_detail_views(monkeypatch) -> 
     assert app.stack_doctor_views["example.com"]["ok"] is True
 
 
+def test_textual_app_stack_lifecycle_action_schedules_delayed_detail_refresh(monkeypatch) -> None:
+    timers: list[tuple[float, object, str | None]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app._running = True
+
+    monkeypatch.setattr(app, "set_timer", lambda delay, callback, name=None: timers.append((delay, callback, name)))
+
+    app._schedule_post_stack_action_refresh("example.com", "up", "up succeeded for example.com")
+
+    assert len(timers) == 1
+    delay, callback, name = timers[0]
+    assert delay == textual_app.POST_STACK_ACTION_REFRESH_SECONDS
+    assert name == "post-stack-action-refresh:example.com"
+    assert callable(callback)
+
+
+def test_textual_app_delayed_stack_detail_refresh_reprobes_external_status(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    doctor_payloads = [
+        {
+            "ok": True,
+            "checks": [
+                {
+                    "name": "external HTTPS request",
+                    "ok": True,
+                    "severity": "pass",
+                    "detail": "HTTPS HEAD returned 200",
+                }
+            ],
+        }
+    ]
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+    }
+    app.selected_control_index = 5
+    app.stack_doctor_views["example.com"] = {
+        "ok": True,
+        "checks": [
+            {
+                "name": "external HTTPS request",
+                "ok": False,
+                "severity": "advisory",
+                "detail": "HTTPS HEAD returned 404",
+            }
+        ],
+    }
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(textual_app, "run_stack_config_view", lambda hostname: {"ok": True, "hostname": hostname})
+    monkeypatch.setattr(textual_app, "run_stack_domain_status", lambda hostname: {"ok": True, "hostname": hostname})
+    monkeypatch.setattr(textual_app, "run_stack_doctor_view", lambda hostname: doctor_payloads.pop(0))
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_delayed_stack_detail_views("example.com", "up succeeded for example.com")
+
+    external = app.stack_doctor_views["example.com"]["checks"][0]
+    assert external["detail"] == "HTTPS HEAD returned 200"
+    assert app.status_message == "up succeeded for example.com"
+
+
 def test_textual_app_domain_repair_refreshes_status(monkeypatch) -> None:
     snapshots = [
         {

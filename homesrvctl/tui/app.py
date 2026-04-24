@@ -47,6 +47,17 @@ from homesrvctl.tui.prompts import (
 from homesrvctl.utils import validate_bare_domain, validate_hostname
 
 
+POST_STACK_ACTION_REFRESH_SECONDS = 2.0
+POST_STACK_ACTION_REFRESH_ACTIONS = {
+    "up",
+    "restart",
+    "down",
+    "domain-add",
+    "domain-repair",
+    "domain-remove",
+}
+
+
 def _stack_parent_apex(hostname: str, available_hostnames: set[str]) -> str | None:
     labels = hostname.split(".")
     for index in range(1, len(labels) - 1):
@@ -589,13 +600,38 @@ class HomesrvctlTextualApp(App[None]):
         self.status_message = status_message
         self._render()
 
-    def _refresh_after_stack_action(self, hostname: str, status_message: str) -> None:
+    def _refresh_after_stack_action(self, hostname: str, action: str, status_message: str) -> None:
         self.snapshot = build_dashboard_snapshot()
         self.stack_config_views = {}
         self.stack_domain_views = {}
         self.stack_doctor_views = {}
         self._reselect_hostname(hostname)
         self._prime_stack_detail_views(hostname)
+        self.status_message = status_message
+        self._render()
+        self._schedule_post_stack_action_refresh(hostname, action, status_message)
+
+    def _schedule_post_stack_action_refresh(self, hostname: str, action: str, status_message: str) -> None:
+        if action not in POST_STACK_ACTION_REFRESH_ACTIONS or not self.is_running:
+            return
+        self.set_timer(
+            POST_STACK_ACTION_REFRESH_SECONDS,
+            lambda: self._refresh_delayed_stack_detail_views(hostname, status_message),
+            name=f"post-stack-action-refresh:{hostname}",
+        )
+
+    def _refresh_delayed_stack_detail_views(self, hostname: str, status_message: str) -> None:
+        self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
+        self.stack_domain_views = {}
+        self.stack_doctor_views = {}
+        items = self._control_items()
+        if items:
+            self.selected_control_index = min(self.selected_control_index, len(items) - 1)
+        else:
+            self.selected_control_index = 0
+        if self._has_stack(hostname):
+            self._prime_stack_detail_views(hostname)
         self.status_message = status_message
         self._render()
 
@@ -805,6 +841,7 @@ class HomesrvctlTextualApp(App[None]):
                 self.last_stack_actions[hostname] = {"action": "domain-add", "payload": domain_payload}
                 self._refresh_after_stack_action(
                     hostname,
+                    "domain-add",
                     self._summarize_create_flow(hostname, action, None, domain_payload),
                 )
                 return
@@ -834,6 +871,7 @@ class HomesrvctlTextualApp(App[None]):
         self.last_stack_actions[hostname] = {"action": action, "payload": payload}
         self._refresh_after_stack_action(
             hostname,
+            action,
             self._summarize_create_flow(
                 hostname,
                 action,
@@ -931,7 +969,7 @@ class HomesrvctlTextualApp(App[None]):
         else:
             payload = run_stack_action(hostname, action, template=template, **action_kwargs)
         self.last_stack_actions[hostname] = {"action": action, "payload": payload}
-        self._refresh_after_stack_action(hostname, summarize_stack_action(hostname, action, payload))
+        self._refresh_after_stack_action(hostname, action, summarize_stack_action(hostname, action, payload))
 
     def _summarize_create_flow(
         self,
