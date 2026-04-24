@@ -589,6 +589,23 @@ class HomesrvctlTextualApp(App[None]):
         self.status_message = status_message
         self._render()
 
+    def _refresh_after_stack_action(self, hostname: str, status_message: str) -> None:
+        self.snapshot = build_dashboard_snapshot()
+        self.stack_config_views = {}
+        self.stack_domain_views = {}
+        self.stack_doctor_views = {}
+        self._reselect_hostname(hostname)
+        self._prime_stack_detail_views(hostname)
+        self.status_message = status_message
+        self._render()
+
+    def _prime_stack_detail_views(self, hostname: str) -> None:
+        if not self._has_stack(hostname):
+            return
+        self.stack_config_views[hostname] = run_stack_config_view(hostname)
+        self.stack_domain_views[hostname] = run_stack_domain_status(hostname)
+        self.stack_doctor_views[hostname] = run_stack_doctor_view(hostname)
+
     def _run_selected_stack_action(self, action: str) -> None:
         item = self._selected_control_item()
         if item.get("kind") != "stack":
@@ -786,14 +803,10 @@ class HomesrvctlTextualApp(App[None]):
             if not domain_payload.get("ok"):
                 self.pending_create_request = None
                 self.last_stack_actions[hostname] = {"action": "domain-add", "payload": domain_payload}
-                self.status_message = self._summarize_create_flow(hostname, action, None, domain_payload)
-                self.snapshot = build_dashboard_snapshot()
-                self.stack_config_views = {}
-                self.stack_domain_views = {}
-                self.stack_doctor_views = {}
-                if self._has_stack(hostname):
-                    self._reselect_hostname(hostname)
-                self._render()
+                self._refresh_after_stack_action(
+                    hostname,
+                    self._summarize_create_flow(hostname, action, None, domain_payload),
+                )
                 return
             domain_add_payload = domain_payload
         template = request.get("template")
@@ -819,18 +832,15 @@ class HomesrvctlTextualApp(App[None]):
             return
         self.pending_create_request = None
         self.last_stack_actions[hostname] = {"action": action, "payload": payload}
-        self.status_message = self._summarize_create_flow(
+        self._refresh_after_stack_action(
             hostname,
-            action,
-            payload,
-            domain_add_payload if isinstance(domain_add_payload, dict) else None,
+            self._summarize_create_flow(
+                hostname,
+                action,
+                payload,
+                domain_add_payload if isinstance(domain_add_payload, dict) else None,
+            ),
         )
-        self.snapshot = build_dashboard_snapshot()
-        self.stack_config_views = {}
-        self.stack_domain_views = {}
-        self.stack_doctor_views = {}
-        self._reselect_hostname(hostname)
-        self._render()
 
     def _complete_create_overwrite(self, confirmed: bool) -> None:
         if not confirmed:
@@ -921,13 +931,7 @@ class HomesrvctlTextualApp(App[None]):
         else:
             payload = run_stack_action(hostname, action, template=template, **action_kwargs)
         self.last_stack_actions[hostname] = {"action": action, "payload": payload}
-        self.status_message = summarize_stack_action(hostname, action, payload)
-        self.snapshot = build_dashboard_snapshot()
-        self.stack_config_views = {}
-        self.stack_domain_views = {}
-        self.stack_doctor_views = {}
-        self._reselect_hostname(hostname)
-        self._render()
+        self._refresh_after_stack_action(hostname, summarize_stack_action(hostname, action, payload))
 
     def _summarize_create_flow(
         self,

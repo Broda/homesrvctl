@@ -2120,6 +2120,60 @@ def test_textual_app_selected_stack_action_refreshes_status(monkeypatch) -> None
     assert app.last_stack_actions["example.com"]["action"] == "up"
 
 
+def test_textual_app_stack_action_primes_refreshed_detail_views(monkeypatch) -> None:
+    snapshots = [
+        {
+            "generated_at": "2026-04-08 12:00:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+        {
+            "generated_at": "2026-04-08 12:01:00",
+            "config": {"ok": True, "global": {"profiles": {}}},
+            "list": {"ok": True, "sites": [{"hostname": "example.com", "compose": True}]},
+            "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "systemd service is active"},
+            "validate": {"ok": True, "checks": []},
+        },
+    ]
+    detail_calls: list[tuple[str, str]] = []
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = snapshots[0]
+    app.selected_control_index = 5
+
+    monkeypatch.setattr(textual_app, "build_dashboard_snapshot", lambda: snapshots.pop(0))
+    monkeypatch.setattr(textual_app, "run_stack_action", lambda hostname, action, **kwargs: {"ok": True})
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_config_view",
+        lambda hostname: detail_calls.append(("config", hostname)) or {"ok": True, "hostname": hostname},
+    )
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_domain_status",
+        lambda hostname: detail_calls.append(("domain", hostname)) or {"ok": True, "hostname": hostname},
+    )
+    monkeypatch.setattr(
+        textual_app,
+        "run_stack_doctor_view",
+        lambda hostname: detail_calls.append(("doctor", hostname)) or {"ok": True, "hostname": hostname},
+    )
+    monkeypatch.setattr(textual_app.HomesrvctlTextualApp, "_render", lambda self: None)
+
+    app._refresh_snapshot("dashboard ready")
+    app._run_selected_stack_action("up")
+
+    assert detail_calls == [
+        ("config", "example.com"),
+        ("domain", "example.com"),
+        ("doctor", "example.com"),
+    ]
+    assert app.stack_config_views["example.com"]["ok"] is True
+    assert app.stack_domain_views["example.com"]["ok"] is True
+    assert app.stack_doctor_views["example.com"]["ok"] is True
+
+
 def test_textual_app_domain_repair_refreshes_status(monkeypatch) -> None:
     snapshots = [
         {
