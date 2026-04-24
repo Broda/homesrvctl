@@ -35,6 +35,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - TUI mouse support: the control pane rows, summary cards, modal option lists, confirm prompts, and a new detail-pane action button strip are now real Textual widgets that respond to clicks. Mouse and keyboard selection share the same highlighted row, every click target is also reachable by keyboard, and clicks are quietly ignored on terminals that do not report mouse events.
 - TUI visual polish: status ok / warning / error values, PASS/FAIL/WARN check markers, domain overall status, DNS/ingress match state, and cloudflared active/inactive are now color-coded via Rich markup; detail section headers use the accent color; the detail pane title updates to reflect the focused stack or tool; and per-pane help prose was replaced with a single compact hint line.
 - TUI detail-pane polish: stack and domain detail views now use more operator-facing wording such as `compose file: exists`, `has local config: yes/no`, and `repairable: N/A/Yes/No`, and the domain pane now renders DNS and ingress rows in bordered table layouts for faster scanning.
+- TUI stack list polish: subdomain stacks now render directly under an existing apex-domain stack with an indented dash label so related stacks are easier to scan.
 
 ### Fixed
 - Changed the default tunnel ingress target to `http://localhost:80` so new bootstrap configs route Cloudflare Tunnel traffic to Traefik's public web entrypoint instead of the Traefik dashboard/API port on `8081`.

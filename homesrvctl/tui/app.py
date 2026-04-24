@@ -45,6 +45,20 @@ from homesrvctl.tui.prompts import (
 from homesrvctl.utils import validate_bare_domain, validate_hostname
 
 
+def _stack_parent_apex(hostname: str, available_hostnames: set[str]) -> str | None:
+    labels = hostname.split(".")
+    for index in range(1, len(labels) - 1):
+        candidate = ".".join(labels[index:])
+        if candidate not in available_hostnames:
+            continue
+        try:
+            validate_bare_domain(candidate)
+        except Exception:
+            continue
+        return candidate
+    return None
+
+
 class SummaryCardWidget(Widget, can_focus=False):
     """Clickable summary card in the top strip. Click focuses the related control row."""
 
@@ -1057,17 +1071,36 @@ class HomesrvctlTextualApp(App[None]):
 
     def _control_items(self) -> list[dict[str, object]]:
         items: list[dict[str, object]] = [{"kind": "tool", "tool": tool, "label": label} for tool, label in TOOL_ITEMS]
-        for site in stack_sites(self.snapshot):
+        for site in self._grouped_stack_sites():
             hostname = str(site.get("hostname", "<unknown>"))
+            parent_apex = str(site.get("parent_apex", ""))
             items.append(
                 {
                     "kind": "stack",
                     "hostname": hostname,
                     "compose": bool(site.get("compose")),
-                    "label": hostname,
+                    "label": f"  - {hostname}" if parent_apex else hostname,
+                    "parent_apex": parent_apex or None,
                 }
             )
         return items
+
+    def _grouped_stack_sites(self) -> list[dict[str, object]]:
+        sites = [dict(site) for site in stack_sites(self.snapshot)]
+        hostnames = {str(site.get("hostname", "")).strip().lower() for site in sites}
+        for site in sites:
+            hostname = str(site.get("hostname", "")).strip().lower()
+            parent_apex = _stack_parent_apex(hostname, hostnames)
+            if parent_apex:
+                site["parent_apex"] = parent_apex
+
+        def sort_key(site: dict[str, object]) -> tuple[str, int, str]:
+            hostname = str(site.get("hostname", "")).strip().lower()
+            parent_apex = str(site.get("parent_apex", "")).strip().lower()
+            group = parent_apex or hostname
+            return (group, 1 if parent_apex else 0, hostname)
+
+        return sorted(sites, key=sort_key)
 
     def _selected_control_item(self) -> dict[str, object]:
         items = self._control_items()

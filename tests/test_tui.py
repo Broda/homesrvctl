@@ -1035,7 +1035,7 @@ def test_textual_app_summary_and_stack_list_text() -> None:
     assert "Cloudflared" in controls
     assert "Validate" in controls
     assert "Stacks" in controls
-    assert "notes.example.com" in controls
+    assert "  - notes.example.com" in controls
     assert "hostname: notes.example.com" in detail
     assert "Effective config" in detail
     assert "Domain status" in detail
@@ -2722,10 +2722,62 @@ def test_control_items_returns_tools_then_stacks() -> None:
     assert items[4] == {"kind": "tool", "tool": "bootstrap", "label": "Bootstrap"}
     assert items[5]["kind"] == "stack"
     assert items[5]["hostname"] == "example.com"
+    assert items[5]["label"] == "example.com"
     assert items[5]["compose"] is True
     assert items[6]["kind"] == "stack"
     assert items[6]["hostname"] == "notes.example.com"
+    assert items[6]["label"] == "  - notes.example.com"
+    assert items[6]["parent_apex"] == "example.com"
     assert items[6]["compose"] is False
+
+
+def test_control_items_groups_subdomains_under_apex_domains() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "generated_at": "2026-04-08 12:00:00",
+        "config": {"ok": True, "global": {"profiles": {}}},
+        "list": {"ok": True, "sites": [
+            {"hostname": "zeta.net", "compose": True},
+            {"hostname": "tasks.example.com", "compose": True},
+            {"hostname": "example.com", "compose": True},
+            {"hostname": "api.example.com", "compose": False},
+            {"hostname": "orphan.other.net", "compose": True},
+        ]},
+        "cloudflared": {"ok": True, "mode": "systemd", "active": True, "detail": "ok"},
+        "validate": {"ok": True, "checks": []},
+        "bootstrap": {"ok": True, "bootstrap_state": "ready", "host_supported": True, "detail": "ready"},
+    }
+
+    stack_items = app._control_items()[5:]
+
+    assert [item["hostname"] for item in stack_items] == [
+        "example.com",
+        "api.example.com",
+        "tasks.example.com",
+        "orphan.other.net",
+        "zeta.net",
+    ]
+    assert [item["label"] for item in stack_items[:3]] == [
+        "example.com",
+        "  - api.example.com",
+        "  - tasks.example.com",
+    ]
+    assert stack_items[3]["label"] == "orphan.other.net"
+
+
+def test_control_list_text_indents_grouped_subdomain_stacks() -> None:
+    app = textual_app.HomesrvctlTextualApp()
+    app.snapshot = {
+        "list": {"ok": True, "sites": [
+            {"hostname": "example.com", "compose": True},
+            {"hostname": "api.example.com", "compose": False},
+        ]},
+    }
+
+    controls = app._control_list_text()
+
+    assert "  example.com [compose=yes]" in controls
+    assert "    - api.example.com [compose=no]" in controls
 
 
 def test_detail_pane_title_reflects_focused_tool() -> None:
