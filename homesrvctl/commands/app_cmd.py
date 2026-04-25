@@ -132,7 +132,14 @@ def app_wrap(
         {"output": str(target_dir / "docker-compose.yml"), "template": plan.template_name},
         {"output": str(target_dir / "README.md"), "template": "app/wrap/README.md.j2"},
     ]
-    stack_settings_content = render_stack_settings(config, effective_docker_network, effective_traefik_url, profile)
+    scaffold_metadata = {"kind": "app-wrapper", "family": plan.family, "detected_family": detection.family}
+    stack_settings_content = render_stack_settings(
+        config,
+        effective_docker_network,
+        effective_traefik_url,
+        profile,
+        scaffold=scaffold_metadata,
+    )
     if stack_settings_content.strip():
         files.append(str(stack_config_path(target_dir)))
         rendered_templates.append({"output": str(stack_config_path(target_dir)), "template": "stack-config"})
@@ -145,6 +152,7 @@ def app_wrap(
         "requested_family": family,
         "detected_family": detection.family,
         "family": plan.family,
+        "scaffold": scaffold_metadata,
         "service_port": plan.service_port,
         "profile": profile,
         "dry_run": dry_run,
@@ -267,7 +275,14 @@ def app_init(
         template_spec.configurable_ports,
         ports,
     )
-    stack_settings_content = render_stack_settings(config, effective_docker_network, effective_traefik_url, profile)
+    scaffold_metadata = {"kind": "app", "template": template_spec.name}
+    stack_settings_content = render_stack_settings(
+        config,
+        effective_docker_network,
+        effective_traefik_url,
+        profile,
+        scaffold=scaffold_metadata,
+    )
     if stack_settings_content.strip():
         files.append(str(stack_config_path(target_dir)))
         rendered_templates.append({"output": str(stack_config_path(target_dir)), "template": "stack-config"})
@@ -316,6 +331,7 @@ def app_init(
                         "action": "app_init",
                         "hostname": valid_hostname,
                         "template": template_spec.name,
+                        "scaffold": scaffold_metadata,
                         "target_dir": str(target_dir),
                         "profile": profile,
                         "ports": selected_ports,
@@ -338,6 +354,7 @@ def app_init(
                     "action": "app_init",
                     "hostname": valid_hostname,
                     "template": template_spec.name,
+                    "scaffold": scaffold_metadata,
                     "target_dir": str(target_dir),
                     "profile": profile,
                     "ports": selected_ports,

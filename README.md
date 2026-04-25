@@ -194,10 +194,15 @@ Routing precedence is:
 Supported stack-local keys:
 
 ```yaml
+scaffold:
+  kind: app
+  template: node
 profile: edge
 docker_network: edge
 traefik_url: http://localhost:9000
 ```
+
+New scaffold and wrapper commands write the `scaffold` block so `config show --stack` and the TUI can display whether a stack came from `site init`, an app template, or an app wrapper. Existing stacks without this metadata still work and show the type as unavailable.
 
 ## Common Workflows
 
@@ -308,4 +313,5 @@ All JSON commands include a top-level `schema_version`.
 - `site init` is the narrow static scaffold; `app init --template static` is the richer nginx-backed static app baseline.
 - `app detect` is read-only. It reports likely source families and next steps before any wrapper/adoption mutation is attempted.
 - `app wrap` writes homesrvctl-owned hosting files around existing static directories or Dockerfile-based apps without modifying the source directory.
+- New stacks created through `site init`, `app init`, or `app wrap` store scaffold metadata in `homesrvctl.yml`; the TUI stack detail pane shows that as the stack type.
 - The Textual TUI is backed by existing JSON command surfaces. It requires an interactive terminal and the same local runtime access as the CLI commands it launches.

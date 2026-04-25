@@ -178,6 +178,7 @@ def test_site_init_writes_stack_overrides(monkeypatch, tmp_path: Path) -> None:
     assert "edge" in compose_file.read_text(encoding="utf-8")
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
     assert overrides == {
+        "scaffold": {"kind": "site", "template": "static"},
         "docker_network": "edge",
         "traefik_url": "http://localhost:9000",
     }
@@ -206,7 +207,7 @@ def test_site_init_with_profile_writes_profile_selection(monkeypatch, tmp_path: 
     stack_config = sites_root / "test.example.com" / "homesrvctl.yml"
     assert "edge" in compose_file.read_text(encoding="utf-8")
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"profile": "edge"}
+    assert overrides == {"scaffold": {"kind": "site", "template": "static"}, "profile": "edge"}
 
 
 def test_site_init_with_docker_network_override_only_writes_network_override(monkeypatch, tmp_path: Path) -> None:
@@ -223,7 +224,7 @@ def test_site_init_with_docker_network_override_only_writes_network_override(mon
     stack_config = sites_root / "test.example.com" / "homesrvctl.yml"
     assert "edge" in compose_file.read_text(encoding="utf-8")
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"docker_network": "edge"}
+    assert overrides == {"scaffold": {"kind": "site", "template": "static"}, "docker_network": "edge"}
 
 
 def test_app_detect_reports_static_source_json(tmp_path: Path) -> None:
@@ -311,7 +312,10 @@ def test_app_wrap_static_source_writes_hosting_wrapper(monkeypatch, tmp_path: Pa
     assert "target: /usr/share/nginx/html" in compose
     assert "traefik.http.routers.static-example-com.rule=Host(`static.example.com`)" in compose
     assert f"source path: `{source}`" in readme
-    assert not (stack_dir / "homesrvctl.yml").exists()
+    stack_config = yaml.safe_load((stack_dir / "homesrvctl.yml").read_text(encoding="utf-8"))
+    assert stack_config == {
+        "scaffold": {"kind": "app-wrapper", "family": "static", "detected_family": "static"}
+    }
 
 
 def test_app_wrap_dockerfile_source_uses_requested_port_and_overrides(monkeypatch, tmp_path: Path) -> None:
@@ -356,6 +360,7 @@ def test_app_wrap_dockerfile_source_uses_requested_port_and_overrides(monkeypatc
     assert "traefik.http.services.api-example-com.loadbalancer.server.port=3100" in compose
     assert "edge" in compose
     assert overrides == {
+        "scaffold": {"kind": "app-wrapper", "family": "dockerfile", "detected_family": "node"},
         "docker_network": "edge",
         "traefik_url": "http://localhost:9000",
     }
@@ -397,7 +402,7 @@ def test_site_init_with_traefik_override_only_writes_traefik_override(monkeypatc
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "test.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"traefik_url": "http://localhost:9000"}
+    assert overrides == {"scaffold": {"kind": "site", "template": "static"}, "traefik_url": "http://localhost:9000"}
 
 
 def test_app_init_with_profile_writes_profile_selection(monkeypatch, tmp_path: Path) -> None:
@@ -421,7 +426,7 @@ def test_app_init_with_profile_writes_profile_selection(monkeypatch, tmp_path: P
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "app.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"profile": "edge"}
+    assert overrides == {"scaffold": {"kind": "app", "template": "node"}, "profile": "edge"}
 
 
 def test_app_init_with_traefik_override_only_writes_traefik_override(monkeypatch, tmp_path: Path) -> None:
@@ -439,7 +444,7 @@ def test_app_init_with_traefik_override_only_writes_traefik_override(monkeypatch
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "app.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"traefik_url": "http://localhost:9000"}
+    assert overrides == {"scaffold": {"kind": "app", "template": "node"}, "traefik_url": "http://localhost:9000"}
 
 
 def test_app_init_with_both_overrides_writes_both_overrides(monkeypatch, tmp_path: Path) -> None:
@@ -468,6 +473,7 @@ def test_app_init_with_both_overrides_writes_both_overrides(monkeypatch, tmp_pat
     stack_config = sites_root / "app.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
     assert overrides == {
+        "scaffold": {"kind": "app", "template": "python"},
         "docker_network": "edge",
         "traefik_url": "http://localhost:9000",
     }
@@ -918,7 +924,7 @@ def test_app_init_jekyll_with_profile_writes_profile_stack_config(monkeypatch, t
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"profile": "edge"}
+    assert overrides == {"scaffold": {"kind": "app", "template": "jekyll"}, "profile": "edge"}
 
 
 def test_app_init_jekyll_with_docker_network_override_writes_stack_config(monkeypatch, tmp_path: Path) -> None:
@@ -936,7 +942,7 @@ def test_app_init_jekyll_with_docker_network_override_writes_stack_config(monkey
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"docker_network": "edge"}
+    assert overrides == {"scaffold": {"kind": "app", "template": "jekyll"}, "docker_network": "edge"}
 
 
 def test_app_init_jekyll_with_traefik_override_writes_stack_config(monkeypatch, tmp_path: Path) -> None:
@@ -954,7 +960,7 @@ def test_app_init_jekyll_with_traefik_override_writes_stack_config(monkeypatch, 
     assert result.exit_code == 0, result.output
     stack_config = sites_root / "blog.example.com" / "homesrvctl.yml"
     overrides = yaml.safe_load(stack_config.read_text(encoding="utf-8"))
-    assert overrides == {"traefik_url": "http://localhost:9000"}
+    assert overrides == {"scaffold": {"kind": "app", "template": "jekyll"}, "traefik_url": "http://localhost:9000"}
 
 
 def test_app_init_node_template_artifacts_stay_coherent(monkeypatch, tmp_path: Path) -> None:
@@ -1105,6 +1111,25 @@ def test_config_show_json_output_with_stack(monkeypatch, tmp_path: Path) -> None
     assert payload["stack"]["local_overrides"] == {
         "traefik_url": "http://localhost:9000",
     }
+    assert payload["stack"]["scaffold"] == {}
+
+
+def test_config_show_json_output_reports_scaffold_metadata(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    runner = CliRunner()
+    init_result = runner.invoke(app, ["app", "init", "notes.example.com", "--template", "node"])
+    assert init_result.exit_code == 0, init_result.output
+
+    result = runner.invoke(app, ["config", "show", "--stack", "notes.example.com", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["stack"]["scaffold"] == {"kind": "app", "template": "node"}
+    assert payload["stack"]["local_overrides"]["scaffold"] == {"kind": "app", "template": "node"}
 
 
 def test_config_show_json_output_with_profile(monkeypatch, tmp_path: Path) -> None:
@@ -1285,7 +1310,9 @@ def test_app_init_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "node"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/notes.example.com/src/server.js")
+    assert any(path.endswith("/notes.example.com/src/server.js") for path in payload["files"])
+    assert payload["files"][-1].endswith("/notes.example.com/homesrvctl.yml")
+    assert payload["scaffold"] == {"kind": "app", "template": "node"}
     assert payload["rendered_templates"][0]["template"] == "app/node/docker-compose.yml.j2"
 
 
@@ -1306,7 +1333,8 @@ def test_app_init_static_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "static"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/www.example.com/html/assets/images/.gitkeep")
+    assert any(path.endswith("/www.example.com/html/assets/images/.gitkeep") for path in payload["files"])
+    assert payload["files"][-1].endswith("/www.example.com/homesrvctl.yml")
     templates = {entry["template"] for entry in payload["rendered_templates"]}
     assert templates == {
         "app/static/docker-compose.yml.j2",
@@ -1316,6 +1344,7 @@ def test_app_init_static_json_output(monkeypatch, tmp_path: Path) -> None:
         "app/static/main.css.j2",
         "app/static/main.js.j2",
         "app/static/images.gitkeep.j2",
+        "stack-config",
     }
 
 
@@ -1336,7 +1365,8 @@ def test_app_init_static_api_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "static-api"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/portal.example.com/api/app/main.py")
+    assert any(path.endswith("/portal.example.com/api/app/main.py") for path in payload["files"])
+    assert payload["files"][-1].endswith("/portal.example.com/homesrvctl.yml")
     templates = {entry["template"] for entry in payload["rendered_templates"]}
     assert templates == {
         "app/static-api/docker-compose.yml.j2",
@@ -1350,6 +1380,7 @@ def test_app_init_static_api_json_output(monkeypatch, tmp_path: Path) -> None:
         "app/static-api/api.Dockerfile.j2",
         "app/static-api/api.requirements.txt.j2",
         "app/static-api/api.main.py.j2",
+        "stack-config",
     }
 
 
@@ -1398,8 +1429,10 @@ def test_app_init_python_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "python"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/api.example.com/app/main.py")
-    assert payload["rendered_templates"][-1]["template"] == "app/python/app/main.py.j2"
+    assert any(path.endswith("/api.example.com/app/main.py") for path in payload["files"])
+    assert payload["files"][-1].endswith("/api.example.com/homesrvctl.yml")
+    assert any(entry["template"] == "app/python/app/main.py.j2" for entry in payload["rendered_templates"])
+    assert payload["rendered_templates"][-1]["template"] == "stack-config"
 
 
 def test_app_init_jekyll_json_output(monkeypatch, tmp_path: Path) -> None:
@@ -1419,7 +1452,8 @@ def test_app_init_jekyll_json_output(monkeypatch, tmp_path: Path) -> None:
     assert payload["template"] == "jekyll"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/blog.example.com/site/index.md")
+    assert any(path.endswith("/blog.example.com/site/index.md") for path in payload["files"])
+    assert payload["files"][-1].endswith("/blog.example.com/homesrvctl.yml")
     templates = {entry["template"] for entry in payload["rendered_templates"]}
     assert templates == {
         "app/jekyll/docker-compose.yml.j2",
@@ -1429,6 +1463,7 @@ def test_app_init_jekyll_json_output(monkeypatch, tmp_path: Path) -> None:
         "app/jekyll/site.Gemfile.j2",
         "app/jekyll/site._config.yml.j2",
         "app/jekyll/site.index.md.j2",
+        "stack-config",
     }
 
 
@@ -1452,6 +1487,7 @@ def test_app_init_node_json_output_lists_expected_templates(monkeypatch, tmp_pat
         "app/node/README.md.j2",
         "app/node/package.json.j2",
         "app/node/src/server.js.j2",
+        "stack-config",
     }
 
 
@@ -1475,6 +1511,7 @@ def test_app_init_python_json_output_lists_expected_templates(monkeypatch, tmp_p
         "app/python/README.md.j2",
         "app/python/requirements.txt.j2",
         "app/python/app/main.py.j2",
+        "stack-config",
     }
 
 
@@ -1498,7 +1535,8 @@ def test_app_init_rust_react_postgres_json_output(monkeypatch, tmp_path: Path) -
     assert payload["template"] == "rust-react-postgres"
     assert payload["dry_run"] is True
     assert payload["ok"] is True
-    assert payload["files"][-1].endswith("/app.example.com/api/migrations/0001_initial.sql")
+    assert any(path.endswith("/app.example.com/api/migrations/0001_initial.sql") for path in payload["files"])
+    assert payload["files"][-1].endswith("/app.example.com/homesrvctl.yml")
     templates = {entry["template"] for entry in payload["rendered_templates"]}
     assert templates == {
         "app/rust-react-postgres/docker-compose.yml.j2",
@@ -1517,6 +1555,7 @@ def test_app_init_rust_react_postgres_json_output(monkeypatch, tmp_path: Path) -
         "app/rust-react-postgres/api.Cargo.toml.j2",
         "app/rust-react-postgres/api.src.main.rs.j2",
         "app/rust-react-postgres/api.migrations.0001_initial.sql.j2",
+        "stack-config",
     }
 
 

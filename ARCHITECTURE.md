@@ -47,6 +47,8 @@ This is the source of truth for:
 - stack-local `homesrvctl.yml` shape
 - default path conventions
 
+Stack-local config may include a `scaffold` metadata block written by scaffold/wrapper commands. It is informational metadata used by `config show` and the TUI; routing behavior continues to come from `profile`, `docker_network`, and `traefik_url`.
+
 ### Cloudflare integration
 
 - [`homesrvctl/cloudflare.py`](homesrvctl/cloudflare.py)

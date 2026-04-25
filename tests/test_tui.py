@@ -853,6 +853,7 @@ def test_render_stack_config_detail_formats_effective_config() -> None:
         {
             "ok": True,
             "stack": {
+                "scaffold": {"kind": "app", "template": "node"},
                 "profile": "edge",
                 "has_local_config": True,
                 "effective": {
@@ -871,6 +872,8 @@ def test_render_stack_config_detail_formats_effective_config() -> None:
     rendered = "\n".join(lines)
 
     assert "profile" in rendered
+    assert "type" in rendered
+    assert "app/node" in rendered
     assert "edge" in rendered
     assert "has local config" in rendered
     assert "yes" in rendered

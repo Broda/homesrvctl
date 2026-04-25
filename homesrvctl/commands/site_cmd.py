@@ -54,7 +54,14 @@ def site_init(
     outputs = SITE_TEMPLATE_SPEC.render_targets(target_dir)
     files = [str(path) for path, _ in outputs]
     rendered_templates = [{"output": str(path), "template": template_name} for path, template_name in outputs]
-    stack_settings_content = render_stack_settings(config, effective_docker_network, effective_traefik_url, profile)
+    scaffold_metadata = {"kind": "site", "template": "static"}
+    stack_settings_content = render_stack_settings(
+        config,
+        effective_docker_network,
+        effective_traefik_url,
+        profile,
+        scaffold=scaffold_metadata,
+    )
     if stack_settings_content.strip():
         files.append(str(stack_config_path(target_dir)))
         rendered_templates.append({"output": str(stack_config_path(target_dir)), "template": "stack-config"})
@@ -95,6 +102,7 @@ def site_init(
                         "hostname": valid_hostname,
                         "target_dir": str(target_dir),
                         "template": "static",
+                        "scaffold": scaffold_metadata,
                         "profile": profile,
                         "dry_run": dry_run,
                         "ok": False,
@@ -116,6 +124,7 @@ def site_init(
                     "hostname": valid_hostname,
                     "target_dir": str(target_dir),
                     "template": "static",
+                    "scaffold": scaffold_metadata,
                     "profile": profile,
                     "dry_run": dry_run,
                     "ok": True,

@@ -155,12 +155,16 @@ def config_show(
                 raise typer.Exit(code=1) from exc
             raise
         local_overrides = load_stack_config_data(settings.stack_dir)
+        scaffold = local_overrides.get("scaffold", {})
+        if not isinstance(scaffold, dict):
+            scaffold = {}
         payload["stack"] = {
             "hostname": stack,
             "stack_dir": str(settings.stack_dir),
             "stack_config_path": str(settings.config_path),
             "has_local_config": settings.has_local_config,
             "profile": settings.profile,
+            "scaffold": scaffold,
             "local_overrides": local_overrides,
             "effective": {
                 "docker_network": settings.docker_network,
@@ -206,6 +210,13 @@ def config_show(
     typer.echo(f"  stack_config_path: {settings.config_path}")
     typer.echo(f"  has_local_config: {settings.has_local_config}")
     typer.echo(f"  profile: {settings.profile}")
+    local_overrides = load_stack_config_data(settings.stack_dir)
+    scaffold = local_overrides.get("scaffold", {})
+    if isinstance(scaffold, dict) and scaffold:
+        kind = str(scaffold.get("kind") or "unknown")
+        template = scaffold.get("template") or scaffold.get("family")
+        suffix = f"/{template}" if template else ""
+        typer.echo(f"  type: {kind}{suffix}")
     typer.echo("  effective:")
     typer.echo(f"    docker_network: {settings.docker_network} ({sources['docker_network']})")
     typer.echo(f"    traefik_url: {settings.traefik_url} ({sources['traefik_url']})")

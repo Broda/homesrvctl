@@ -11,6 +11,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ### Added
 - Added read-only `homesrvctl app detect <source_path>` source-family detection for existing app/site adoption planning, with JSON output and operator-facing next steps.
 - Added `homesrvctl app wrap <hostname> --source PATH` to generate homesrvctl-owned hosting wrappers around existing static directories or Dockerfile-based app sources without modifying the source tree.
+- Added stack-local scaffold metadata for new `site init`, `app init`, and `app wrap` outputs, and surfaced that metadata as a stack `type` row in the TUI detail pane.
 
 ## 0.4.0 - 2026-04-24
 

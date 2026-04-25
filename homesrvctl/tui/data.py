@@ -661,11 +661,13 @@ def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
 
     effective = stack.get("effective", {})
     effective_sources = stack.get("effective_sources", {})
+    scaffold = stack.get("scaffold")
     return [
         "[bold #ffcf5a]Effective config[/bold #ffcf5a]",
         "",
         *format_key_value_lines(
             [
+                ("type", render_stack_type(scaffold)),
                 ("profile", str(stack.get("profile") or "none")),
                 ("has local config", "yes" if stack.get("has_local_config", False) else "no"),
                 (
@@ -680,6 +682,16 @@ def render_stack_config_detail(payload: dict[str, object]) -> list[str]:
             ]
         ),
     ]
+
+
+def render_stack_type(scaffold: object) -> str:
+    if not isinstance(scaffold, dict) or not scaffold:
+        return "N/A"
+    kind = str(scaffold.get("kind") or "unknown")
+    template = scaffold.get("template") or scaffold.get("family")
+    if template:
+        return f"{kind}/{template}"
+    return kind
 
 
 def render_external_http_detail(payload: dict[str, object]) -> list[str]:

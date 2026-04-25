@@ -215,8 +215,11 @@ def render_stack_settings(
     docker_network: str,
     traefik_url: str,
     profile: str | None = None,
+    scaffold: dict[str, str] | None = None,
 ) -> str:
-    overrides: dict[str, str] = {}
+    overrides: dict[str, object] = {}
+    if scaffold:
+        overrides["scaffold"] = scaffold
     base_docker_network = config.docker_network
     base_traefik_url = config.traefik_url
     if profile:
