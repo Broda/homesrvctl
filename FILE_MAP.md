@@ -6,6 +6,10 @@ This document is a quick orientation guide to the repository. It is intentionall
 
 - [`README.md`](README.md)
   Public project overview, install instructions, command overview, and wiki links.
+- [`AGENTS.md`](AGENTS.md)
+  Lightweight development contract for agent-assisted repository work.
+- [`CLAUDE.md`](CLAUDE.md)
+  Claude Code-oriented development guidance for this repository.
 - [`ROADMAP.md`](ROADMAP.md)
   Milestone-based planning document for upcoming work.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -149,6 +153,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   Hosting wrapper templates for existing static directories and Dockerfile-based source trees.
 - [`homesrvctl/templates/static`](homesrvctl/templates/static)
   Minimal `site init` scaffold assets.
+- [`templates`](templates)
+  Legacy top-level template assets retained in the repository; active packaged templates live under `homesrvctl/templates`.
 
 ## CI And Release Automation
 

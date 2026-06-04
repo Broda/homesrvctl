@@ -131,11 +131,11 @@ Why this is high-value:
   - operator README guidance
 
 Suggested phases:
-- Phase 1: add inspect-only source detection. Shipped after `0.4.0`.
+- Phase 1: add inspect-only source detection. Shipped in `0.5.0`.
   - Candidate command: `homesrvctl app detect <source_path> [--json]`
   - Detect advisory families such as `static`, `node`, `python`, `jekyll`, `dockerfile`, or `unknown`.
   - Report evidence, confidence, issues, and next steps.
-- Phase 2: generate hosting wrappers around existing source. Shipped after `0.4.0` for static directories and Dockerfile-based sources.
+- Phase 2: generate hosting wrappers around existing source. Shipped in `0.5.0` for static directories and Dockerfile-based sources.
   - Candidate command: `homesrvctl app wrap <hostname> --source <source_path> [--family FAMILY] [--force] [--json]`
   - Generate wrapper-owned files only.
   - Avoid modifying app-owned source in v1.

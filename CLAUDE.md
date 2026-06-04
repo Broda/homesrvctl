@@ -5,27 +5,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
+# Sync dependencies
+uv sync --extra dev
+
 # Compile check
-python3 -m compileall homesrvctl tests
+uv run python -m compileall homesrvctl tests
 
 # Run tests
-.venv/bin/python -m pytest -q
+uv run pytest -q
 
 # Run a single test file
-.venv/bin/python -m pytest tests/test_config.py -q
+uv run pytest tests/test_config.py -q
 
 # Run a single test by name
-.venv/bin/python -m pytest -k "test_name" -q
+uv run pytest -k "test_name" -q
 
 # Build distribution
-.venv/bin/python -m build
+uv build
 ```
 
 Run compile + tests for all code changes. Add the build step only when packaging or project metadata is involved.
 
 ## Architecture
 
-`homesrvctl` is a Typer-based CLI for managing a home-server platform (Cloudflare Tunnel + Traefik + Docker Compose). The package is installed in editable mode from `.venv/`.
+`homesrvctl` is a Typer-based CLI for managing a home-server platform (Cloudflare Tunnel + Traefik + Docker Compose). Local development and verification use uv.
 
 ### Layer boundaries
 
@@ -35,11 +38,12 @@ Run compile + tests for all code changes. Add the build step only when packaging
 | Config/models | `homesrvctl/config.py`, `homesrvctl/models.py` | Config loading, stack-local override resolution |
 | Cloudflare | `homesrvctl/cloudflare.py` | DNS API calls, zone lookup, record upsert/remove |
 | cloudflared | `homesrvctl/cloudflared.py`, `homesrvctl/cloudflared_service.py` | Ingress config parsing/reconciliation, runtime detection |
-| Templates | `homesrvctl/templates.py`, `homesrvctl/templates/` | Jinja2 scaffold rendering for `site init` / `app init` |
+| State/services | `homesrvctl/state/`, `homesrvctl/services/` | SQLite cache/history, refresh, observers, daemon, OpenTofu helpers |
+| Templates | `homesrvctl/templates/__init__.py`, `homesrvctl/templates/`, `homesrvctl/template_catalog.py` | Jinja2 scaffold rendering and template catalog metadata for `site init`, `app init`, and wrapper flows |
 | TUI | `homesrvctl/tui/` | Textual app, dashboard, prompts, JSON-backed data loading |
 | Utilities | `homesrvctl/shell.py`, `homesrvctl/utils.py` | Subprocess execution, filesystem helpers |
 
-Command modules orchestrate — they call helpers, they don't reimplement them. Cloudflare API logic stays in `cloudflare.py`. `cloudflared` config logic stays in `cloudflared.py`. The TUI loads data through the existing JSON command surface rather than reaching into unrelated modules.
+Command modules orchestrate — they call helpers, they don't reimplement them. Cloudflare API logic stays in `cloudflare.py`. `cloudflared` config/runtime logic stays in `cloudflared.py` and `cloudflared_service.py`. The TUI loads data through the existing JSON command surface rather than reaching into unrelated modules.
 
 ### TUI
 
@@ -47,7 +51,7 @@ Command modules orchestrate — they call helpers, they don't reimplement them. 
 
 ### Templates
 
-Jinja2 templates live under `homesrvctl/templates/`. App templates are organized by family under `templates/app/<name>/`. Site templates live under `templates/static/`. Template files use `.j2` extensions and are included in the package via `pyproject.toml` package-data globs.
+Jinja2 templates live under `homesrvctl/templates/`. App templates are organized by family under `homesrvctl/templates/app/<name>/`. Site templates live under `homesrvctl/templates/static/`. Template files use `.j2` extensions and are included in the package via `pyproject.toml` package-data globs. `homesrvctl/template_catalog.py` is the source of truth for shipped template names, descriptions, rendered file manifests, and packaging checks.
 
 ## Before Making Changes
 
@@ -72,3 +76,4 @@ These must not drift accidentally — update tests, docs, and `CHANGELOG.md` whe
 | `ARCHITECTURE.md` | Module structure or ownership changes |
 | `FILE_MAP.md` | New top-level docs, modules, or template families |
 | `ROADMAP.md` | Milestone scope changes |
+| GitHub wiki checkout | User-facing guidance changes when `../homesrvctl.wiki` exists; run `scripts/check_wiki_sync.sh` before closing |

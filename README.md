@@ -368,6 +368,8 @@ All JSON commands include a top-level `schema_version`.
 
 ## Command Overview
 
+- `homesrvctl version [--json]`
+- `homesrvctl install status [--json]`
 - `homesrvctl config init [--path PATH] [--force] [--json]`
 - `homesrvctl config show [--path PATH] [--stack HOSTNAME] [--json]`
 - `homesrvctl bootstrap assess [--path PATH] [--json]`
@@ -388,8 +390,11 @@ All JSON commands include a top-level `schema_version`.
 - `homesrvctl up <hostname> [--dry-run] [--json]`
 - `homesrvctl down <hostname> [--dry-run] [--json]`
 - `homesrvctl restart <hostname> [--dry-run] [--json]`
+- `homesrvctl cleanup <hostname> [--force] [--dry-run] [--json]`
 - `homesrvctl list [--cached] [--live] [--refresh] [--db-path PATH] [--config-path PATH] [--json]`
-- `homesrvctl db init|status|rebuild [--path PATH] [--json]`
+- `homesrvctl db init [--path PATH] [--json]`
+- `homesrvctl db status [--path PATH] [--json]`
+- `homesrvctl db rebuild [--path PATH] [--config-path PATH] [--json]`
 - `homesrvctl refresh [--stack HOSTNAME] [--dry-run] [--db-path PATH] [--config-path PATH] [--json]`
 - `homesrvctl observe run [--stack-runtime|--no-stack-runtime] [--cloudflared|--no-cloudflared] [--traefik|--no-traefik] [--cloudflare|--no-cloudflare] [--ses|--no-ses] [--all] [--db-path PATH] [--config-path PATH] [--json]`
 - `homesrvctl observe status [--db-path PATH] [--json]`

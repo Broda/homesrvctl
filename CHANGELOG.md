@@ -9,6 +9,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Changed
+- Refreshed documentation to align the command overview, agent guidance, and file map with the current CLI, uv workflow, and template layout.
 - Developer workflow now uses uv for dependency sync, verification, CI setup, and builds.
 - Began the control-plane service/state architecture while preserving existing CLI behavior.
 

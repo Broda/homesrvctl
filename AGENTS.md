@@ -54,9 +54,9 @@ For code changes that affect public behavior, operator workflows, configuration,
 Run the standard local verification commands when they are relevant:
 
 ```bash
-python3 -m compileall homesrvctl tests
-.venv/bin/python -m pytest -q
-.venv/bin/python -m build
+uv run python -m compileall homesrvctl tests
+uv run pytest -q
+uv build
 ```
 
 At minimum:
