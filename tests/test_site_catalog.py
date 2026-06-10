@@ -8,7 +8,12 @@ from typer.testing import CliRunner
 
 from homesrvctl.config import load_config
 from homesrvctl.main import app
-from homesrvctl.services.site_catalog import discover_site_catalog, get_site_info, validate_site_metadata
+from homesrvctl.services.site_catalog import (
+    discover_site_catalog,
+    get_site_info,
+    plan_site_operation,
+    validate_site_metadata,
+)
 
 
 def _write_config(home: Path, sites_root: Path) -> Path:
@@ -73,6 +78,30 @@ def _write_catalog_stack(sites_root: Path) -> Path:
     return stack_dir
 
 
+def _write_image_only_stack(sites_root: Path) -> Path:
+    stack_dir = sites_root / "image.example.com"
+    stack_dir.mkdir(parents=True)
+    (stack_dir / "docker-compose.yml").write_text(
+        yaml.safe_dump(
+            {
+                "services": {
+                    "web": {
+                        "image": "nginx:1.27",
+                        "restart": "unless-stopped",
+                    },
+                    "worker": {
+                        "image": "redis:7",
+                        "restart": "unless-stopped",
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return stack_dir
+
+
 def test_site_catalog_discovers_compose_metadata_without_env_values(tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -80,7 +109,10 @@ def test_site_catalog_discovers_compose_metadata_without_env_values(tmp_path: Pa
     stack_dir = _write_catalog_stack(sites_root)
     config = load_config(config_path)
 
-    result = discover_site_catalog(config, annotations_path=home / ".config" / "homesrvctl" / "missing-sites.yaml")
+    result = discover_site_catalog(
+        config,
+        annotations_path=home / ".config" / "homesrvctl" / "missing-sites.yaml",
+    )
 
     assert result.ok is True
     assert len(result.sites) == 1
@@ -230,4 +262,106 @@ def test_sites_validate_json_exits_nonzero_for_missing_compose(monkeypatch, tmp_
     assert payload["action"] == "sites_validate"
     assert payload["ok"] is False
     assert payload["site"] == "empty.example.com"
-    assert any(check["check"] == "compose_file_present" and not check["ok"] for check in payload["checks"])
+    assert any(
+        check["check"] == "compose_file_present" and not check["ok"]
+        for check in payload["checks"]
+    )
+
+
+def test_site_operation_plan_allows_restart_and_compose_up_for_valid_site(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    config_path = _write_config(home, sites_root)
+    _write_catalog_stack(sites_root)
+    config = load_config(config_path)
+
+    restart_plan = plan_site_operation(
+        config,
+        "restart",
+        "app.example.com",
+        annotations_path=home / ".config" / "homesrvctl" / "missing-sites.yaml",
+    )
+    up_plan = plan_site_operation(
+        config,
+        "compose-up",
+        "app.example.com",
+        annotations_path=home / ".config" / "homesrvctl" / "missing-sites.yaml",
+    )
+
+    assert restart_plan.allowed is True
+    assert restart_plan.ok is True
+    assert restart_plan.database_risk["level"] == "elevated"
+    assert up_plan.allowed is True
+    assert up_plan.expected_health_statuses == [200, 301, 302, 403]
+
+
+def test_sites_plan_json_allows_image_only_compose_pull(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    _write_image_only_stack(sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    result = CliRunner().invoke(
+        app,
+        ["sites", "plan", "compose-pull", "image.example.com", "--json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "1"
+    assert payload["action"] == "sites_plan"
+    assert payload["ok"] is True
+    assert payload["site"] == "image.example.com"
+    assert payload["domain"] == "image.example.com"
+    assert payload["operation"] == "compose-pull"
+    assert payload["allowed"] is True
+    assert payload["services"] == ["web", "worker"]
+    assert any(check["check"] == "compose_pull_image_policy" for check in payload["prechecks"])
+
+
+def test_sites_plan_json_denies_mixed_build_compose_pull_without_secrets(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    _write_catalog_stack(sites_root)
+    monkeypatch.setenv("HOME", str(home))
+
+    result = CliRunner().invoke(app, ["sites", "plan", "compose-pull", "app.example.com", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "1"
+    assert payload["action"] == "sites_plan"
+    assert payload["ok"] is False
+    assert payload["allowed"] is False
+    assert "build/local-source services" in payload["reason"]
+    assert payload["database_risk"]["has_database"] is True
+    serialized = json.dumps(payload)
+    assert "do-not-print" not in serialized
+    assert "password" not in serialized
+    assert "API_SECRET" not in serialized
+
+
+def test_sites_plan_json_denies_missing_compose(monkeypatch, tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    _write_config(home, sites_root)
+    (sites_root / "empty.example.com").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+
+    result = CliRunner().invoke(app, ["sites", "plan", "restart", "empty.example.com", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["schema_version"] == "1"
+    assert payload["action"] == "sites_plan"
+    assert payload["ok"] is False
+    assert payload["allowed"] is False
+    assert any(
+        check["check"] == "compose_file_present" and not check["ok"]
+        for check in payload["prechecks"]
+    )

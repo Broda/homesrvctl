@@ -45,7 +45,7 @@ Run compile + tests for all code changes. Add the build step only when packaging
 
 Command modules orchestrate — they call helpers, they don't reimplement them. Cloudflare API logic stays in `cloudflare.py`. `cloudflared` config/runtime logic stays in `cloudflared.py` and `cloudflared_service.py`. The TUI loads data through the existing JSON command surface rather than reaching into unrelated modules.
 
-The read-only site catalog lives in `homesrvctl/services/site_catalog.py` and is exposed through `homesrvctl/commands/sites_cmd.py`. It should discover operations metadata from stack directories and Compose files without reading `.env` files, emitting Compose `environment` values, or exposing secrets.
+The read-only site catalog lives in `homesrvctl/services/site_catalog.py` and is exposed through `homesrvctl/commands/sites_cmd.py`. It should discover operations metadata and plan guarded operations from stack directories and Compose files without reading `.env` files, emitting Compose `environment` values, executing Docker mutations, or exposing secrets.
 
 ### TUI
 

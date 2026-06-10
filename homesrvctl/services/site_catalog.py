@@ -18,6 +18,7 @@ COMPOSE_FILE_CANDIDATES = (
     "compose.yaml",
 )
 DEFAULT_EXPECTED_STATUSES = [200, 301, 302, 403]
+SUPPORTED_PLAN_OPERATIONS = {"restart", "compose-up", "compose-pull"}
 SAFE_ANNOTATION_FIELDS = {
     "display_name",
     "owner",
@@ -72,6 +73,46 @@ class SiteCatalogResult:
         return payload
 
 
+@dataclass(slots=True)
+class SiteOperationPlan:
+    ok: bool
+    site: str
+    domain: str
+    operation: str
+    allowed: bool
+    reasons: list[str]
+    prechecks: list[dict[str, object]]
+    steps: list[str]
+    expected_health_statuses: list[int]
+    database_risk: dict[str, object]
+    rollback_hint: str
+    runbook_hint: str
+    compose_path: str | None
+    services: list[str]
+
+    def to_dict(self) -> dict[str, object]:
+        reason = self.reasons[0] if self.reasons else None
+        payload: dict[str, object] = {
+            "ok": self.ok,
+            "site": self.site,
+            "domain": self.domain,
+            "operation": self.operation,
+            "allowed": self.allowed,
+            "reasons": self.reasons,
+            "prechecks": self.prechecks,
+            "steps": self.steps,
+            "expected_health_statuses": self.expected_health_statuses,
+            "database_risk": self.database_risk,
+            "rollback_hint": self.rollback_hint,
+            "runbook_hint": self.runbook_hint,
+            "compose_path": self.compose_path,
+            "services": self.services,
+        }
+        if reason:
+            payload["reason"] = reason
+        return payload
+
+
 def default_site_annotations_path() -> Path:
     return Path.home() / ".config" / "homesrvctl" / "sites.yaml"
 
@@ -82,7 +123,9 @@ def discover_site_catalog(
     annotations_path: Path | None = None,
 ) -> SiteCatalogResult:
     target_annotations_path = annotations_path or default_site_annotations_path()
-    annotations, annotation_issues, annotations_loaded = load_site_annotations(target_annotations_path)
+    annotations, annotation_issues, annotations_loaded = load_site_annotations(
+        target_annotations_path
+    )
     if not config.sites_root.exists():
         return SiteCatalogResult(
             ok=False,
@@ -129,7 +172,9 @@ def get_site_info(
 ) -> dict[str, object]:
     hostname = validate_hostname(site)
     target_annotations_path = annotations_path or default_site_annotations_path()
-    annotations, annotation_issues, annotations_loaded = load_site_annotations(target_annotations_path)
+    annotations, annotation_issues, annotations_loaded = load_site_annotations(
+        target_annotations_path
+    )
     stack_dir = config.hostname_dir(hostname)
     if not stack_dir.exists() or not stack_dir.is_dir():
         raise typer.BadParameter(f"hostname directory does not exist: {stack_dir}")
@@ -140,6 +185,111 @@ def get_site_info(
         payload.setdefault("issues", [])
         payload["issues"] = [*payload["issues"], *annotation_issues]  # type: ignore[index]
     return payload
+
+
+def plan_site_operation(
+    config: HomesrvctlConfig,
+    operation: str,
+    site: str,
+    *,
+    annotations_path: Path | None = None,
+) -> SiteOperationPlan:
+    normalized_operation = operation.strip().lower()
+    if normalized_operation not in SUPPORTED_PLAN_OPERATIONS:
+        valid = ", ".join(sorted(SUPPORTED_PLAN_OPERATIONS))
+        raise typer.BadParameter(f"unsupported operation {operation!r}; expected one of: {valid}")
+
+    site_payload = get_site_info(config, site, annotations_path=annotations_path)
+    checks = validate_site_metadata(site_payload)
+    blocking_failures = [check for check in checks if not check.ok and check.severity == "blocking"]
+    advisory_failures = [check for check in checks if not check.ok and check.severity == "advisory"]
+    services = [
+        service
+        for service in site_payload.get("services", [])
+        if isinstance(service, dict)
+    ]
+    reasons: list[str] = []
+    prechecks = [check.to_dict() for check in checks]
+
+    if blocking_failures:
+        reasons.extend(check.detail for check in blocking_failures)
+
+    if normalized_operation in {"restart", "compose-up"}:
+        if not blocking_failures:
+            reasons.append("catalog validation passed and compose services are present")
+
+    if normalized_operation == "compose-pull":
+        image_only = [
+            service_name(service)
+            for service in services
+            if service.get("image") and not service.get("build")
+        ]
+        build_services = [service_name(service) for service in services if service.get("build")]
+        no_image_services = [
+            service_name(service) for service in services if not service.get("image")
+        ]
+        if blocking_failures:
+            pass
+        elif build_services:
+            reasons.append(
+                "compose-pull denied because the site includes build/local-source services: "
+                + ", ".join(build_services)
+            )
+        elif no_image_services:
+            reasons.append(
+                "compose-pull denied because these services have no image to pull: "
+                + ", ".join(no_image_services)
+            )
+        elif not image_only:
+            reasons.append("compose-pull denied because no image-based services were found")
+        else:
+            reasons.append(
+                "compose-pull allowed for image-based services: "
+                + ", ".join(image_only)
+            )
+        prechecks.append(
+            {
+                "check": "compose_pull_image_policy",
+                "ok": (
+                    not blocking_failures
+                    and bool(image_only)
+                    and not build_services
+                    and not no_image_services
+                ),
+                "severity": "blocking",
+                "detail": compose_pull_policy_detail(image_only, build_services, no_image_services),
+            }
+        )
+
+    allowed = not blocking_failures
+    if normalized_operation == "compose-pull":
+        allowed = allowed and any(
+            service.get("image") and not service.get("build") for service in services
+        )
+        allowed = allowed and not any(service.get("build") for service in services)
+        allowed = allowed and not any(not service.get("image") for service in services)
+
+    if advisory_failures and normalized_operation in {"restart", "compose-up"}:
+        reasons.extend(f"advisory: {check.detail}" for check in advisory_failures)
+
+    return SiteOperationPlan(
+        ok=allowed,
+        site=str(site_payload["site"]),
+        domain=str(site_payload["domain"]),
+        operation=normalized_operation,
+        allowed=allowed,
+        reasons=reasons or ["operation denied by policy"],
+        prechecks=prechecks,
+        steps=operation_steps(normalized_operation, allowed),
+        expected_health_statuses=[
+            int(status) for status in site_payload.get("expected_statuses", [])
+        ],
+        database_risk=build_database_risk_summary(site_payload),
+        rollback_hint=rollback_hint(normalized_operation, site_payload),
+        runbook_hint=runbook_hint(normalized_operation, allowed),
+        compose_path=string_or_none(site_payload.get("compose_path")),
+        services=[service_name(service) for service in services],
+    )
 
 
 def load_site_annotations(path: Path) -> tuple[dict[str, dict[str, object]], list[str], bool]:
@@ -167,10 +317,15 @@ def load_site_annotations(path: Path) -> tuple[dict[str, dict[str, object]], lis
         if not isinstance(values, dict):
             issues.append(f"ignoring annotation for {valid_hostname}: value must be a mapping")
             continue
-        safe_values = {key: value for key, value in values.items() if key in SAFE_ANNOTATION_FIELDS}
+        safe_values = {
+            key: value for key, value in values.items() if key in SAFE_ANNOTATION_FIELDS
+        }
         ignored = sorted(str(key) for key in values if key not in SAFE_ANNOTATION_FIELDS)
         if ignored:
-            issues.append(f"ignoring unsupported annotation fields for {valid_hostname}: {', '.join(ignored)}")
+            issues.append(
+                "ignoring unsupported annotation fields for "
+                f"{valid_hostname}: {', '.join(ignored)}"
+            )
         annotations[valid_hostname] = safe_values
     return annotations, issues, True
 
@@ -228,7 +383,11 @@ def discover_site(
 
 
 def find_compose_file(stack_dir: Path) -> tuple[Path | None, list[str]]:
-    existing = [stack_dir / name for name in COMPOSE_FILE_CANDIDATES if (stack_dir / name).exists()]
+    existing = [
+        stack_dir / name
+        for name in COMPOSE_FILE_CANDIDATES
+        if (stack_dir / name).exists()
+    ]
     if not existing:
         return None, [f"missing compose file under {stack_dir}"]
     issues = []
@@ -277,7 +436,10 @@ def normalize_build(raw_build: object, stack_dir: Path) -> dict[str, object] | N
     if raw_build is None:
         return None
     if isinstance(raw_build, str):
-        return {"context": raw_build, "resolved_context": str(resolve_compose_path(raw_build, stack_dir))}
+        return {
+            "context": raw_build,
+            "resolved_context": str(resolve_compose_path(raw_build, stack_dir)),
+        }
     if isinstance(raw_build, dict):
         context = raw_build.get("context")
         dockerfile = raw_build.get("dockerfile")
@@ -321,13 +483,25 @@ def normalize_volumes(raw_volumes: object, stack_dir: Path) -> list[dict[str, ob
             volumes.append(parse_short_volume(raw_volume, stack_dir))
         elif isinstance(raw_volume, dict):
             source = raw_volume.get("source") or raw_volume.get("src")
-            target = raw_volume.get("target") or raw_volume.get("dst") or raw_volume.get("destination")
-            volume_type = str(raw_volume.get("type")) if raw_volume.get("type") else infer_volume_type(source)
+            target = (
+                raw_volume.get("target")
+                or raw_volume.get("dst")
+                or raw_volume.get("destination")
+            )
+            volume_type = (
+                str(raw_volume.get("type"))
+                if raw_volume.get("type")
+                else infer_volume_type(source)
+            )
             payload: dict[str, object] = {
                 "type": volume_type,
                 "source": str(source) if source is not None else None,
                 "target": str(target) if target is not None else None,
-                "read_only": bool(raw_volume.get("read_only")) if "read_only" in raw_volume else None,
+                "read_only": (
+                    bool(raw_volume.get("read_only"))
+                    if "read_only" in raw_volume
+                    else None
+                ),
             }
             if source is not None and volume_type == "bind":
                 payload["resolved_source"] = str(resolve_compose_path(str(source), stack_dir))
@@ -387,7 +561,11 @@ def source_project_paths(services: list[dict[str, object]], stack_dir: Path) -> 
         if isinstance(build, dict) and build.get("resolved_context"):
             paths.add(str(build["resolved_context"]))
         for volume in service.get("volumes", []):
-            if isinstance(volume, dict) and volume.get("type") == "bind" and volume.get("resolved_source"):
+            if (
+                isinstance(volume, dict)
+                and volume.get("type") == "bind"
+                and volume.get("resolved_source")
+            ):
                 resolved = Path(str(volume["resolved_source"]))
                 if likely_source_path(resolved, stack_dir):
                     paths.add(str(resolved))
@@ -460,7 +638,11 @@ def validate_site_metadata(site: dict[str, object]) -> list[CatalogValidationIss
             check="services_present",
             ok=bool(site.get("services")),
             severity="blocking",
-            detail="services found" if site.get("services") else "no services found in compose file",
+            detail=(
+                "services found"
+                if site.get("services")
+                else "no services found in compose file"
+            ),
         ),
         CatalogValidationIssue(
             check="health_url_present",
@@ -503,6 +685,98 @@ def validate_site_metadata(site: dict[str, object]) -> list[CatalogValidationIss
     return issues
 
 
+def service_name(service: dict[str, object]) -> str:
+    return str(service.get("name") or "unknown")
+
+
+def compose_pull_policy_detail(
+    image_only: list[str],
+    build_services: list[str],
+    no_image_services: list[str],
+) -> str:
+    if build_services:
+        return "build/local-source services present: " + ", ".join(build_services)
+    if no_image_services:
+        return "services without images present: " + ", ".join(no_image_services)
+    if image_only:
+        return "image-based services found: " + ", ".join(image_only)
+    return "no image-based services found"
+
+
+def operation_steps(operation: str, allowed: bool) -> list[str]:
+    if not allowed:
+        return [
+            "Review the failed prechecks and repair catalog or Compose metadata first.",
+            "Re-run homesrvctl sites validate before attempting a mutating operation.",
+        ]
+    common = [
+        "Confirm the compose file and service list match the intended site.",
+        "Review database_risk and take a fresh backup when stateful data is present.",
+        "Run the mutating Docker Compose operation outside this read-only planner.",
+        "Check the site health endpoint after the operation.",
+    ]
+    if operation == "compose-pull":
+        return [
+            "Confirm image tags are intentional and pullable from the host.",
+            *common,
+        ]
+    return common
+
+
+def build_database_risk_summary(site: dict[str, object]) -> dict[str, object]:
+    hints = (
+        site.get("database_hints")
+        if isinstance(site.get("database_hints"), dict)
+        else {}
+    )
+    postgres_services = list(hints.get("postgres_services", [])) if isinstance(hints, dict) else []
+    sqlite_paths = list(hints.get("sqlite_paths", [])) if isinstance(hints, dict) else []
+    has_database = bool(postgres_services or sqlite_paths)
+    return {
+        "has_database": has_database,
+        "level": "elevated" if has_database else "none_detected",
+        "postgres_services": postgres_services,
+        "sqlite_paths": sqlite_paths,
+        "note": (
+            "Stateful data inferred; take or verify a backup before mutation."
+            if has_database
+            else "No database hints inferred from catalog metadata."
+        ),
+    }
+
+
+def rollback_hint(operation: str, site: dict[str, object]) -> str:
+    statuses = ", ".join(str(status) for status in site.get("expected_statuses", []))
+    health_url = str(site.get("health_url") or "")
+    if operation == "compose-pull":
+        return (
+            "If a later update fails, restore the prior image tag or known-good "
+            "Compose file and redeploy."
+        )
+    if operation == "compose-up":
+        return (
+            "If startup fails, inspect Compose logs and restore the previous "
+            "Compose file or data backup."
+        )
+    return (
+        "If restart fails, inspect Compose logs and verify "
+        f"{health_url} returns one of: {statuses}."
+    )
+
+
+def runbook_hint(operation: str, allowed: bool) -> str:
+    if not allowed:
+        return (
+            "Planner denied this operation; do not run the matching mutation "
+            "until prechecks pass."
+        )
+    if operation == "restart":
+        return "Approved planner output is suitable as a preflight before docker compose restart."
+    if operation == "compose-up":
+        return "Approved planner output is suitable as a preflight before docker compose up -d."
+    return "Approved planner output is suitable as a preflight before docker compose pull."
+
+
 def normalize_expected_statuses(raw_statuses: object) -> list[int]:
     if raw_statuses is None:
         return [*DEFAULT_EXPECTED_STATUSES]
@@ -531,7 +805,8 @@ def safe_annotation_payload(annotation: dict[str, object]) -> dict[str, object]:
     return {
         key: annotation[key]
         for key in sorted(annotation)
-        if key in SAFE_ANNOTATION_FIELDS and key not in {"health_url", "expected_statuses", "source_project_paths"}
+        if key in SAFE_ANNOTATION_FIELDS
+        and key not in {"health_url", "expected_statuses", "source_project_paths"}
     }
 
 

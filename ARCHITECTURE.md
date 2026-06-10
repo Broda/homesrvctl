@@ -94,11 +94,11 @@ The refresh layer records stack directory metadata, compose-file presence, stack
 
 Responsibilities:
 - discover read-only site operations metadata from configured stack directories and Docker Compose files
-- expose compact list, full inventory, per-site info, and structural validation through the `sites` command family
+- expose compact list, full inventory, per-site info, structural validation, and read-only operation planning through the `sites` command family
 - merge only explicitly safe user annotations from `~/.config/homesrvctl/sites.yaml` or an operator-supplied annotations path
 - report source path and database hints without reading `.env` files, emitting Compose `environment` values, or exposing secret values
 
-This layer is the first site-catalog slice intended for future wrappers, API clients, and dashboard surfaces. It is not a mutation surface and should not start, stop, deploy, or repair services.
+This layer is intended for future wrappers, API clients, and dashboard surfaces. It can produce policy-aware plans for later guarded operations, but it is not a mutation surface and should not start, stop, deploy, pull images, or repair services.
 
 ### OpenTofu convergence layer
 

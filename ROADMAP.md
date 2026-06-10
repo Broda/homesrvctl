@@ -35,7 +35,7 @@ Suggested phases:
 - Phase 3: add cache-aware stack listing and let the TUI read cached state where it improves startup or repeated scans. Shipped.
 - Phase 4: add read-only daemon observers and systemd lifecycle support. Shipped for local stack refresh and local runtime observations.
 - Phase 5: add provider observers and explicit convergence helpers for Cloudflare, SES, OpenTofu, backups, and related external state. Shipped for read-only Cloudflare token, zone, DNS, and tunnel readiness; read-only SES outbound readiness; OpenTofu SES/Cloudflare DNS workspace rendering; and foreground saved-plan apply.
-- Phase 6: add operation tracking and a read-only site catalog, then later an operation queue and background jobs for safe mutations. History/list/show support and the first `homesrvctl sites` catalog slice are shipped; background execution remains future.
+- Phase 6: add operation tracking and a read-only site catalog, then later an operation queue and background jobs for safe mutations. History/list/show support, catalog inspection, validation, and read-only operation planning are shipped; background execution remains future.
 - Phase 7: add API/web clients over the same services and state store.
 
 Design constraints:
@@ -50,6 +50,7 @@ Success criteria:
 - Cached reads are explicit or opportunistic and always have a live fallback.
 - The daemon can keep the local cache fresh without mutating stacks or provider state.
 - The site catalog exposes operations metadata without reading `.env` files, emitting Compose `environment` values, or storing secrets.
+- Read-only operation plans can gate later wrapper/API mutations without running Docker Compose commands themselves.
 - Refresh and observer behavior is deterministic and testable without Docker, cloudflared, real Cloudflare credentials, root, or network access.
 - Future daemon/API work reuses services instead of duplicating command logic.
 
