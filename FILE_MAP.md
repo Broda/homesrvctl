@@ -64,6 +64,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   OpenTofu workspace rendering, saved-plan planning, and explicit saved-plan apply helpers for narrow SES/Cloudflare DNS mail infrastructure.
 - [`homesrvctl/services/operations.py`](homesrvctl/services/operations.py)
   Operation history service models and readers for the SQLite `operations` table.
+- [`homesrvctl/services/site_catalog.py`](homesrvctl/services/site_catalog.py)
+  Read-only site catalog discovery, optional safe annotation merging, Compose metadata parsing, source-path hints, database hints, and structural validation.
 - [`homesrvctl/adoption.py`](homesrvctl/adoption.py)
   Existing app/site source detection helpers used by adoption and wrapper command surfaces.
 - [`homesrvctl/bootstrap.py`](homesrvctl/bootstrap.py)
@@ -116,6 +118,8 @@ This document is a quick orientation guide to the repository. It is intentionall
   Fresh-host bootstrap assessment, readiness reporting, and tunnel/runtime/wiring provisioning command surface.
 - [`homesrvctl/commands/site_cmd.py`](homesrvctl/commands/site_cmd.py)
   `site init` scaffold generation.
+- [`homesrvctl/commands/sites_cmd.py`](homesrvctl/commands/sites_cmd.py)
+  `sites list`, `sites inventory`, `sites info`, and `sites validate` read-only site catalog commands.
 - [`homesrvctl/commands/app_cmd.py`](homesrvctl/commands/app_cmd.py)
   `app detect` source inspection, `app wrap` hosting wrapper generation, and `app init` scaffold generation for app templates.
 - [`homesrvctl/commands/deploy_cmd.py`](homesrvctl/commands/deploy_cmd.py)

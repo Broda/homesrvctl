@@ -14,6 +14,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Began the control-plane service/state architecture while preserving existing CLI behavior.
 
 ### Added
+- Added read-only `homesrvctl sites` catalog commands for site operations metadata, including compact list, full inventory, per-site info, validation, and optional safe annotations from `~/.config/homesrvctl/sites.yaml`.
 - Added operation history commands and sanitized operation recording for OpenTofu mail plan/apply workflows.
 - Added explicit saved-plan OpenTofu apply support for SES/Cloudflare DNS mail workspaces.
 - Added plan-only OpenTofu workspace rendering and planning for SES/Cloudflare DNS mail infrastructure.

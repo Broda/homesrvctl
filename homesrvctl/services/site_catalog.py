@@ -1,0 +1,546 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import typer
+import yaml
+
+from homesrvctl.models import HomesrvctlConfig
+from homesrvctl.utils import validate_hostname
+
+
+COMPOSE_FILE_CANDIDATES = (
+    "docker-compose.yml",
+    "docker-compose.yaml",
+    "compose.yml",
+    "compose.yaml",
+)
+DEFAULT_EXPECTED_STATUSES = [200, 301, 302, 403]
+SAFE_ANNOTATION_FIELDS = {
+    "display_name",
+    "owner",
+    "repo",
+    "tags",
+    "notes",
+    "source_project_paths",
+    "health_url",
+    "expected_statuses",
+}
+SQLITE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
+DATA_DIR_NAMES = {"data", "db", "database", "sqlite", "storage", "var"}
+
+
+@dataclass(slots=True)
+class CatalogValidationIssue:
+    check: str
+    ok: bool
+    severity: str
+    detail: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "check": self.check,
+            "ok": self.ok,
+            "severity": self.severity,
+            "detail": self.detail,
+        }
+
+
+@dataclass(slots=True)
+class SiteCatalogResult:
+    ok: bool
+    sites_root: Path
+    sites: list[dict[str, object]]
+    annotations_path: Path
+    annotations_loaded: bool
+    issues: list[str] = field(default_factory=list)
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "ok": self.ok,
+            "sites_root": str(self.sites_root),
+            "annotations_path": str(self.annotations_path),
+            "annotations_loaded": self.annotations_loaded,
+            "sites": self.sites,
+            "issues": self.issues,
+        }
+        if self.error:
+            payload["error"] = self.error
+        return payload
+
+
+def default_site_annotations_path() -> Path:
+    return Path.home() / ".config" / "homesrvctl" / "sites.yaml"
+
+
+def discover_site_catalog(
+    config: HomesrvctlConfig,
+    *,
+    annotations_path: Path | None = None,
+) -> SiteCatalogResult:
+    target_annotations_path = annotations_path or default_site_annotations_path()
+    annotations, annotation_issues, annotations_loaded = load_site_annotations(target_annotations_path)
+    if not config.sites_root.exists():
+        return SiteCatalogResult(
+            ok=False,
+            sites_root=config.sites_root,
+            sites=[],
+            annotations_path=target_annotations_path,
+            annotations_loaded=annotations_loaded,
+            issues=annotation_issues,
+            error=f"Sites root does not exist: {config.sites_root}",
+        )
+
+    try:
+        children = sorted(config.sites_root.iterdir(), key=lambda path: path.name)
+    except OSError as exc:
+        return SiteCatalogResult(
+            ok=False,
+            sites_root=config.sites_root,
+            sites=[],
+            annotations_path=target_annotations_path,
+            annotations_loaded=annotations_loaded,
+            issues=annotation_issues,
+            error=f"Could not read sites root {config.sites_root}: {exc}",
+        )
+    sites = [
+        discover_site(config, child.name, annotations=annotations)
+        for child in children
+        if child.is_dir()
+    ]
+    return SiteCatalogResult(
+        ok=True,
+        sites_root=config.sites_root,
+        sites=sites,
+        annotations_path=target_annotations_path,
+        annotations_loaded=annotations_loaded,
+        issues=annotation_issues,
+    )
+
+
+def get_site_info(
+    config: HomesrvctlConfig,
+    site: str,
+    *,
+    annotations_path: Path | None = None,
+) -> dict[str, object]:
+    hostname = validate_hostname(site)
+    target_annotations_path = annotations_path or default_site_annotations_path()
+    annotations, annotation_issues, annotations_loaded = load_site_annotations(target_annotations_path)
+    stack_dir = config.hostname_dir(hostname)
+    if not stack_dir.exists() or not stack_dir.is_dir():
+        raise typer.BadParameter(f"hostname directory does not exist: {stack_dir}")
+    payload = discover_site(config, hostname, annotations=annotations)
+    payload["annotations_path"] = str(target_annotations_path)
+    payload["annotations_loaded"] = annotations_loaded
+    if annotation_issues:
+        payload.setdefault("issues", [])
+        payload["issues"] = [*payload["issues"], *annotation_issues]  # type: ignore[index]
+    return payload
+
+
+def load_site_annotations(path: Path) -> tuple[dict[str, dict[str, object]], list[str], bool]:
+    if not path.exists():
+        return {}, [], False
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except OSError as exc:
+        return {}, [f"could not read annotations file {path}: {exc}"], False
+    if not isinstance(raw, dict):
+        return {}, [f"annotations file must be a mapping: {path}"], False
+
+    site_mapping = raw.get("sites", raw)
+    if not isinstance(site_mapping, dict):
+        return {}, [f"annotations field `sites` must be a mapping: {path}"], False
+
+    annotations: dict[str, dict[str, object]] = {}
+    issues: list[str] = []
+    for hostname, values in site_mapping.items():
+        try:
+            valid_hostname = validate_hostname(str(hostname))
+        except typer.BadParameter:
+            issues.append(f"ignoring annotation for invalid hostname: {hostname}")
+            continue
+        if not isinstance(values, dict):
+            issues.append(f"ignoring annotation for {valid_hostname}: value must be a mapping")
+            continue
+        safe_values = {key: value for key, value in values.items() if key in SAFE_ANNOTATION_FIELDS}
+        ignored = sorted(str(key) for key in values if key not in SAFE_ANNOTATION_FIELDS)
+        if ignored:
+            issues.append(f"ignoring unsupported annotation fields for {valid_hostname}: {', '.join(ignored)}")
+        annotations[valid_hostname] = safe_values
+    return annotations, issues, True
+
+
+def discover_site(
+    config: HomesrvctlConfig,
+    hostname: str,
+    *,
+    annotations: dict[str, dict[str, object]] | None = None,
+) -> dict[str, object]:
+    valid_hostname = validate_hostname(hostname)
+    stack_dir = config.hostname_dir(valid_hostname)
+    compose_path, compose_issues = find_compose_file(stack_dir)
+    compose_data: dict[str, object] = {}
+    parse_issues: list[str] = []
+    if compose_path:
+        try:
+            loaded = yaml.safe_load(compose_path.read_text(encoding="utf-8")) or {}
+            if isinstance(loaded, dict):
+                compose_data = loaded
+            else:
+                parse_issues.append(f"compose file must be a mapping: {compose_path}")
+        except (OSError, yaml.YAMLError) as exc:
+            parse_issues.append(f"could not parse compose file {compose_path}: {exc}")
+
+    services = parse_services(compose_data, stack_dir)
+    top_level_volumes = parse_top_level_volumes(compose_data)
+    named_volumes = sorted({*top_level_volumes, *service_named_volume_names(services)})
+    source_paths = sorted(source_project_paths(services, stack_dir))
+    database_hints = build_database_hints(services, stack_dir)
+
+    annotation = (annotations or {}).get(valid_hostname, {})
+    health_url = str(annotation.get("health_url") or f"https://{valid_hostname}/")
+    expected_statuses = normalize_expected_statuses(annotation.get("expected_statuses"))
+    annotation_source_paths = normalize_string_list(annotation.get("source_project_paths"))
+    if annotation_source_paths:
+        source_paths = sorted({*source_paths, *annotation_source_paths})
+
+    return {
+        "site": valid_hostname,
+        "domain": valid_hostname,
+        "stack_dir": str(stack_dir),
+        "compose_path": str(compose_path) if compose_path else None,
+        "compose_file": compose_path.name if compose_path else None,
+        "services": services,
+        "service_names": [str(service["name"]) for service in services],
+        "named_volumes": named_volumes,
+        "source_project_paths": source_paths,
+        "database_hints": database_hints,
+        "health_url": health_url,
+        "expected_statuses": expected_statuses,
+        "annotations": safe_annotation_payload(annotation),
+        "issues": [*compose_issues, *parse_issues],
+    }
+
+
+def find_compose_file(stack_dir: Path) -> tuple[Path | None, list[str]]:
+    existing = [stack_dir / name for name in COMPOSE_FILE_CANDIDATES if (stack_dir / name).exists()]
+    if not existing:
+        return None, [f"missing compose file under {stack_dir}"]
+    issues = []
+    if len(existing) > 1:
+        issues.append(
+            "multiple compose files found; using "
+            f"{existing[0].name}: {', '.join(path.name for path in existing)}"
+        )
+    return existing[0], issues
+
+
+def parse_services(compose_data: dict[str, object], stack_dir: Path) -> list[dict[str, object]]:
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return []
+    services: list[dict[str, object]] = []
+    for name, raw_service in sorted(raw_services.items(), key=lambda item: str(item[0])):
+        if not isinstance(raw_service, dict):
+            services.append(
+                {
+                    "name": str(name),
+                    "image": None,
+                    "build": None,
+                    "container_name": None,
+                    "restart": None,
+                    "ports": [],
+                    "volumes": [],
+                }
+            )
+            continue
+        services.append(
+            {
+                "name": str(name),
+                "image": string_or_none(raw_service.get("image")),
+                "build": normalize_build(raw_service.get("build"), stack_dir),
+                "container_name": string_or_none(raw_service.get("container_name")),
+                "restart": string_or_none(raw_service.get("restart")),
+                "ports": normalize_ports(raw_service.get("ports")),
+                "volumes": normalize_volumes(raw_service.get("volumes"), stack_dir),
+            }
+        )
+    return services
+
+
+def normalize_build(raw_build: object, stack_dir: Path) -> dict[str, object] | None:
+    if raw_build is None:
+        return None
+    if isinstance(raw_build, str):
+        return {"context": raw_build, "resolved_context": str(resolve_compose_path(raw_build, stack_dir))}
+    if isinstance(raw_build, dict):
+        context = raw_build.get("context")
+        dockerfile = raw_build.get("dockerfile")
+        payload: dict[str, object] = {
+            "context": str(context) if context is not None else None,
+            "dockerfile": str(dockerfile) if dockerfile is not None else None,
+        }
+        if context is not None:
+            payload["resolved_context"] = str(resolve_compose_path(str(context), stack_dir))
+        return payload
+    return {"raw_type": type(raw_build).__name__}
+
+
+def normalize_ports(raw_ports: object) -> list[dict[str, object]]:
+    if not isinstance(raw_ports, list):
+        return []
+    ports = []
+    for raw_port in raw_ports:
+        if isinstance(raw_port, str):
+            ports.append({"raw": raw_port})
+        elif isinstance(raw_port, dict):
+            ports.append(
+                {
+                    "target": raw_port.get("target"),
+                    "published": raw_port.get("published"),
+                    "protocol": raw_port.get("protocol"),
+                    "mode": raw_port.get("mode"),
+                }
+            )
+        else:
+            ports.append({"raw": str(raw_port)})
+    return ports
+
+
+def normalize_volumes(raw_volumes: object, stack_dir: Path) -> list[dict[str, object]]:
+    if not isinstance(raw_volumes, list):
+        return []
+    volumes = []
+    for raw_volume in raw_volumes:
+        if isinstance(raw_volume, str):
+            volumes.append(parse_short_volume(raw_volume, stack_dir))
+        elif isinstance(raw_volume, dict):
+            source = raw_volume.get("source") or raw_volume.get("src")
+            target = raw_volume.get("target") or raw_volume.get("dst") or raw_volume.get("destination")
+            volume_type = str(raw_volume.get("type")) if raw_volume.get("type") else infer_volume_type(source)
+            payload: dict[str, object] = {
+                "type": volume_type,
+                "source": str(source) if source is not None else None,
+                "target": str(target) if target is not None else None,
+                "read_only": bool(raw_volume.get("read_only")) if "read_only" in raw_volume else None,
+            }
+            if source is not None and volume_type == "bind":
+                payload["resolved_source"] = str(resolve_compose_path(str(source), stack_dir))
+            volumes.append(payload)
+        else:
+            volumes.append({"type": "unknown", "raw": str(raw_volume)})
+    return volumes
+
+
+def parse_short_volume(raw_volume: str, stack_dir: Path) -> dict[str, object]:
+    parts = raw_volume.split(":")
+    source = parts[0] if len(parts) >= 2 else None
+    target = parts[1] if len(parts) >= 2 else parts[0]
+    mode = ":".join(parts[2:]) if len(parts) > 2 else None
+    volume_type = infer_volume_type(source)
+    payload: dict[str, object] = {
+        "type": volume_type,
+        "source": source,
+        "target": target,
+        "mode": mode,
+        "raw": raw_volume,
+    }
+    if source and volume_type == "bind":
+        payload["resolved_source"] = str(resolve_compose_path(source, stack_dir))
+    return payload
+
+
+def infer_volume_type(source: object) -> str:
+    if source is None:
+        return "anonymous"
+    source_text = str(source)
+    if source_text.startswith(("/", "./", "../", "~")) or "/" in source_text:
+        return "bind"
+    return "volume"
+
+
+def parse_top_level_volumes(compose_data: dict[str, object]) -> set[str]:
+    raw_volumes = compose_data.get("volumes", {})
+    if not isinstance(raw_volumes, dict):
+        return set()
+    return {str(name) for name in raw_volumes}
+
+
+def service_named_volume_names(services: list[dict[str, object]]) -> set[str]:
+    names: set[str] = set()
+    for service in services:
+        for volume in service.get("volumes", []):
+            if isinstance(volume, dict) and volume.get("type") == "volume" and volume.get("source"):
+                names.add(str(volume["source"]))
+    return names
+
+
+def source_project_paths(services: list[dict[str, object]], stack_dir: Path) -> set[str]:
+    paths: set[str] = set()
+    for service in services:
+        build = service.get("build")
+        if isinstance(build, dict) and build.get("resolved_context"):
+            paths.add(str(build["resolved_context"]))
+        for volume in service.get("volumes", []):
+            if isinstance(volume, dict) and volume.get("type") == "bind" and volume.get("resolved_source"):
+                resolved = Path(str(volume["resolved_source"]))
+                if likely_source_path(resolved, stack_dir):
+                    paths.add(str(resolved))
+    return paths
+
+
+def likely_source_path(path: Path, stack_dir: Path) -> bool:
+    try:
+        relative = path.resolve().relative_to(stack_dir.resolve())
+    except (OSError, ValueError):
+        return True
+    if not relative.parts:
+        return True
+    return relative.parts[0] not in DATA_DIR_NAMES
+
+
+def build_database_hints(services: list[dict[str, object]], stack_dir: Path) -> dict[str, object]:
+    postgres_services = []
+    sqlite_paths: set[str] = set()
+    for service in services:
+        name = str(service.get("name") or "")
+        image = str(service.get("image") or "")
+        if "postgres" in name.lower() or image.lower().startswith("postgres"):
+            postgres_services.append(name)
+        for volume in service.get("volumes", []):
+            if isinstance(volume, dict):
+                for key in ("target", "source", "resolved_source"):
+                    value = volume.get(key)
+                    if value and Path(str(value)).suffix.lower() in SQLITE_SUFFIXES:
+                        sqlite_paths.add(str(value))
+
+    for data_dir in data_directories(stack_dir):
+        try:
+            for path in data_dir.rglob("*"):
+                if path.is_file() and path.suffix.lower() in SQLITE_SUFFIXES:
+                    sqlite_paths.add(str(path))
+        except OSError:
+            continue
+
+    return {
+        "postgres_services": sorted(postgres_services),
+        "has_postgres": bool(postgres_services),
+        "sqlite_paths": sorted(sqlite_paths),
+        "has_sqlite": bool(sqlite_paths),
+    }
+
+
+def data_directories(stack_dir: Path) -> list[Path]:
+    if not stack_dir.exists():
+        return []
+    try:
+        return [
+            child
+            for child in stack_dir.iterdir()
+            if child.is_dir() and child.name.lower() in DATA_DIR_NAMES
+        ]
+    except OSError:
+        return []
+
+
+def validate_site_metadata(site: dict[str, object]) -> list[CatalogValidationIssue]:
+    issues = [
+        CatalogValidationIssue(
+            check="compose_file_present",
+            ok=bool(site.get("compose_path")),
+            severity="blocking",
+            detail="compose file found" if site.get("compose_path") else "compose file is missing",
+        ),
+        CatalogValidationIssue(
+            check="services_present",
+            ok=bool(site.get("services")),
+            severity="blocking",
+            detail="services found" if site.get("services") else "no services found in compose file",
+        ),
+        CatalogValidationIssue(
+            check="health_url_present",
+            ok=bool(site.get("health_url")),
+            severity="blocking",
+            detail=str(site.get("health_url") or "health_url is missing"),
+        ),
+        CatalogValidationIssue(
+            check="expected_statuses_present",
+            ok=bool(site.get("expected_statuses")),
+            severity="blocking",
+            detail=str(site.get("expected_statuses") or "expected_statuses is empty"),
+        ),
+    ]
+    for service in site.get("services", []):
+        if isinstance(service, dict):
+            name = str(service.get("name") or "unknown")
+            has_runtime = bool(service.get("image") or service.get("build"))
+            issues.append(
+                CatalogValidationIssue(
+                    check=f"service_runtime:{name}",
+                    ok=has_runtime,
+                    severity="advisory",
+                    detail=(
+                        "service has image or build"
+                        if has_runtime
+                        else "service has neither image nor build"
+                    ),
+                )
+            )
+    for detail in site.get("issues", []):
+        issues.append(
+            CatalogValidationIssue(
+                check="discovery_issue",
+                ok=False,
+                severity="advisory",
+                detail=str(detail),
+            )
+        )
+    return issues
+
+
+def normalize_expected_statuses(raw_statuses: object) -> list[int]:
+    if raw_statuses is None:
+        return [*DEFAULT_EXPECTED_STATUSES]
+    if not isinstance(raw_statuses, list):
+        return [*DEFAULT_EXPECTED_STATUSES]
+    statuses = []
+    for status in raw_statuses:
+        try:
+            statuses.append(int(status))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(statuses)) or [*DEFAULT_EXPECTED_STATUSES]
+
+
+def normalize_string_list(raw_value: object) -> list[str]:
+    if raw_value is None:
+        return []
+    if isinstance(raw_value, str):
+        return [raw_value]
+    if not isinstance(raw_value, list):
+        return []
+    return sorted(str(value) for value in raw_value if value is not None)
+
+
+def safe_annotation_payload(annotation: dict[str, object]) -> dict[str, object]:
+    return {
+        key: annotation[key]
+        for key in sorted(annotation)
+        if key in SAFE_ANNOTATION_FIELDS and key not in {"health_url", "expected_statuses", "source_project_paths"}
+    }
+
+
+def resolve_compose_path(path: str, stack_dir: Path) -> Path:
+    expanded = Path(path).expanduser()
+    if expanded.is_absolute():
+        return expanded.resolve(strict=False)
+    return (stack_dir / expanded).resolve(strict=False)
+
+
+def string_or_none(value: object) -> str | None:
+    return str(value) if value is not None else None

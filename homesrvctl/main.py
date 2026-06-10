@@ -17,6 +17,7 @@ from homesrvctl.commands.operations_cmd import operations_cli
 from homesrvctl.commands.ports_cmd import ports_cli
 from homesrvctl.commands.refresh_cmd import refresh
 from homesrvctl.commands.site_cmd import site_cli
+from homesrvctl.commands.sites_cmd import sites_cli
 from homesrvctl.commands.tunnel_cmd import tunnel_cli
 from homesrvctl.commands.tui_cmd import is_interactive_terminal, launch_tui, tui
 from homesrvctl.commands.validate_cmd import validate_with_format
@@ -42,6 +43,7 @@ app.add_typer(observe_cli, name="observe")
 app.add_typer(operations_cli, name="operations")
 app.add_typer(infra_cli, name="infra")
 app.add_typer(site_cli, name="site")
+app.add_typer(sites_cli, name="sites")
 app.add_typer(app_cli, name="app")
 
 app.command("up")(up)

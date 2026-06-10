@@ -242,6 +242,10 @@ homesrvctl db rebuild
 homesrvctl list --cached
 homesrvctl list --refresh
 homesrvctl list --live
+homesrvctl sites list --json
+homesrvctl sites inventory --json
+homesrvctl sites info app.example.com --json
+homesrvctl sites validate app.example.com --json
 homesrvctl observe run
 homesrvctl observe run --cloudflare
 homesrvctl observe run --ses
@@ -253,6 +257,23 @@ homesrvctl daemon status
 The state database is a local SQLite cache and index for current and future dashboard/control-plane workflows. By default it lives at `~/.local/share/homesrvctl/homesrvctl.db`. It records observed local stack metadata and runtime observations and can be rebuilt from the filesystem and live systems; it is not the source of truth and does not store secrets.
 
 `homesrvctl list` still scans the configured sites root live by default. Use `list --cached` for fast cached reads, `list --refresh` to refresh local stack metadata before listing from the cache, and `list --live` to force the filesystem view. The TUI prefers cached stack-list data when available and falls back to the live list when the cache is missing or empty.
+
+`homesrvctl sites` is a read-only site catalog surface for operations metadata. `sites list` emits compact per-site metadata, `sites inventory` emits full discovered Compose/service/source/database hints for all sites, `sites info <site>` inspects one site, and `sites validate <site>` checks that catalog metadata is structurally usable. The catalog reads Compose files under the configured `sites_root`, but it does not read `.env` files, include Compose `environment` values, or print secrets.
+
+Optional annotations can live in `~/.config/homesrvctl/sites.yaml`:
+
+```yaml
+sites:
+  app.example.com:
+    owner: ops
+    repo: git@example.invalid:ops/app.git
+    health_url: https://app.example.com/healthz
+    expected_statuses: [200, 204]
+    source_project_paths:
+      - /opt/src/app
+```
+
+Only `display_name`, `owner`, `repo`, `tags`, `notes`, `source_project_paths`, `health_url`, and `expected_statuses` are accepted as annotations. Unsupported fields are ignored and reported as catalog issues.
 
 `observe run` snapshots read-only local runtime state into SQLite: Docker Compose stack status, local `cloudflared` runtime/config status, and configured Traefik URL reachability. Add `--cloudflare` to include read-only Cloudflare provider observation for token, zone, DNS, and tunnel readiness. Add `--ses` to include read-only AWS SES outbound mail readiness for account sending status, domain identity, DKIM, custom MAIL FROM, and related DNS requirements. `observe status` reads the latest cached observer results without running live checks.
 
@@ -392,6 +413,10 @@ All JSON commands include a top-level `schema_version`.
 - `homesrvctl restart <hostname> [--dry-run] [--json]`
 - `homesrvctl cleanup <hostname> [--force] [--dry-run] [--json]`
 - `homesrvctl list [--cached] [--live] [--refresh] [--db-path PATH] [--config-path PATH] [--json]`
+- `homesrvctl sites list [--config-path PATH] [--annotations-path PATH] [--json]`
+- `homesrvctl sites inventory [--config-path PATH] [--annotations-path PATH] [--json]`
+- `homesrvctl sites info <site> [--config-path PATH] [--annotations-path PATH] [--json]`
+- `homesrvctl sites validate <site> [--config-path PATH] [--annotations-path PATH] [--json]`
 - `homesrvctl db init [--path PATH] [--json]`
 - `homesrvctl db status [--path PATH] [--json]`
 - `homesrvctl db rebuild [--path PATH] [--config-path PATH] [--json]`

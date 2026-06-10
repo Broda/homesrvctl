@@ -87,6 +87,19 @@ Responsibilities:
 
 The refresh layer records stack directory metadata, compose-file presence, stack-local config presence, scaffold metadata, and effective routing settings. The observer layer records read-only local runtime snapshots into `stack_observations` and `events`. The Cloudflare provider observer records token, zone, DNS, and tunnel readiness into `events` without creating, updating, or deleting Cloudflare resources. The SES provider observer records AWS/SES account, domain identity, DKIM, custom MAIL FROM, and DNS-readiness snapshots into `events` without mutating AWS, DNS, or SMTP credentials. OpenTofu, backups, and related provider observers belong to later slices.
 
+### Site catalog layer
+
+- [`homesrvctl/services/site_catalog.py`](homesrvctl/services/site_catalog.py)
+- [`homesrvctl/commands/sites_cmd.py`](homesrvctl/commands/sites_cmd.py)
+
+Responsibilities:
+- discover read-only site operations metadata from configured stack directories and Docker Compose files
+- expose compact list, full inventory, per-site info, and structural validation through the `sites` command family
+- merge only explicitly safe user annotations from `~/.config/homesrvctl/sites.yaml` or an operator-supplied annotations path
+- report source path and database hints without reading `.env` files, emitting Compose `environment` values, or exposing secret values
+
+This layer is the first site-catalog slice intended for future wrappers, API clients, and dashboard surfaces. It is not a mutation surface and should not start, stop, deploy, or repair services.
+
 ### OpenTofu convergence layer
 
 - [`homesrvctl/services/infra`](homesrvctl/services/infra)

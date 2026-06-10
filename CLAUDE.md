@@ -38,12 +38,14 @@ Run compile + tests for all code changes. Add the build step only when packaging
 | Config/models | `homesrvctl/config.py`, `homesrvctl/models.py` | Config loading, stack-local override resolution |
 | Cloudflare | `homesrvctl/cloudflare.py` | DNS API calls, zone lookup, record upsert/remove |
 | cloudflared | `homesrvctl/cloudflared.py`, `homesrvctl/cloudflared_service.py` | Ingress config parsing/reconciliation, runtime detection |
-| State/services | `homesrvctl/state/`, `homesrvctl/services/` | SQLite cache/history, refresh, observers, daemon, OpenTofu helpers |
+| State/services | `homesrvctl/state/`, `homesrvctl/services/` | SQLite cache/history, refresh, observers, daemon, OpenTofu helpers, site catalog services |
 | Templates | `homesrvctl/templates/__init__.py`, `homesrvctl/templates/`, `homesrvctl/template_catalog.py` | Jinja2 scaffold rendering and template catalog metadata for `site init`, `app init`, and wrapper flows |
 | TUI | `homesrvctl/tui/` | Textual app, dashboard, prompts, JSON-backed data loading |
 | Utilities | `homesrvctl/shell.py`, `homesrvctl/utils.py` | Subprocess execution, filesystem helpers |
 
 Command modules orchestrate — they call helpers, they don't reimplement them. Cloudflare API logic stays in `cloudflare.py`. `cloudflared` config/runtime logic stays in `cloudflared.py` and `cloudflared_service.py`. The TUI loads data through the existing JSON command surface rather than reaching into unrelated modules.
+
+The read-only site catalog lives in `homesrvctl/services/site_catalog.py` and is exposed through `homesrvctl/commands/sites_cmd.py`. It should discover operations metadata from stack directories and Compose files without reading `.env` files, emitting Compose `environment` values, or exposing secrets.
 
 ### TUI
 
