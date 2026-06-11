@@ -14,6 +14,8 @@ class RoutingProfile:
 class HomesrvctlConfig:
     tunnel_name: str = "homesrvctl-tunnel"
     sites_root: Path = Path("/srv/homesrvctl/sites")
+    apps_root: Path = Path("/srv/homesrvctl/apps")
+    volumes_root: Path = Path("/srv/homesrvctl/volumes")
     docker_network: str = "web"
     traefik_url: str = "http://localhost:80"
     cloudflared_config: Path = Path("/srv/homesrvctl/cloudflared/config.yml")
@@ -26,6 +28,9 @@ class HomesrvctlConfig:
 
     def hostname_dir(self, hostname: str) -> Path:
         return self.sites_root / hostname
+
+    def app_dir(self, app_name: str) -> Path:
+        return self.apps_root / app_name
 
 
 @dataclass(slots=True)

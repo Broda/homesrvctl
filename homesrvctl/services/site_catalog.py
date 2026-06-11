@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+import re
 
 import typer
 import yaml
@@ -28,6 +28,12 @@ SAFE_ANNOTATION_FIELDS = {
     "source_project_paths",
     "health_url",
     "expected_statuses",
+    "deployment_kind",
+    "app",
+    "component",
+    "stack_dir",
+    "hostnames",
+    "volume_paths",
 }
 SQLITE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
 DATA_DIR_NAMES = {"data", "db", "database", "sqlite", "storage", "var"}
@@ -53,6 +59,8 @@ class CatalogValidationIssue:
 class SiteCatalogResult:
     ok: bool
     sites_root: Path
+    apps_root: Path
+    volumes_root: Path
     sites: list[dict[str, object]]
     annotations_path: Path
     annotations_loaded: bool
@@ -63,6 +71,13 @@ class SiteCatalogResult:
         payload: dict[str, object] = {
             "ok": self.ok,
             "sites_root": str(self.sites_root),
+            "apps_root": str(self.apps_root),
+            "volumes_root": str(self.volumes_root),
+            "deployment_roots": {
+                "sites": str(self.sites_root),
+                "apps": str(self.apps_root),
+                "volumes": str(self.volumes_root),
+            },
             "annotations_path": str(self.annotations_path),
             "annotations_loaded": self.annotations_loaded,
             "sites": self.sites,
@@ -126,41 +141,71 @@ def discover_site_catalog(
     annotations, annotation_issues, annotations_loaded = load_site_annotations(
         target_annotations_path
     )
-    if not config.sites_root.exists():
-        return SiteCatalogResult(
-            ok=False,
-            sites_root=config.sites_root,
-            sites=[],
-            annotations_path=target_annotations_path,
-            annotations_loaded=annotations_loaded,
-            issues=annotation_issues,
-            error=f"Sites root does not exist: {config.sites_root}",
+    sites: list[dict[str, object]] = []
+    issues = list(annotation_issues)
+    missing_roots: list[str] = []
+
+    if config.sites_root.exists():
+        try:
+            children = sorted(config.sites_root.iterdir(), key=lambda path: path.name)
+            sites.extend(
+                discover_site(
+                    config, child.name, annotations=annotations, deployment_kind="site"
+                )
+                for child in children
+                if child.is_dir()
+            )
+        except OSError as exc:
+            issues.append(f"Could not read sites root {config.sites_root}: {exc}")
+    else:
+        missing_roots.append(f"sites root does not exist: {config.sites_root}")
+
+    if config.apps_root.exists():
+        try:
+            children = sorted(config.apps_root.iterdir(), key=lambda path: path.name)
+            sites.extend(
+                discover_site(
+                    config,
+                    child.name,
+                    annotations=annotations,
+                    deployment_kind="app",
+                    stack_dir=child,
+                )
+                for child in children
+                if child.is_dir()
+            )
+        except OSError as exc:
+            issues.append(f"Could not read apps root {config.apps_root}: {exc}")
+
+    discovered_keys = {str(site.get("site")) for site in sites}
+    discovered_paths = {str(site.get("stack_dir")) for site in sites}
+    for key, annotation in sorted(annotations.items()):
+        raw_stack_dir = annotation.get("stack_dir")
+        if not raw_stack_dir:
+            continue
+        stack_dir = Path(str(raw_stack_dir))
+        if key in discovered_keys or str(stack_dir) in discovered_paths:
+            continue
+        sites.append(
+            discover_site(
+                config,
+                key,
+                annotations=annotations,
+                deployment_kind=str(annotation.get("deployment_kind") or "app"),
+                stack_dir=stack_dir,
+            )
         )
 
-    try:
-        children = sorted(config.sites_root.iterdir(), key=lambda path: path.name)
-    except OSError as exc:
-        return SiteCatalogResult(
-            ok=False,
-            sites_root=config.sites_root,
-            sites=[],
-            annotations_path=target_annotations_path,
-            annotations_loaded=annotations_loaded,
-            issues=annotation_issues,
-            error=f"Could not read sites root {config.sites_root}: {exc}",
-        )
-    sites = [
-        discover_site(config, child.name, annotations=annotations)
-        for child in children
-        if child.is_dir()
-    ]
     return SiteCatalogResult(
-        ok=True,
+        ok=bool(sites) or not missing_roots,
         sites_root=config.sites_root,
+        apps_root=config.apps_root,
+        volumes_root=config.volumes_root,
         sites=sites,
         annotations_path=target_annotations_path,
         annotations_loaded=annotations_loaded,
-        issues=annotation_issues,
+        issues=[*issues, *missing_roots],
+        error="; ".join(missing_roots) if missing_roots and not sites else None,
     )
 
 
@@ -170,15 +215,29 @@ def get_site_info(
     *,
     annotations_path: Path | None = None,
 ) -> dict[str, object]:
-    hostname = validate_hostname(site)
+    identifier = validate_catalog_identifier(site)
     target_annotations_path = annotations_path or default_site_annotations_path()
     annotations, annotation_issues, annotations_loaded = load_site_annotations(
         target_annotations_path
     )
-    stack_dir = config.hostname_dir(hostname)
+    annotation = annotations.get(identifier, {})
+    stack_dir = (
+        Path(str(annotation["stack_dir"]))
+        if annotation.get("stack_dir")
+        else config.hostname_dir(identifier)
+    )
+    deployment_kind = str(
+        annotation.get("deployment_kind") or infer_deployment_kind(config, stack_dir)
+    )
     if not stack_dir.exists() or not stack_dir.is_dir():
-        raise typer.BadParameter(f"hostname directory does not exist: {stack_dir}")
-    payload = discover_site(config, hostname, annotations=annotations)
+        raise typer.BadParameter(f"deployment directory does not exist: {stack_dir}")
+    payload = discover_site(
+        config,
+        identifier,
+        annotations=annotations,
+        deployment_kind=deployment_kind,
+        stack_dir=stack_dir,
+    )
     payload["annotations_path"] = str(target_annotations_path)
     payload["annotations_loaded"] = annotations_loaded
     if annotation_issues:
@@ -197,12 +256,18 @@ def plan_site_operation(
     normalized_operation = operation.strip().lower()
     if normalized_operation not in SUPPORTED_PLAN_OPERATIONS:
         valid = ", ".join(sorted(SUPPORTED_PLAN_OPERATIONS))
-        raise typer.BadParameter(f"unsupported operation {operation!r}; expected one of: {valid}")
+        raise typer.BadParameter(
+            f"unsupported operation {operation!r}; expected one of: {valid}"
+        )
 
     site_payload = get_site_info(config, site, annotations_path=annotations_path)
     checks = validate_site_metadata(site_payload)
-    blocking_failures = [check for check in checks if not check.ok and check.severity == "blocking"]
-    advisory_failures = [check for check in checks if not check.ok and check.severity == "advisory"]
+    blocking_failures = [
+        check for check in checks if not check.ok and check.severity == "blocking"
+    ]
+    advisory_failures = [
+        check for check in checks if not check.ok and check.severity == "advisory"
+    ]
     services = [
         service
         for service in site_payload.get("services", [])
@@ -224,7 +289,9 @@ def plan_site_operation(
             for service in services
             if service.get("image") and not service.get("build")
         ]
-        build_services = [service_name(service) for service in services if service.get("build")]
+        build_services = [
+            service_name(service) for service in services if service.get("build")
+        ]
         no_image_services = [
             service_name(service) for service in services if not service.get("image")
         ]
@@ -241,7 +308,9 @@ def plan_site_operation(
                 + ", ".join(no_image_services)
             )
         elif not image_only:
-            reasons.append("compose-pull denied because no image-based services were found")
+            reasons.append(
+                "compose-pull denied because no image-based services were found"
+            )
         else:
             reasons.append(
                 "compose-pull allowed for image-based services: "
@@ -257,7 +326,9 @@ def plan_site_operation(
                     and not no_image_services
                 ),
                 "severity": "blocking",
-                "detail": compose_pull_policy_detail(image_only, build_services, no_image_services),
+                "detail": compose_pull_policy_detail(
+                    image_only, build_services, no_image_services
+                ),
             }
         )
 
@@ -292,7 +363,9 @@ def plan_site_operation(
     )
 
 
-def load_site_annotations(path: Path) -> tuple[dict[str, dict[str, object]], list[str], bool]:
+def load_site_annotations(
+    path: Path,
+) -> tuple[dict[str, dict[str, object]], list[str], bool]:
     if not path.exists():
         return {}, [], False
     try:
@@ -310,17 +383,23 @@ def load_site_annotations(path: Path) -> tuple[dict[str, dict[str, object]], lis
     issues: list[str] = []
     for hostname, values in site_mapping.items():
         try:
-            valid_hostname = validate_hostname(str(hostname))
+            valid_hostname = validate_catalog_identifier(str(hostname))
         except typer.BadParameter:
-            issues.append(f"ignoring annotation for invalid hostname: {hostname}")
+            issues.append(
+                f"ignoring annotation for invalid site/app identifier: {hostname}"
+            )
             continue
         if not isinstance(values, dict):
-            issues.append(f"ignoring annotation for {valid_hostname}: value must be a mapping")
+            issues.append(
+                f"ignoring annotation for {valid_hostname}: value must be a mapping"
+            )
             continue
         safe_values = {
             key: value for key, value in values.items() if key in SAFE_ANNOTATION_FIELDS
         }
-        ignored = sorted(str(key) for key in values if key not in SAFE_ANNOTATION_FIELDS)
+        ignored = sorted(
+            str(key) for key in values if key not in SAFE_ANNOTATION_FIELDS
+        )
         if ignored:
             issues.append(
                 "ignoring unsupported annotation fields for "
@@ -335,9 +414,15 @@ def discover_site(
     hostname: str,
     *,
     annotations: dict[str, dict[str, object]] | None = None,
+    deployment_kind: str = "site",
+    stack_dir: Path | None = None,
 ) -> dict[str, object]:
-    valid_hostname = validate_hostname(hostname)
-    stack_dir = config.hostname_dir(valid_hostname)
+    valid_hostname = validate_catalog_identifier(hostname)
+    annotation = (annotations or {}).get(valid_hostname, {})
+    if annotation.get("stack_dir"):
+        stack_dir = Path(str(annotation["stack_dir"]))
+    else:
+        stack_dir = stack_dir or config.hostname_dir(valid_hostname)
     compose_path, compose_issues = find_compose_file(stack_dir)
     compose_data: dict[str, object] = {}
     parse_issues: list[str] = []
@@ -357,16 +442,36 @@ def discover_site(
     source_paths = sorted(source_project_paths(services, stack_dir))
     database_hints = build_database_hints(services, stack_dir)
 
-    annotation = (annotations or {}).get(valid_hostname, {})
-    health_url = str(annotation.get("health_url") or f"https://{valid_hostname}/")
+    hostnames = normalize_string_list(annotation.get("hostnames"))
+    domain = (
+        hostnames[0]
+        if hostnames
+        else (valid_hostname if looks_like_hostname(valid_hostname) else valid_hostname)
+    )
+    health_url = str(
+        annotation.get("health_url")
+        or (f"https://{domain}/" if looks_like_hostname(domain) else "")
+    )
     expected_statuses = normalize_expected_statuses(annotation.get("expected_statuses"))
-    annotation_source_paths = normalize_string_list(annotation.get("source_project_paths"))
+    annotation_source_paths = normalize_string_list(
+        annotation.get("source_project_paths")
+    )
+    volume_paths = sorted(
+        {
+            *paths_under_root(services, config.volumes_root),
+            *normalize_string_list(annotation.get("volume_paths")),
+        }
+    )
     if annotation_source_paths:
         source_paths = sorted({*source_paths, *annotation_source_paths})
 
     return {
         "site": valid_hostname,
-        "domain": valid_hostname,
+        "domain": domain,
+        "deployment_kind": str(annotation.get("deployment_kind") or deployment_kind),
+        "app": string_or_none(annotation.get("app")),
+        "component": string_or_none(annotation.get("component")),
+        "hostnames": hostnames,
         "stack_dir": str(stack_dir),
         "compose_path": str(compose_path) if compose_path else None,
         "compose_file": compose_path.name if compose_path else None,
@@ -374,12 +479,58 @@ def discover_site(
         "service_names": [str(service["name"]) for service in services],
         "named_volumes": named_volumes,
         "source_project_paths": source_paths,
+        "volume_paths": volume_paths,
         "database_hints": database_hints,
         "health_url": health_url,
         "expected_statuses": expected_statuses,
         "annotations": safe_annotation_payload(annotation),
         "issues": [*compose_issues, *parse_issues],
     }
+
+
+def validate_catalog_identifier(value: str) -> str:
+    text = value.strip()
+    if not text or "/" in text or text in {".", ".."}:
+        raise typer.BadParameter(f"invalid site/app identifier: {value}")
+    if looks_like_hostname(text):
+        return validate_hostname(text)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", text):
+        raise typer.BadParameter(f"invalid site/app identifier: {value}")
+    return text
+
+
+def looks_like_hostname(value: str) -> bool:
+    return "." in value
+
+
+def infer_deployment_kind(config: HomesrvctlConfig, stack_dir: Path) -> str:
+    try:
+        stack_dir.resolve().relative_to(config.apps_root.resolve())
+        return "app"
+    except (OSError, ValueError):
+        return "site"
+
+
+def paths_under_root(services: list[dict[str, object]], root: Path) -> set[str]:
+    paths: set[str] = set()
+    try:
+        resolved_root = root.resolve()
+    except OSError:
+        resolved_root = root
+    for service in services:
+        for volume in service.get("volumes", []):
+            if not isinstance(volume, dict):
+                continue
+            resolved = volume.get("resolved_source")
+            if not resolved:
+                continue
+            path = Path(str(resolved))
+            try:
+                path.resolve().relative_to(resolved_root)
+            except (OSError, ValueError):
+                continue
+            paths.add(str(path))
+    return paths
 
 
 def find_compose_file(stack_dir: Path) -> tuple[Path | None, list[str]]:
@@ -399,12 +550,16 @@ def find_compose_file(stack_dir: Path) -> tuple[Path | None, list[str]]:
     return existing[0], issues
 
 
-def parse_services(compose_data: dict[str, object], stack_dir: Path) -> list[dict[str, object]]:
+def parse_services(
+    compose_data: dict[str, object], stack_dir: Path
+) -> list[dict[str, object]]:
     raw_services = compose_data.get("services", {})
     if not isinstance(raw_services, dict):
         return []
     services: list[dict[str, object]] = []
-    for name, raw_service in sorted(raw_services.items(), key=lambda item: str(item[0])):
+    for name, raw_service in sorted(
+        raw_services.items(), key=lambda item: str(item[0])
+    ):
         if not isinstance(raw_service, dict):
             services.append(
                 {
@@ -448,7 +603,9 @@ def normalize_build(raw_build: object, stack_dir: Path) -> dict[str, object] | N
             "dockerfile": str(dockerfile) if dockerfile is not None else None,
         }
         if context is not None:
-            payload["resolved_context"] = str(resolve_compose_path(str(context), stack_dir))
+            payload["resolved_context"] = str(
+                resolve_compose_path(str(context), stack_dir)
+            )
         return payload
     return {"raw_type": type(raw_build).__name__}
 
@@ -504,7 +661,9 @@ def normalize_volumes(raw_volumes: object, stack_dir: Path) -> list[dict[str, ob
                 ),
             }
             if source is not None and volume_type == "bind":
-                payload["resolved_source"] = str(resolve_compose_path(str(source), stack_dir))
+                payload["resolved_source"] = str(
+                    resolve_compose_path(str(source), stack_dir)
+                )
             volumes.append(payload)
         else:
             volumes.append({"type": "unknown", "raw": str(raw_volume)})
@@ -549,12 +708,18 @@ def service_named_volume_names(services: list[dict[str, object]]) -> set[str]:
     names: set[str] = set()
     for service in services:
         for volume in service.get("volumes", []):
-            if isinstance(volume, dict) and volume.get("type") == "volume" and volume.get("source"):
+            if (
+                isinstance(volume, dict)
+                and volume.get("type") == "volume"
+                and volume.get("source")
+            ):
                 names.add(str(volume["source"]))
     return names
 
 
-def source_project_paths(services: list[dict[str, object]], stack_dir: Path) -> set[str]:
+def source_project_paths(
+    services: list[dict[str, object]], stack_dir: Path
+) -> set[str]:
     paths: set[str] = set()
     for service in services:
         build = service.get("build")
@@ -582,7 +747,9 @@ def likely_source_path(path: Path, stack_dir: Path) -> bool:
     return relative.parts[0] not in DATA_DIR_NAMES
 
 
-def build_database_hints(services: list[dict[str, object]], stack_dir: Path) -> dict[str, object]:
+def build_database_hints(
+    services: list[dict[str, object]], stack_dir: Path
+) -> dict[str, object]:
     postgres_services = []
     sqlite_paths: set[str] = set()
     for service in services:
@@ -632,7 +799,9 @@ def validate_site_metadata(site: dict[str, object]) -> list[CatalogValidationIss
             check="compose_file_present",
             ok=bool(site.get("compose_path")),
             severity="blocking",
-            detail="compose file found" if site.get("compose_path") else "compose file is missing",
+            detail="compose file found"
+            if site.get("compose_path")
+            else "compose file is missing",
         ),
         CatalogValidationIssue(
             check="services_present",
@@ -729,8 +898,12 @@ def build_database_risk_summary(site: dict[str, object]) -> dict[str, object]:
         if isinstance(site.get("database_hints"), dict)
         else {}
     )
-    postgres_services = list(hints.get("postgres_services", [])) if isinstance(hints, dict) else []
-    sqlite_paths = list(hints.get("sqlite_paths", [])) if isinstance(hints, dict) else []
+    postgres_services = (
+        list(hints.get("postgres_services", [])) if isinstance(hints, dict) else []
+    )
+    sqlite_paths = (
+        list(hints.get("sqlite_paths", [])) if isinstance(hints, dict) else []
+    )
     has_database = bool(postgres_services or sqlite_paths)
     return {
         "has_database": has_database,
@@ -774,7 +947,9 @@ def runbook_hint(operation: str, allowed: bool) -> str:
         return "Approved planner output is suitable as a preflight before docker compose restart."
     if operation == "compose-up":
         return "Approved planner output is suitable as a preflight before docker compose up -d."
-    return "Approved planner output is suitable as a preflight before docker compose pull."
+    return (
+        "Approved planner output is suitable as a preflight before docker compose pull."
+    )
 
 
 def normalize_expected_statuses(raw_statuses: object) -> list[int]:

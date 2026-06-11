@@ -49,7 +49,7 @@ Success criteria:
 - Deleting the database does not break existing CLI workflows.
 - Cached reads are explicit or opportunistic and always have a live fallback.
 - The daemon can keep the local cache fresh without mutating stacks or provider state.
-- The site catalog exposes operations metadata without reading `.env` files, emitting Compose `environment` values, or storing secrets.
+- The site catalog exposes site/app deployment operations metadata, including configured `sites_root`, `apps_root`, and `volumes_root`, without reading `.env` files, emitting Compose `environment` values, or storing secrets.
 - Read-only operation plans can gate later wrapper/API mutations without running Docker Compose commands themselves.
 - Refresh and observer behavior is deterministic and testable without Docker, cloudflared, real Cloudflare credentials, root, or network access.
 - Future daemon/API work reuses services instead of duplicating command logic.

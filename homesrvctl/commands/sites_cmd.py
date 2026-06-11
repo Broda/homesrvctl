@@ -15,7 +15,9 @@ from homesrvctl.services.site_catalog import (
 )
 from homesrvctl.utils import info, warn, with_json_schema
 
-sites_cli = typer.Typer(help="Inspect read-only site operations metadata and catalog entries.")
+sites_cli = typer.Typer(
+    help="Inspect read-only site operations metadata and catalog entries."
+)
 
 
 @sites_cli.command("list")
@@ -30,7 +32,9 @@ def sites_list(
         "--annotations-path",
         help="Read optional site annotations from a custom YAML path.",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the site list as JSON."),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the site list as JSON."
+    ),
 ) -> None:
     """List sites with compact catalog metadata."""
     result = _load_catalog(config_path, annotations_path, json_output)
@@ -39,6 +43,13 @@ def sites_list(
         "action": "sites_list",
         "ok": result.ok,
         "sites_root": str(result.sites_root),
+        "apps_root": str(result.apps_root),
+        "volumes_root": str(result.volumes_root),
+        "deployment_roots": {
+            "sites": str(result.sites_root),
+            "apps": str(result.apps_root),
+            "volumes": str(result.volumes_root),
+        },
         "annotations_path": str(result.annotations_path),
         "annotations_loaded": result.annotations_loaded,
         "sites": sites,
@@ -61,7 +72,9 @@ def sites_inventory(
         "--annotations-path",
         help="Read optional site annotations from a custom YAML path.",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the site inventory as JSON."),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the site inventory as JSON."
+    ),
 ) -> None:
     """Show full discovered site metadata for all sites."""
     result = _load_catalog(config_path, annotations_path, json_output)
@@ -82,7 +95,9 @@ def sites_info(
         "--annotations-path",
         help="Read optional site annotations from a custom YAML path.",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the site metadata as JSON."),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the site metadata as JSON."
+    ),
 ) -> None:
     """Show full discovered metadata for one site."""
     try:
@@ -116,7 +131,9 @@ def sites_validate(
         "--annotations-path",
         help="Read optional site annotations from a custom YAML path.",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the validation result as JSON."),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the validation result as JSON."
+    ),
 ) -> None:
     """Validate read-only site catalog metadata for one site."""
     try:
@@ -126,7 +143,9 @@ def sites_validate(
         _emit_error("sites_validate", str(exc), json_output)
         return
     checks = validate_site_metadata(site_payload)
-    blocking_failures = [check for check in checks if not check.ok and check.severity == "blocking"]
+    blocking_failures = [
+        check for check in checks if not check.ok and check.severity == "blocking"
+    ]
     payload = {
         "action": "sites_validate",
         "ok": not blocking_failures,
@@ -140,7 +159,9 @@ def sites_validate(
         return
 
     for check in checks:
-        label = "PASS" if check.ok else ("WARN" if check.severity == "advisory" else "FAIL")
+        label = (
+            "PASS" if check.ok else ("WARN" if check.severity == "advisory" else "FAIL")
+        )
         info(f"{label} {check.check}: {check.detail}")
     if blocking_failures:
         warn(f"Site catalog validation failed for {site_payload['site']}")
@@ -164,7 +185,9 @@ def sites_plan(
         "--annotations-path",
         help="Read optional site annotations from a custom YAML path.",
     ),
-    json_output: bool = typer.Option(False, "--json", help="Print the operation plan as JSON."),
+    json_output: bool = typer.Option(
+        False, "--json", help="Print the operation plan as JSON."
+    ),
 ) -> None:
     """Plan a read-only, policy-aware site operation."""
     try:
@@ -210,6 +233,9 @@ def _compact_site(site: dict[str, object]) -> dict[str, object]:
     return {
         "site": site["site"],
         "domain": site["domain"],
+        "deployment_kind": site.get("deployment_kind", "site"),
+        "app": site.get("app"),
+        "component": site.get("component"),
         "stack_dir": site["stack_dir"],
         "compose_path": site["compose_path"],
         "compose_file": site["compose_file"],
@@ -238,11 +264,17 @@ def _emit_payload_or_list(
         warn(f"No hostnames found under {payload['sites_root']}")
         return
     for site in sites:
-        services = ", ".join(str(name) for name in site["service_names"]) or "no services"
-        info(f"{site['site']}\tcompose={site['compose_file'] or 'missing'}\tservices={services}")
+        services = (
+            ", ".join(str(name) for name in site["service_names"]) or "no services"
+        )
+        info(
+            f"{site['site']}\tcompose={site['compose_file'] or 'missing'}\tservices={services}"
+        )
 
 
-def _emit_payload_or_inventory(payload: dict[str, object], json_output: bool, ok: bool) -> None:
+def _emit_payload_or_inventory(
+    payload: dict[str, object], json_output: bool, ok: bool
+) -> None:
     if json_output:
         typer.echo(json.dumps(with_json_schema(payload), indent=2))
         if not ok:
@@ -262,6 +294,13 @@ def _emit_payload_or_inventory(payload: dict[str, object], json_output: bool, ok
 
 def _print_site_detail(site: dict[str, object]) -> None:
     info(str(site["site"]))
+    typer.echo(f"  deployment_kind: {site.get('deployment_kind', 'site')}")
+    if site.get("app"):
+        typer.echo(f"  app: {site['app']}")
+    if site.get("component"):
+        typer.echo(f"  component: {site['component']}")
+    if site.get("hostnames"):
+        typer.echo("  hostnames: " + ", ".join(str(host) for host in site["hostnames"]))
     typer.echo(f"  stack_dir: {site['stack_dir']}")
     typer.echo(f"  compose_file: {site['compose_file'] or 'missing'}")
     typer.echo(f"  health_url: {site['health_url']}")
@@ -269,10 +308,17 @@ def _print_site_detail(site: dict[str, object]) -> None:
         "  expected_statuses: "
         + ", ".join(str(value) for value in site["expected_statuses"])
     )
-    typer.echo(f"  services: {', '.join(str(name) for name in site['service_names']) or 'none'}")
+    typer.echo(
+        f"  services: {', '.join(str(name) for name in site['service_names']) or 'none'}"
+    )
     source_paths = site.get("source_project_paths") or []
     if source_paths:
-        typer.echo(f"  source_project_paths: {', '.join(str(path) for path in source_paths)}")
+        typer.echo(
+            f"  source_project_paths: {', '.join(str(path) for path in source_paths)}"
+        )
+    volume_paths = site.get("volume_paths") or []
+    if volume_paths:
+        typer.echo(f"  volume_paths: {', '.join(str(path) for path in volume_paths)}")
     database_hints = site.get("database_hints") or {}
     if isinstance(database_hints, dict):
         if database_hints.get("postgres_services"):
@@ -293,7 +339,9 @@ def _print_operation_plan(plan: dict[str, object]) -> None:
     label = "ALLOW" if plan["allowed"] else "DENY"
     info(f"{label} {plan['operation']} for {plan['site']}")
     typer.echo(f"  compose_path: {plan.get('compose_path') or 'missing'}")
-    typer.echo(f"  services: {', '.join(str(name) for name in plan['services']) or 'none'}")
+    typer.echo(
+        f"  services: {', '.join(str(name) for name in plan['services']) or 'none'}"
+    )
     typer.echo(
         "  expected_health_statuses: "
         + ", ".join(str(value) for value in plan["expected_health_statuses"])

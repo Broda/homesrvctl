@@ -92,7 +92,7 @@ It should not expand into:
 - OpenTofu support is narrow and operator-approved. Apply is foreground-only, saved-plan-only, and must not run from the daemon or a background queue.
 - Generated workspaces and SQLite events must not contain provider credentials or secrets. Saved OpenTofu plan files may contain sensitive values and should be treated as protected local artifacts.
 - Operation history is for transparency and future queueing. It must not store secrets, saved plan contents, or full provider/tool output, and it must not imply background mutations without a later explicit worker design.
-- The site catalog is read-only operations metadata. It may plan guarded operations, but it must not read `.env` files, emit Compose `environment` values, expose secret values, or become a mutation surface.
+- The site catalog is read-only deployment operations metadata. It covers simple hostname-bound stacks under `sites_root` and product/app component stacks under `apps_root`, with `volumes_root` identifying shared persistent data locations. It may plan guarded operations, but it must not read `.env` files, emit Compose `environment` values, expose secret values, or become a mutation surface.
 
 ## Public Contracts
 

@@ -47,7 +47,10 @@ def _write_catalog_stack(sites_root: Path) -> Path:
             {
                 "services": {
                     "web": {
-                        "build": {"context": "../source-app", "dockerfile": "Dockerfile"},
+                        "build": {
+                            "context": "../source-app",
+                            "dockerfile": "Dockerfile",
+                        },
                         "container_name": "app-web",
                         "restart": "unless-stopped",
                         "ports": ["127.0.0.1:8080:80"],
@@ -102,7 +105,9 @@ def _write_image_only_stack(sites_root: Path) -> Path:
     return stack_dir
 
 
-def test_site_catalog_discovers_compose_metadata_without_env_values(tmp_path: Path) -> None:
+def test_site_catalog_discovers_compose_metadata_without_env_values(
+    tmp_path: Path,
+) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     config_path = _write_config(home, sites_root)
@@ -180,7 +185,9 @@ def test_site_catalog_merges_safe_annotations(tmp_path: Path) -> None:
     assert "do-not-print" not in json.dumps(site)
 
 
-def test_sites_list_json_uses_compact_deterministic_shape(monkeypatch, tmp_path: Path) -> None:
+def test_sites_list_json_uses_compact_deterministic_shape(
+    monkeypatch, tmp_path: Path
+) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
@@ -200,6 +207,9 @@ def test_sites_list_json_uses_compact_deterministic_shape(monkeypatch, tmp_path:
         {
             "site": "app.example.com",
             "domain": "app.example.com",
+            "deployment_kind": "site",
+            "app": None,
+            "component": None,
             "stack_dir": str(sites_root / "app.example.com"),
             "compose_path": str(sites_root / "app.example.com" / "docker-compose.yml"),
             "compose_file": "docker-compose.yml",
@@ -229,6 +239,79 @@ def test_sites_info_json_reports_full_site(monkeypatch, tmp_path: Path) -> None:
     assert payload["site"]["services"][0]["name"] == "postgres"
 
 
+def test_site_catalog_discovers_apps_root_and_annotation_backed_hostnames(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "home"
+    sites_root = tmp_path / "sites"
+    apps_root = tmp_path / "apps"
+    volumes_root = tmp_path / "volumes"
+    config_path = _write_config(home, sites_root)
+    raw_config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    raw_config["apps_root"] = str(apps_root)
+    raw_config["volumes_root"] = str(volumes_root)
+    config_path.write_text(
+        yaml.safe_dump(raw_config, sort_keys=False), encoding="utf-8"
+    )
+    stack_dir = apps_root / "tasktracker-web"
+    stack_dir.mkdir(parents=True)
+    volume_dir = volumes_root / "tasktracker-web" / "data"
+    volume_dir.mkdir(parents=True)
+    (stack_dir / "docker-compose.yml").write_text(
+        yaml.safe_dump(
+            {
+                "services": {
+                    "web": {
+                        "image": "node:22",
+                        "volumes": [f"{volume_dir}:/data"],
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    annotations_path = home / ".config" / "homesrvctl" / "sites.yaml"
+    annotations_path.write_text(
+        yaml.safe_dump(
+            {
+                "sites": {
+                    "tasks.example.com": {
+                        "deployment_kind": "app",
+                        "app": "tasktracker",
+                        "component": "web",
+                        "stack_dir": str(stack_dir),
+                        "hostnames": ["tasks.example.com"],
+                        "volume_paths": [str(volume_dir)],
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(config_path)
+
+    result = discover_site_catalog(config, annotations_path=annotations_path)
+    annotated = get_site_info(
+        config, "tasks.example.com", annotations_path=annotations_path
+    )
+
+    assert result.ok is True
+    assert result.apps_root == apps_root
+    assert result.volumes_root == volumes_root
+    assert any(
+        site["site"] == "tasktracker-web" and site["deployment_kind"] == "app"
+        for site in result.sites
+    )
+    assert annotated["site"] == "tasks.example.com"
+    assert annotated["deployment_kind"] == "app"
+    assert annotated["app"] == "tasktracker"
+    assert annotated["component"] == "web"
+    assert annotated["stack_dir"] == str(stack_dir)
+    assert str(volume_dir) in annotated["volume_paths"]
+
+
 def test_site_catalog_validation_flags_missing_compose(tmp_path: Path) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
@@ -243,18 +326,24 @@ def test_site_catalog_validation_flags_missing_compose(tmp_path: Path) -> None:
     )
     checks = validate_site_metadata(site)
 
-    assert any(check.check == "compose_file_present" and not check.ok for check in checks)
+    assert any(
+        check.check == "compose_file_present" and not check.ok for check in checks
+    )
     assert any(check.check == "services_present" and not check.ok for check in checks)
 
 
-def test_sites_validate_json_exits_nonzero_for_missing_compose(monkeypatch, tmp_path: Path) -> None:
+def test_sites_validate_json_exits_nonzero_for_missing_compose(
+    monkeypatch, tmp_path: Path
+) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
     (sites_root / "empty.example.com").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
 
-    result = CliRunner().invoke(app, ["sites", "validate", "empty.example.com", "--json"])
+    result = CliRunner().invoke(
+        app, ["sites", "validate", "empty.example.com", "--json"]
+    )
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
@@ -268,7 +357,9 @@ def test_sites_validate_json_exits_nonzero_for_missing_compose(monkeypatch, tmp_
     )
 
 
-def test_site_operation_plan_allows_restart_and_compose_up_for_valid_site(tmp_path: Path) -> None:
+def test_site_operation_plan_allows_restart_and_compose_up_for_valid_site(
+    tmp_path: Path,
+) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     config_path = _write_config(home, sites_root)
@@ -295,7 +386,9 @@ def test_site_operation_plan_allows_restart_and_compose_up_for_valid_site(tmp_pa
     assert up_plan.expected_health_statuses == [200, 301, 302, 403]
 
 
-def test_sites_plan_json_allows_image_only_compose_pull(monkeypatch, tmp_path: Path) -> None:
+def test_sites_plan_json_allows_image_only_compose_pull(
+    monkeypatch, tmp_path: Path
+) -> None:
     home = tmp_path / "home"
     sites_root = tmp_path / "sites"
     _write_config(home, sites_root)
@@ -317,7 +410,9 @@ def test_sites_plan_json_allows_image_only_compose_pull(monkeypatch, tmp_path: P
     assert payload["operation"] == "compose-pull"
     assert payload["allowed"] is True
     assert payload["services"] == ["web", "worker"]
-    assert any(check["check"] == "compose_pull_image_policy" for check in payload["prechecks"])
+    assert any(
+        check["check"] == "compose_pull_image_policy" for check in payload["prechecks"]
+    )
 
 
 def test_sites_plan_json_denies_mixed_build_compose_pull_without_secrets(
@@ -330,7 +425,9 @@ def test_sites_plan_json_denies_mixed_build_compose_pull_without_secrets(
     _write_catalog_stack(sites_root)
     monkeypatch.setenv("HOME", str(home))
 
-    result = CliRunner().invoke(app, ["sites", "plan", "compose-pull", "app.example.com", "--json"])
+    result = CliRunner().invoke(
+        app, ["sites", "plan", "compose-pull", "app.example.com", "--json"]
+    )
 
     assert result.exit_code == 1
     payload = json.loads(result.output)
@@ -353,7 +450,9 @@ def test_sites_plan_json_denies_missing_compose(monkeypatch, tmp_path: Path) -> 
     (sites_root / "empty.example.com").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
 
-    result = CliRunner().invoke(app, ["sites", "plan", "restart", "empty.example.com", "--json"])
+    result = CliRunner().invoke(
+        app, ["sites", "plan", "restart", "empty.example.com", "--json"]
+    )
 
     assert result.exit_code == 1
     payload = json.loads(result.output)

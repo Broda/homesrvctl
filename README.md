@@ -176,6 +176,8 @@ Default config shape:
 ```yaml
 tunnel_name: homesrvctl-tunnel
 sites_root: /srv/homesrvctl/sites
+apps_root: /srv/homesrvctl/apps
+volumes_root: /srv/homesrvctl/volumes
 docker_network: web
 traefik_url: http://localhost:80
 cloudflared_config: /srv/homesrvctl/cloudflared/config.yml
@@ -261,7 +263,7 @@ The state database is a local SQLite cache and index for current and future dash
 
 `homesrvctl list` still scans the configured sites root live by default. Use `list --cached` for fast cached reads, `list --refresh` to refresh local stack metadata before listing from the cache, and `list --live` to force the filesystem view. The TUI prefers cached stack-list data when available and falls back to the live list when the cache is missing or empty.
 
-`homesrvctl sites` is a read-only site catalog surface for operations metadata. `sites list` emits compact per-site metadata, `sites inventory` emits full discovered Compose/service/source/database hints for all sites, `sites info <site>` inspects one site, `sites validate <site>` checks that catalog metadata is structurally usable, and `sites plan <operation> <site>` emits a policy-aware read-only plan for `restart`, `compose-up`, or `compose-pull`. Planning never runs Docker Compose mutations. `compose-pull` is allowed only for image-only service stacks; local builds, mixed build/image stacks, and services without pullable images are denied conservatively. The catalog reads Compose files under the configured `sites_root`, but it does not read `.env` files, include Compose `environment` values, or print secrets.
+`homesrvctl sites` is a read-only deployment catalog surface for operations metadata. `sites list` emits compact per-deployment metadata, `sites inventory` emits full discovered Compose/service/source/database hints for all discovered site and app stacks, `sites info <site-or-app>` inspects one deployment, `sites validate <site-or-app>` checks that catalog metadata is structurally usable, and `sites plan <operation> <site-or-app>` emits a policy-aware read-only plan for `restart`, `compose-up`, or `compose-pull`. Planning never runs Docker Compose mutations. `compose-pull` is allowed only for image-only service stacks; local builds, mixed build/image stacks, and services without pullable images are denied conservatively. The catalog reads Compose files under the configured `sites_root` and `apps_root`; `volumes_root` is used to identify shared persistent bind mounts. Optional safe annotations in `~/.config/homesrvctl/sites.yaml` can map hostnames such as `tasks.example.com` to app component stacks under `apps_root`. The catalog does not read `.env` files, include Compose `environment` values, or print secrets.
 
 Optional annotations can live in `~/.config/homesrvctl/sites.yaml`:
 

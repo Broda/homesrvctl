@@ -14,6 +14,8 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 - Began the control-plane service/state architecture while preserving existing CLI behavior.
 
 ### Added
+- Added `apps_root` and `volumes_root` config fields so the read-only catalog can distinguish simple hostname-bound site stacks from product/app component deployments and persistent shared volume roots.
+- Added safe site annotations for app-backed hostnames, including deployment kind, app/component names, explicit stack directories, hostnames, and volume paths.
 - Added read-only `homesrvctl sites plan <operation> <site>` for policy-aware operation planning before guarded `restart`, `compose-up`, and `compose-pull` workflows.
 - Added read-only `homesrvctl sites` catalog commands for site operations metadata, including compact list, full inventory, per-site info, validation, and optional safe annotations from `~/.config/homesrvctl/sites.yaml`.
 - Added operation history commands and sanitized operation recording for OpenTofu mail plan/apply workflows.

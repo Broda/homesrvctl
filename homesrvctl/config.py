@@ -15,6 +15,8 @@ STACK_CONFIG_FILENAME = "homesrvctl.yml"
 CONFIG_FIELDS = (
     "tunnel_name",
     "sites_root",
+    "apps_root",
+    "volumes_root",
     "docker_network",
     "traefik_url",
     "cloudflared_config",
@@ -31,6 +33,8 @@ def default_config_data() -> dict[str, Any]:
     return {
         "tunnel_name": DEFAULT_CONFIG.tunnel_name,
         "sites_root": str(DEFAULT_CONFIG.sites_root),
+        "apps_root": str(DEFAULT_CONFIG.apps_root),
+        "volumes_root": str(DEFAULT_CONFIG.volumes_root),
         "docker_network": DEFAULT_CONFIG.docker_network,
         "traefik_url": DEFAULT_CONFIG.traefik_url,
         "cloudflared_config": str(DEFAULT_CONFIG.cloudflared_config),
@@ -51,7 +55,9 @@ def _parse_profiles(data: Any) -> dict[str, RoutingProfile]:
     if not data:
         return {}
     if not isinstance(data, dict):
-        raise typer.BadParameter("config field `profiles` must be a mapping of profile names to settings")
+        raise typer.BadParameter(
+            "config field `profiles` must be a mapping of profile names to settings"
+        )
     profiles: dict[str, RoutingProfile] = {}
     for name, raw in data.items():
         if not isinstance(raw, dict):
@@ -67,7 +73,9 @@ def _parse_profiles(data: Any) -> dict[str, RoutingProfile]:
     return profiles
 
 
-def load_config_details(path: Path | None = None) -> tuple[HomesrvctlConfig, dict[str, str]]:
+def load_config_details(
+    path: Path | None = None,
+) -> tuple[HomesrvctlConfig, dict[str, str]]:
     config_path = path or default_config_path()
     data = _read_yaml_file(config_path)
     merged = {**default_config_data(), **data}
@@ -77,13 +85,17 @@ def load_config_details(path: Path | None = None) -> tuple[HomesrvctlConfig, dic
     config = HomesrvctlConfig(
         tunnel_name=str(merged["tunnel_name"]),
         sites_root=Path(str(merged["sites_root"])),
+        apps_root=Path(str(merged["apps_root"])),
+        volumes_root=Path(str(merged["volumes_root"])),
         docker_network=str(merged["docker_network"]),
         traefik_url=str(merged["traefik_url"]),
         cloudflared_config=Path(str(merged["cloudflared_config"])),
         cloudflare_api_token=api_token,
         profiles=_parse_profiles(merged.get("profiles", {})),
     )
-    sources = {field: ("file" if field in data else "default") for field in CONFIG_FIELDS}
+    sources = {
+        field: ("file" if field in data else "default") for field in CONFIG_FIELDS
+    }
     if file_api_token:
         sources["cloudflare_api_token"] = "file"
     elif env_api_token:
@@ -115,7 +127,9 @@ def load_stack_settings(config: HomesrvctlConfig, hostname: str) -> StackSetting
     stack_dir = config.hostname_dir(hostname)
     path = stack_config_path(stack_dir)
     data = load_stack_config_data(stack_dir)
-    profile_name = str(data["profile"]).strip() if "profile" in data and data["profile"] else None
+    profile_name = (
+        str(data["profile"]).strip() if "profile" in data and data["profile"] else None
+    )
     if profile_name and profile_name not in config.profiles:
         raise typer.BadParameter(
             f"unknown routing profile `{profile_name}` for {hostname}. "
@@ -133,7 +147,13 @@ def load_stack_settings(config: HomesrvctlConfig, hostname: str) -> StackSetting
                 "traefik_url": profile.traefik_url,
             }
         )
-    merged.update({key: value for key, value in (data or {}).items() if key in {"docker_network", "traefik_url"}})
+    merged.update(
+        {
+            key: value
+            for key, value in (data or {}).items()
+            if key in {"docker_network", "traefik_url"}
+        }
+    )
     return StackSettings(
         hostname=hostname,
         stack_dir=stack_dir,
@@ -171,8 +191,12 @@ def stack_settings_sources(
             "traefik_url": inherited_sources["traefik_url"],
         }
     return {
-        "docker_network": "stack-local" if "docker_network" in data else inherited_sources["docker_network"],
-        "traefik_url": "stack-local" if "traefik_url" in data else inherited_sources["traefik_url"],
+        "docker_network": "stack-local"
+        if "docker_network" in data
+        else inherited_sources["docker_network"],
+        "traefik_url": "stack-local"
+        if "traefik_url" in data
+        else inherited_sources["traefik_url"],
     }
 
 
