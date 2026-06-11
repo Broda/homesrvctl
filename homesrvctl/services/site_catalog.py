@@ -178,13 +178,12 @@ def discover_site_catalog(
             issues.append(f"Could not read apps root {config.apps_root}: {exc}")
 
     discovered_keys = {str(site.get("site")) for site in sites}
-    discovered_paths = {str(site.get("stack_dir")) for site in sites}
     for key, annotation in sorted(annotations.items()):
         raw_stack_dir = annotation.get("stack_dir")
         if not raw_stack_dir:
             continue
         stack_dir = Path(str(raw_stack_dir))
-        if key in discovered_keys or str(stack_dir) in discovered_paths:
+        if key in discovered_keys:
             continue
         sites.append(
             discover_site(
