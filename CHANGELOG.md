@@ -9,6 +9,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Changed
+- Updated Node application and React frontend build images to patched Node.js 22.23.4; existing deployments require separate Dockerfile updates and rebuilds.
 - Refreshed documentation to align the command overview, agent guidance, and file map with the current CLI, uv workflow, and template layout.
 - Developer workflow now uses uv for dependency sync, verification, CI setup, and builds.
 - Began the control-plane service/state architecture while preserving existing CLI behavior.
