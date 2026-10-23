@@ -9,6 +9,7 @@ The format is loosely based on Keep a Changelog, but kept simple for this projec
 ## Unreleased
 
 ### Changed
+- Upgraded the React scaffold to Vite 6.4.4 and React plugin 4.7.0 to resolve Vite/esbuild npm audit findings; container CI now audits build dependencies.
 - Updated Node application and React frontend build images to patched Node.js 22.23.4; existing deployments require separate Dockerfile updates and rebuilds.
 - Refreshed documentation to align the command overview, agent guidance, and file map with the current CLI, uv workflow, and template layout.
 - Developer workflow now uses uv for dependency sync, verification, CI setup, and builds.
