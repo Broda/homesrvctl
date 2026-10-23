@@ -24,9 +24,9 @@ jobs:
           docker build --pull --no-cache -t scaffold-react -f /tmp/node-stacks/react.example.com/frontend/Dockerfile /tmp/node-stacks/react.example.com
           test "$(docker run --rm scaffold-node node --version)" = "v22.23.4"
           docker run -d --name node-check -p 3000:3000 scaffold-node
-          docker run -d --name react-check -p 8080:80 scaffold-react
+          docker run -d --name react-check --add-host api:127.0.0.1 -p 8080:80 scaffold-react
           trap 'docker logs node-check; docker logs react-check; docker rm -f node-check react-check' EXIT
-          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:3000/healthz | grep '"ok":true'
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://localhost:3000/healthz | grep '"ok":true'
           curl -fsS http://localhost:3000/ | grep node.example.com
-          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:8080/ | grep '/assets/'
+          curl --retry 20 --retry-all-errors --retry-delay 1 -fsS http://localhost:8080/ | grep '/assets/'
           curl -fsS http://localhost:8080/healthz
