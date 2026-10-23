@@ -41,3 +41,9 @@ The generated app reads:
 
 Traefik forwards `{{ hostname }}` to the app on port `{{ ports.app }}`.
 The generated compose service also includes a container healthcheck against `http://127.0.0.1:${PORT:-{{ ports.app }}}/healthz`.
+
+## Node.js security updates
+
+The Node runtime/build stage uses Node.js 22.23.4 (October 21, 2026 security release). Keep this patch pin current with supported Node.js security releases. Updating homesrvctl does not change previously generated Dockerfiles or running containers.
+
+On each host, inventory actual Compose stacks and inspect their Dockerfiles and running image IDs. Update existing Node Dockerfiles, then run `docker compose build --pull --no-cache` and `docker compose up -d` from the reviewed stack directory. Check application health and logs afterward. Preserve volumes and review local application compatibility before deployment. The React frontend uses Node only during its build; its final serving image is nginx, so rebuild the frontend even though its running container has no Node executable.
