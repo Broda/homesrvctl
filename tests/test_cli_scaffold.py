@@ -887,7 +887,7 @@ def test_app_init_rust_react_postgres_template_artifacts_stay_coherent(monkeypat
     assert "DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-app}" in compose
     assert "frontend/dist" in dockerignore
     assert "api/target" in dockerignore
-    assert "FROM node:20-alpine AS build" in frontend_dockerfile
+    assert "FROM node:22.23.4-alpine AS build" in frontend_dockerfile
     assert "npm run build" in frontend_dockerfile
     assert "FROM nginx:alpine" in frontend_dockerfile
     assert '"react": "^18.3.1"' in frontend_package
